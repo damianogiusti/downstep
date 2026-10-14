@@ -29,7 +29,17 @@ class DesktopUpdateInstallerTest {
     @AfterTest
     fun tearDown() {
         waiting.forEach { it.destroyForcibly() }
-        root.deleteTree()
+        // The swap script can still hold its log for a moment after the last check (Windows locks it).
+        val deadline = System.currentTimeMillis() + 30_000
+        while (true) {
+            try {
+                root.deleteTree()
+                return
+            } catch (e: java.io.IOException) {
+                if (System.currentTimeMillis() > deadline) throw e
+                Thread.sleep(500)
+            }
+        }
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.desktop.update
 
+import org.junit.Assume.assumeTrue
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.AfterTest
@@ -28,6 +29,7 @@ class AppInstallationTest {
 
     @Test
     fun `when macOS runs a moved copy then the app cannot replace itself`() {
+        assumeTrue(isMac)
         val bundle = File(root, "AppTranslocation/1234/d/Downstep.app")
         val launcher = File(bundle, "Contents/MacOS/Downstep").apply { parentFile.mkdirs() }
 
@@ -43,6 +45,8 @@ class AppInstallationTest {
 
     @Test
     fun `when the folder around the app is read only then the app cannot replace itself`() {
+        // POSIX permissions: on Windows the check is a real write, and a read-only flag means something else.
+        assumeTrue(isMac)
         val applications = File(root, "Applications")
         val bundle = File(applications, "Downstep.app")
         val launcher = File(bundle, "Contents/MacOS/Downstep").apply { parentFile.mkdirs() }
@@ -64,5 +68,9 @@ class AppInstallationTest {
         val launcher = File(root, "Downstep/MyPlayer.exe").apply { parentFile.mkdirs() }
 
         assertNull(AppInstallation.windowsFolder(launcher))
+    }
+
+    private companion object {
+        val isMac = System.getProperty("os.name").startsWith("Mac")
     }
 }
