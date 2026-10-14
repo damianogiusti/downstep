@@ -17,6 +17,7 @@ import com.damianogiusti.slowdowner.fake.FakeBackupDao
 import com.damianogiusti.slowdowner.fake.FakeFileDocumentDataSource
 import com.damianogiusti.slowdowner.fake.FakeTrackDao
 import com.damianogiusti.slowdowner.fake.FakeTransactionRunner
+import com.damianogiusti.slowdowner.fake.RecordingLogger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -155,6 +156,11 @@ class DefaultBackupRepositoryTest {
         assertEquals(listOf(BackupProgress(0, 2), BackupProgress(1, 2), BackupProgress(2, 2)), progress)
         // No staging file left behind.
         assertEquals(listOf("local_1.mp3", "yt_abc.m4a"), target.libraryDir.list()?.sorted())
+        assertEquals(
+            mapOf("tracksAdded" to "2", "tracksSkipped" to "0", "playlists" to "1"),
+            target.logger.at('I').single { it.message == "Backup restored" }.properties,
+        )
+        assertEquals(mapOf("scope" to "library"), source.logger.at('I').single().properties)
     }
 
     @Test
@@ -363,6 +369,9 @@ class DefaultBackupRepositoryTest {
         assertEquals(RestoreResult.InvalidFile, target.repository.restore(notBackup.path, Copy) {})
         assertEquals(emptyList<TrackEntity>(), target.dao.tracks)
         assertEquals(0, target.libraryDir.list()?.size)
+        // A wrong file is not a bug: a warning, not an issue.
+        assertEquals(1, target.logger.at('W').size)
+        assertTrue(target.logger.at('E').isEmpty())
     }
 
     @Test
@@ -394,6 +403,7 @@ class DefaultBackupRepositoryTest {
         }
 
         assertEquals(RestoreResult.UnsupportedVersion(3), target.repository.restore(zip.path, Copy) {})
+        assertEquals(mapOf("version" to "3"), target.logger.at('W').single().properties)
     }
 
     private suspend fun exportLibrary(): File {
@@ -420,6 +430,7 @@ class DefaultBackupRepositoryTest {
 
     /** One device: its database, its library folder and a repository over them. */
     private inner class Library(name: String) {
+        val logger = RecordingLogger()
         val dao = FakeBackupDao()
         val libraryDir: File = temp.newFolder(name, "library")
         val backupDir = File(temp.root, "$name/backups")
@@ -427,14 +438,14 @@ class DefaultBackupRepositoryTest {
         val repository = DefaultBackupRepository(
             dao = dao,
             transactions = FakeTransactionRunner(),
-            store = RoomLibraryStore(FakeTrackDao(), LegacyJsonLibraryIndex(libraryDir) { _, _ -> }, libraryDir) { _, _ -> },
+            store = RoomLibraryStore(FakeTrackDao(), LegacyJsonLibraryIndex(libraryDir, logger), libraryDir, logger),
             documents = FakeFileDocumentDataSource(),
             archive = BackupArchive(),
             backupDir = backupDir,
             stagingDir = stagingDir,
             dispatcher = UnconfinedTestDispatcher(),
+            logger = logger,
             now = { NOW },
-            logError = { _, _ -> },
         )
 
         fun addTrack(id: String, extension: String, bytes: ByteArray, title: String = id): TrackEntity {

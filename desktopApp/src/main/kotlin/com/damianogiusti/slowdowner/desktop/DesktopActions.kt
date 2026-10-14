@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.desktop
 
+import com.damianogiusti.slowdowner.logging.Logger
 import com.damianogiusti.slowdowner.ui.navigation.ActivityActions
 import com.damianogiusti.slowdowner.ui.navigation.ActivityViewModels
 import java.awt.Desktop
@@ -11,7 +12,11 @@ import java.io.File
  * The desktop side of [ActivityActions]: native macOS file dialogs instead of the Android pickers,
  * and "show in Finder" where Android opens the share sheet.
  */
-class DesktopActions(private val window: Frame, private val viewModels: ActivityViewModels) {
+class DesktopActions(
+    private val window: Frame,
+    private val viewModels: ActivityViewModels,
+    private val logger: Logger,
+) {
 
     fun toActivityActions() = ActivityActions(
         onPickFile = { pickFile(AUDIO_EXTENSIONS)?.let { viewModels.imports.onDocumentPicked(it.path) } },
@@ -48,7 +53,7 @@ class DesktopActions(private val window: Frame, private val viewModels: Activity
             val desktop = Desktop.getDesktop()
             if (desktop.isSupported(Desktop.Action.BROWSE_FILE_DIR)) desktop.browseFileDirectory(file)
             else desktop.open(file.parentFile)
-        }.onFailure { System.err.println("Cannot show $file in the Finder: $it") }
+        }.onFailure { logger.w("Cannot show the file in the Finder", it) }
     }
 
     private fun FileDialog.selectedFile(): File? {

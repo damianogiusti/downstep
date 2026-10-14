@@ -1,6 +1,6 @@
 package com.damianogiusti.slowdowner.data.library
 
-import com.damianogiusti.slowdowner.data.platform.platformLogError
+import com.damianogiusti.slowdowner.logging.Logger
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -13,7 +13,7 @@ import java.io.IOException
  */
 class LegacyJsonLibraryIndex(
     libraryDir: File,
-    private val logError: (String, Throwable) -> Unit = { message, error -> platformLogError(TAG, message, error) },
+    private val logger: Logger,
 ) {
 
     private val indexFile = File(libraryDir, "index.json")
@@ -26,10 +26,11 @@ class LegacyJsonLibraryIndex(
         val entries = try {
             json.decodeFromString<List<LegacyLibraryEntryDto>>(indexFile.readText())
         } catch (e: SerializationException) {
-            logError("Unreadable legacy library index, nothing imported", e)
+            // The user's old library does not show up: worth knowing.
+            logger.e("Unreadable legacy library index, nothing imported", e)
             return emptyList()
         } catch (e: IOException) {
-            logError("Cannot read legacy library index", e)
+            logger.w("Cannot read legacy library index", e)
             return emptyList()
         }
         return entries
@@ -54,7 +55,6 @@ class LegacyJsonLibraryIndex(
     }
 
     private companion object {
-        const val TAG = "SlowDowner"
         val json = Json { ignoreUnknownKeys = true }
     }
 }

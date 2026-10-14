@@ -41,6 +41,8 @@ import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.playlists.PlaylistRepository
 import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
+import com.damianogiusti.slowdowner.logging.ConsoleLogger
+import com.damianogiusti.slowdowner.logging.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -61,8 +63,10 @@ fun desktopModule(
     directories: AppDirectories,
     engine: NativeEngine,
     effectsStore: EffectsSettingsStore = PreferencesEffectsSettingsStore(),
+    logger: Logger = ConsoleLogger(),
 ) = module {
     single { directories }
+    single { logger }
     single { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
     single { OkHttpClient.Builder().readTimeout(30, TimeUnit.SECONDS).build() }
     single<SlowDownerDatabase> { desktopDatabase(directories.database) }
@@ -75,23 +79,20 @@ fun desktopModule(
     single { DesktopPlaybackEngine(get(), get()) }
     single<PlaybackEngine> { get<DesktopPlaybackEngine>() }
     single<EffectsEngine> { get<DesktopPlaybackEngine>() }
-    singleOf(::DesktopAudioSourceRepository) { bind<AudioSourceRepository>() }
+    single<AudioSourceRepository> { DesktopAudioSourceRepository(get(), logger) }
     singleOf(::InMemoryNowPlayingRepository) { bind<NowPlayingRepository>() }
 
     // Library
     single { get<SlowDownerDatabase>().trackDao() }
     single<LibraryStore> {
-        RoomLibraryStore(get(), LegacyJsonLibraryIndex(directories.library), directories.library)
+        RoomLibraryStore(get(), LegacyJsonLibraryIndex(directories.library, logger), directories.library, logger)
     }
     singleOf(::NewPipeYouTubeStreamDataSource) { bind<YouTubeStreamDataSource>() }
     singleOf(::OkHttpFileDataSource) { bind<HttpFileDataSource>() }
     single<DocumentDataSource> { FileDocumentDataSource() }
     single<MediaContainerDataSource> { PassthroughContainerDataSource() }
     single<LibraryRepository> {
-        DefaultLibraryRepository(
-            get(), get(), get(), get(), get(), Dispatchers.IO,
-            reportFailure = CrashReporting::reportImportFailure,
-        )
+        DefaultLibraryRepository(get(), get(), get(), get(), get(), Dispatchers.IO, logger)
     }
 
     // Effects, export, practice, playlists, backup
@@ -99,7 +100,7 @@ fun desktopModule(
     single<EffectsSettingsRepository> { DefaultEffectsSettingsRepository(get(), Dispatchers.IO) }
     single<OfflineRenderer> { NativeOfflineRenderer(get()) }
     single<ExportRepository> {
-        DefaultExportRepository(get(), get(), File(directories.cache, "exports"), Dispatchers.IO)
+        DefaultExportRepository(get(), get(), File(directories.cache, "exports"), Dispatchers.IO, logger)
     }
     single { get<SlowDownerDatabase>().practiceDao() }
     single<PracticeRepository> { DefaultPracticeRepository(get(), Dispatchers.IO) }
@@ -117,6 +118,7 @@ fun desktopModule(
             backupDir = File(directories.cache, "backups"),
             stagingDir = File(directories.cache, "restore-staging"),
             dispatcher = Dispatchers.IO,
+            logger = logger,
         )
     }
 }

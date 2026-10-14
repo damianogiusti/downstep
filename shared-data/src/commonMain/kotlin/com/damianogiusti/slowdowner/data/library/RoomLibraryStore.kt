@@ -1,6 +1,6 @@
 package com.damianogiusti.slowdowner.data.library
 
-import com.damianogiusti.slowdowner.data.platform.platformLogError
+import com.damianogiusti.slowdowner.logging.Logger
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
@@ -19,7 +19,7 @@ class RoomLibraryStore(
     private val dao: TrackDao,
     private val legacyIndex: LegacyJsonLibraryIndex,
     private val libraryDir: File,
-    private val logError: (String, Throwable) -> Unit = { message, error -> platformLogError(TAG, message, error) },
+    private val logger: Logger,
 ) : LibraryStore {
 
     @Volatile
@@ -73,13 +73,9 @@ class RoomLibraryStore(
                 legacyIndex.retire()
             } catch (e: IOException) {
                 // The rows are in; the next launch imports again and ignores them.
-                logError("Cannot retire the legacy library index", e)
+                logger.w("Cannot retire the legacy library index", e)
             }
         }
         isLegacyChecked = true
-    }
-
-    private companion object {
-        const val TAG = "SlowDowner"
     }
 }

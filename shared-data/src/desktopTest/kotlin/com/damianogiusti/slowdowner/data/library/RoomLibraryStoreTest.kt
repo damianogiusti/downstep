@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.data.library
 
 import com.damianogiusti.slowdowner.fake.FakeTrackDao
+import com.damianogiusti.slowdowner.fake.RecordingLogger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -18,9 +19,9 @@ class RoomLibraryStoreTest {
     val folder = TemporaryFolder()
 
     private val dao = FakeTrackDao()
-    private val errors = mutableListOf<String>()
+    private val logger = RecordingLogger()
     private val store by lazy {
-        RoomLibraryStore(dao, LegacyJsonLibraryIndex(folder.root) { _, _ -> }, folder.root) { message, _ -> errors += message }
+        RoomLibraryStore(dao, LegacyJsonLibraryIndex(folder.root, logger), folder.root, logger)
     }
 
     @Test
@@ -83,7 +84,7 @@ class RoomLibraryStoreTest {
         val tracks = store.observe().first()
 
         assertEquals(listOf("yt_abc"), tracks.map { it.id })
-        assertEquals(1, errors.size)
+        assertEquals(1, logger.at('W').size)
     }
 
     @Test

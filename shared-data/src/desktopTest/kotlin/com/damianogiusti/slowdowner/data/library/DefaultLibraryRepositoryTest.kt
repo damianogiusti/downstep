@@ -2,6 +2,7 @@ package com.damianogiusti.slowdowner.data.library
 
 import com.damianogiusti.slowdowner.domain.library.ImportProgress
 import com.damianogiusti.slowdowner.domain.library.ImportResult
+import com.damianogiusti.slowdowner.fake.RecordingLogger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +28,7 @@ class DefaultLibraryRepositoryTest {
     private val http = FakeHttpFileDataSource()
     private val documents = FakeDocumentDataSource()
     private val containers = FakeMediaContainerDataSource()
-    private val reported = mutableListOf<Pair<String?, Throwable>>()
+    private val logger = RecordingLogger()
 
     private fun repository() = DefaultLibraryRepository(
         store = store,
@@ -36,10 +37,9 @@ class DefaultLibraryRepositoryTest {
         documents = documents,
         containers = containers,
         dispatcher = UnconfinedTestDispatcher(),
+        logger = logger,
         now = { NOW },
         newId = { "fixed" },
-        logError = { _, _ -> },
-        reportFailure = { url, error -> reported += url to error },
     )
 
     @Test
@@ -109,25 +109,48 @@ class DefaultLibraryRepositoryTest {
 
         assertEquals(ImportResult.NetworkError, repository().importFromUrl(URL) {})
         assertTrue(store.tracks.value.isEmpty())
-        assertTrue(reported.isEmpty())
+        assertTrue(logger.at('E').isEmpty())
+        assertEquals(mapOf("source" to "youtube"), logger.at('W').single().properties)
     }
 
     @Test
-    fun `when import fails for an unknown reason then it is reported with the link`() = runTest {
+    fun `when import fails for an unknown reason then it is logged as an error with the link`() = runTest {
         val error = IllegalStateException("parser changed")
         youTube.error = error
 
         assertEquals(ImportResult.Failure(error), repository().importFromUrl(URL) {})
-        assertEquals(listOf<Pair<String?, Throwable>>(URL to error), reported)
+        val line = logger.at('E').single()
+        assertEquals(error, line.throwable)
+        assertEquals(mapOf("source" to "youtube", "url" to URL), line.properties)
     }
 
     @Test
-    fun `when a document import fails then the report has no path`() = runTest {
+    fun `the logged link keeps only the video`() = runTest {
+        youTube.error = IllegalStateException("parser changed")
+
+        repository().importFromUrl("https://www.youtube.com/watch?v=abc&list=PLprivate&si=token") {}
+        repository().importFromUrl("https://youtu.be/abc?si=token") {}
+
+        assertEquals(
+            listOf("https://www.youtube.com/watch?v=abc", "https://youtu.be/abc"),
+            logger.at('E').map { it.properties["url"] },
+        )
+    }
+
+    @Test
+    fun `a finished import is logged with source and format only`() = runTest {
+        repository().importFromUrl(URL) {}
+
+        assertEquals(mapOf("source" to "youtube", "extension" to "m4a"), logger.at('I').single().properties)
+    }
+
+    @Test
+    fun `when a document import fails then the log has no path`() = runTest {
         documents.error = IllegalStateException("broken")
 
         repository().importDocument("file:///Users/someone/Take 3.mp3")
 
-        assertEquals(listOf<String?>(null), reported.map { it.first })
+        assertEquals(mapOf("source" to "file"), logger.at('E').single().properties)
     }
 
     @Test

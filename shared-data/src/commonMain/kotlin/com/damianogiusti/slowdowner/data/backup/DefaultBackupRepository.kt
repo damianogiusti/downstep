@@ -1,8 +1,8 @@
 package com.damianogiusti.slowdowner.data.backup
 
-import com.damianogiusti.slowdowner.data.platform.platformLogError
 import com.damianogiusti.slowdowner.data.database.DatabaseTransactionRunner
 import com.damianogiusti.slowdowner.data.library.DocumentDataSource
+import com.damianogiusti.slowdowner.data.logging.failure
 import com.damianogiusti.slowdowner.data.library.LibraryStore
 import com.damianogiusti.slowdowner.data.playlists.PlaylistEntity
 import com.damianogiusti.slowdowner.data.playlists.PlaylistTrackEntity
@@ -16,6 +16,7 @@ import com.damianogiusti.slowdowner.domain.backup.BackupScope
 import com.damianogiusti.slowdowner.domain.backup.PlaylistConflictChoice
 import com.damianogiusti.slowdowner.domain.backup.RestoreResult
 import com.damianogiusti.slowdowner.domain.backup.RestoreRules
+import com.damianogiusti.slowdowner.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
@@ -37,8 +38,8 @@ class DefaultBackupRepository(
     /** Audio of a restore in progress. Same volume as the library, so a rename moves it. */
     private val stagingDir: File,
     private val dispatcher: CoroutineDispatcher, // injected (IO); swap in tests
+    private val logger: Logger,
     private val now: () -> Long = System::currentTimeMillis,
-    private val logError: (String, Throwable) -> Unit = { message, error -> platformLogError(TAG, message, error) },
 ) : BackupRepository {
 
     override suspend fun export(
@@ -69,11 +70,12 @@ class DefaultBackupRepository(
             // Old backups were already shared or saved: do not let the cache grow. Only now,
             // so a failed export keeps the previous one.
             backupDir.listFiles()?.filter { it != target }?.forEach(File::delete)
+            logger.i("Backup exported", mapOf("scope" to scope.logName()))
             BackupExportResult.Success(BackupFile(target.path, target.name))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logError("Backup export failed", e)
+            logger.failure("Backup export failed", e, mapOf("scope" to scope.logName()))
             BackupExportResult.Failure(e)
         }
     }
@@ -83,7 +85,7 @@ class DefaultBackupRepository(
             documents.write(File(file.path), contentUri)
             true
         } catch (e: IOException) {
-            logError("Cannot save the backup", e)
+            logger.w("Cannot save the backup", e)
             false
         }
     }
@@ -104,7 +106,7 @@ class DefaultBackupRepository(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logError("Cannot read the backup playlists", e)
+            logger.failure("Cannot read the backup playlists", e)
             emptyList()
         }
     }
@@ -141,23 +143,36 @@ class DefaultBackupRepository(
             // Not cancellable from here: a cancel after the commit would delete files of rows
             // that are already saved.
             withContext(NonCancellable) { transactions.inTransaction { insertRows(manifest, incoming, onConflict) } }
+                .also { result ->
+                    logger.i(
+                        "Backup restored",
+                        mapOf(
+                            "tracksAdded" to result.tracksAdded.toString(),
+                            "tracksSkipped" to result.tracksSkipped.toString(),
+                            "playlists" to result.playlistsRestored.toString(),
+                        ),
+                    )
+                }
         } catch (e: CancellationException) {
             deleteFiles(incoming)
             throw e
         } catch (e: InvalidBackupException) {
             deleteFiles(incoming)
-            logError("Invalid backup", e)
+            // Usually not a bug: a file that is not a backup.
+            logger.w("Invalid backup", e)
             RestoreResult.InvalidFile
         } catch (e: ZipException) {
             deleteFiles(incoming)
-            logError("Damaged backup", e)
+            logger.w("Damaged backup", e)
             RestoreResult.InvalidFile
         } catch (e: UnsupportedBackupVersionException) {
             deleteFiles(incoming)
+            // A backup from a newer app: tells how many people run old versions.
+            logger.w("Unsupported backup version", properties = mapOf("version" to e.version.toString()))
             RestoreResult.UnsupportedVersion(e.version)
         } catch (e: Exception) {
             deleteFiles(incoming)
-            logError("Restore failed", e)
+            logger.failure("Restore failed", e)
             RestoreResult.Failure(e)
         }
     }
@@ -296,8 +311,13 @@ class DefaultBackupRepository(
     /** A track that is not in the library yet: its audio goes to [staging], then to [target]. */
     private data class IncomingTrack(val id: String, val entry: String, val staging: File, val target: File)
 
+    private fun BackupScope.logName() = when (this) {
+        is BackupScope.Track -> "track"
+        BackupScope.Library -> "library"
+        is BackupScope.Playlist -> "playlist"
+    }
+
     private companion object {
-        const val TAG = "SlowDowner"
         const val PARTIAL_SUFFIX = ".part"
         const val NOT_INSERTED = -1L
     }

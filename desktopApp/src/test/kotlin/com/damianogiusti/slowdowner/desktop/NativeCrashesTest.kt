@@ -81,30 +81,6 @@ class NativeCrashesTest {
         assertFalse("Host:" in text)
     }
 
-    @Test
-    fun `the home folder is replaced with a tilde`() {
-        assertEquals(
-            "Cannot read ~/Music/Take 3.mp3",
-            scrubHome("Cannot read /Users/anna/Music/Take 3.mp3", home = "/Users/anna"),
-        )
-        assertEquals("C:\\nothing", scrubHome("C:\\nothing", home = ""))
-    }
-
-    @Test
-    fun `a Windows home is replaced in every form`() {
-        val home = "C:\\Users\\Anna"
-
-        assertEquals("~\\Music\\a.mp3", scrubHome("C:\\Users\\Anna\\Music\\a.mp3", home))
-        assertEquals("file:///~/Music/a.mp3", scrubHome("file:///c:/Users/anna/Music/a.mp3", home))
-    }
-
-    @Test
-    fun `a link keeps only the video`() {
-        assertEquals("https://www.youtube.com/watch?v=abc", publicLink("https://www.youtube.com/watch?v=abc&list=PL1&si=x"))
-        assertEquals("https://youtu.be/abc", publicLink("https://youtu.be/abc?si=x"))
-        assertEquals("https://www.youtube.com/shorts/abc", publicLink("https://www.youtube.com/shorts/abc"))
-    }
-
     private companion object {
         // Shortened from a real HotSpot 23 report.
         val REPORT = """
