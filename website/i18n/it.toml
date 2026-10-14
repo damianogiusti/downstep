@@ -158,7 +158,7 @@ win_req = 'Windows 10 o 11, 64 bit.'
 
 note_title = "Perché l'ho fatta"
 note_text = '''
-<p>Suono la chitarra in una band, e per imparare i pezzi nuovi li rallento e ripeto in loop i passaggi difficili. Volevo qualcosa di semplice, che funzionasse offline e che tutta la band potesse usare con gli stessi preset. Così ho fatto Downstep nel tempo libero.</p>
+<p>Suono la chitarra in una band, e per imparare i pezzi nuovi rallento e ripeto in loop i passaggi difficili. Volevo qualcosa di semplice, che funzionasse offline e che tutta la band potesse usare con gli stessi preset. Così ho fatto Downstep nel tempo libero.</p>
         <p>È gratis, e <a href="{{ @url:why }}">qui spiego perché</a>.</p>'''
 
 faq_title = 'Domande'
@@ -168,7 +168,7 @@ faq = '''
       <details><summary>Dove vengono salvati i brani?{{ @icon:expand_more }}</summary>
         <p>Sul tuo computer: <code>~/Library/Application Support/SlowDowner</code> su Mac, <code>%APPDATA%\SlowDowner</code> su Windows. La cartella ha ancora il primo nome dell'app. Per spostare i brani su un altro computer, usa il backup.</p></details>
       <details><summary>Perché macOS la blocca?{{ @icon:expand_more }}</summary>
-        <p>Perché non è distribuita tramite l'App Store. Basta autorizzarla una volta, la <a href="{{ @url:mac }}">pagina di download</a> spiega come.</p></details>
+        <p>Perché non è distribuita tramite l'App Store. Basta autorizzarla una volta, la <a href="{{ @url:mac }}">pagina di download</a> spiega come. In futuro arriverà anche sull'App Store, e questo passaggio non servirà più.</p></details>
       <details><summary>L'app manda dei dati?{{ @icon:expand_more }}</summary>
         <p>No. Va online solo quando importi da un link.</p></details>
       <details><summary>Funziona su un Mac Intel?{{ @icon:expand_more }}</summary>
