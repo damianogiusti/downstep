@@ -12,11 +12,13 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
+import com.damianogiusti.slowdowner.data.support.SupportPromptDto
 import com.damianogiusti.slowdowner.di.uiModule
 import com.damianogiusti.slowdowner.di.useCasesModule
 import com.damianogiusti.slowdowner.ui.navigation.ActivityActions
 import com.damianogiusti.slowdowner.ui.navigation.ActivityViewModels
 import com.damianogiusti.slowdowner.ui.navigation.SlowDownerApp
+import com.damianogiusti.slowdowner.ui.support.SupportPromptHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import com.damianogiusti.slowdowner.domain.library.ImportDocumentUseCase
 import com.damianogiusti.slowdowner.domain.library.ImportResult
@@ -45,8 +47,13 @@ import kotlin.test.assertTrue
 class ScreenRenderTest {
 
     private val directories = AppDirectories(Files.createTempDirectory("slowdowner-render").toFile())
+    private val supportPromptStore = InMemorySupportPromptStore()
     private val koin = startKoin {
-        modules(desktopModule(directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore()), useCasesModule, uiModule)
+        modules(
+            desktopModule(directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(), supportPromptStore),
+            useCasesModule,
+            uiModule,
+        )
     }.koin
 
     @AfterTest
@@ -74,6 +81,13 @@ class ScreenRenderTest {
         assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
     }
 
+    @Test
+    fun `on the third launch the support prompt shows over the app`() {
+        supportPromptStore.stored = SupportPromptDto(launchCount = 3, lastShownAtMillis = null)
+        val bytes = render(File("build/screenshots/support-prompt.png"), widthDp = 1280, heightDp = 820)
+        assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+    }
+
     /** Renders the app at the given size; [setup] runs on the Swing thread once the ViewModels exist. */
     private fun render(output: File, widthDp: Int, heightDp: Int, setup: (PlayerViewModel) -> Unit = {}): Int {
         output.parentFile.mkdirs()
@@ -93,6 +107,7 @@ class ScreenRenderTest {
                         val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel())
                         player = viewModels.player
                         SlowDownerApp(viewModels, noActions())
+                        SupportPromptHost()
                     }
                 }
             }

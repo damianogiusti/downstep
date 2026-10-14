@@ -58,7 +58,10 @@ class DesktopFlowTest {
     private val directories = AppDirectories(Files.createTempDirectory("slowdowner-flow").toFile())
     private val native = NativeEngine.manual(44_100)
     private val effectsStore = InMemoryEffectsSettingsStore()
-    private val koin = startKoin { modules(desktopModule(directories, native, effectsStore), useCasesModule, uiModule) }.koin
+    private val supportPromptStore = InMemorySupportPromptStore()
+    private val koin = startKoin {
+        modules(desktopModule(directories, native, effectsStore, supportPromptStore), useCasesModule, uiModule)
+    }.koin
 
     @AfterTest
     fun tearDown() {
@@ -94,6 +97,14 @@ class DesktopFlowTest {
         val scope = CoroutineScope(Dispatchers.Default)
         startAppWork(koin, scope)
         waitUntil { koin.get<EffectsEngine>().quality == ProcessingQuality.LOW }
+        scope.cancel()
+    }
+
+    @Test
+    fun `at start the launch is counted`() = runBlocking<Unit> {
+        val scope = CoroutineScope(Dispatchers.Default)
+        startAppWork(koin, scope)
+        waitUntil { supportPromptStore.stored?.launchCount == 1 }
         scope.cancel()
     }
 

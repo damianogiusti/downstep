@@ -31,6 +31,9 @@ import com.damianogiusti.slowdowner.data.playback.NativeOfflineRenderer
 import com.damianogiusti.slowdowner.data.playlists.DefaultPlaylistRepository
 import com.damianogiusti.slowdowner.data.practice.DefaultPracticeRepository
 import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
+import com.damianogiusti.slowdowner.data.support.DefaultSupportPromptRepository
+import com.damianogiusti.slowdowner.data.support.PreferencesSupportPromptStore
+import com.damianogiusti.slowdowner.data.support.SupportPromptStore
 import com.damianogiusti.slowdowner.domain.backup.BackupRepository
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
 import com.damianogiusti.slowdowner.domain.effects.EffectsSettingsRepository
@@ -41,15 +44,22 @@ import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.playlists.PlaylistRepository
 import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
+import com.damianogiusti.slowdowner.domain.support.DismissSupportPromptUseCase
+import com.damianogiusti.slowdowner.domain.support.ObserveSupportPromptUseCase
+import com.damianogiusti.slowdowner.domain.support.RecordAppLaunchUseCase
+import com.damianogiusti.slowdowner.domain.support.SupportPromptRepository
 import com.damianogiusti.slowdowner.logging.ConsoleLogger
 import com.damianogiusti.slowdowner.logging.Logger
+import com.damianogiusti.slowdowner.ui.support.SupportPromptViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.SupervisorJob
 import okhttp3.OkHttpClient
 import org.koin.core.module.dsl.bind
+import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
+import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 import org.schabi.newpipe.extractor.NewPipe
 import java.io.File
@@ -63,6 +73,7 @@ fun desktopModule(
     directories: AppDirectories,
     engine: NativeEngine,
     effectsStore: EffectsSettingsStore = PreferencesEffectsSettingsStore(),
+    supportPromptStore: SupportPromptStore = PreferencesSupportPromptStore(),
     logger: Logger = ConsoleLogger(),
 ) = module {
     single { directories }
@@ -121,4 +132,13 @@ fun desktopModule(
             logger = logger,
         )
     }
+
+    // The "Downstep is free" prompt: here and not in the shared modules, the Android build is not published.
+    single<SupportPromptStore> { supportPromptStore }
+    single<SupportPromptRepository> { DefaultSupportPromptRepository(get(), Dispatchers.IO) }
+    factoryOf(::RecordAppLaunchUseCase)
+    // Explicit lambdas: the clock parameter keeps its default.
+    factory { ObserveSupportPromptUseCase(get()) }
+    factory { DismissSupportPromptUseCase(get()) }
+    viewModelOf(::SupportPromptViewModel)
 }

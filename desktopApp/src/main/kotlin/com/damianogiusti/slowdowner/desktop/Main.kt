@@ -46,6 +46,7 @@ import com.damianogiusti.slowdowner.ui.resources.menu_close_window
 import com.damianogiusti.slowdowner.ui.resources.menu_file
 import com.damianogiusti.slowdowner.ui.resources.menu_minimize
 import com.damianogiusti.slowdowner.ui.resources.menu_window
+import com.damianogiusti.slowdowner.ui.support.SupportPromptHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import kotlinx.coroutines.MainScope
 import org.jetbrains.compose.resources.stringResource
@@ -169,6 +170,7 @@ private fun DesktopApp(window: java.awt.Frame, logger: Logger, onShortcutsReady:
         val actions = remember(viewModels) { DesktopActions(window, viewModels, logger).toActivityActions() }
         LaunchedEffect(viewModels.player) { onShortcutsReady(PracticeShortcuts(viewModels.player, textInput)) }
         SlowDownerApp(viewModels = viewModels, activity = actions)
+        SupportPromptHost()
     }
 }
 
