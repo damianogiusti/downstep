@@ -58,7 +58,13 @@ val syncEngineLibrary = tasks.register<Sync>("syncEngineLibrary") {
         into(appResources.map { it.dir("macos-arm64") })
     }
 }
-tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(syncEngineLibrary) }
+// The licenses travel inside the app on every OS (Compose's "common" resources): the DMG has no
+// other place for them. The font license stays beside the fonts in shared-ui.
+val syncLicenses = tasks.register<Sync>("syncLicenses") {
+    from(layout.projectDirectory.dir("licenses"), rootProject.layout.projectDirectory.file("shared-ui/FONTS-OFL.txt"))
+    into(appResources.map { it.dir("common/licenses") })
+}
+tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(syncEngineLibrary, syncLicenses) }
 
 // CI passes -PappVersion=1.0.<run number>: the band reports it from the window title or the log.
 val appVersion = providers.gradleProperty("appVersion").getOrElse("1.0.0")
