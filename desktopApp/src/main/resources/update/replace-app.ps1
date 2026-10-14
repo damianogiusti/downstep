@@ -7,9 +7,31 @@ $name = Split-Path $Target -Leaf
 $backupName = "$name.old"
 $backup = Join-Path (Split-Path $Target -Parent) $backupName
 
-# Unlike Remove-Item -Recurse in Windows PowerShell 5.1, this never follows a junction out of the folder.
+# Never follows a junction out of the folder, unlike Remove-Item -Recurse in Windows PowerShell 5.1.
+# Read-only files (the launcher can be one) lose the flag first; an exe that was just closed can stay
+# locked for a moment, so it tries again.
+function Clear-ReadOnly([System.IO.DirectoryInfo]$dir) {
+    foreach ($item in $dir.GetFileSystemInfos()) {
+        if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { continue }
+        if ($item -is [System.IO.DirectoryInfo]) { Clear-ReadOnly $item }
+        elseif ($item.Attributes -band [System.IO.FileAttributes]::ReadOnly) {
+            $item.Attributes = $item.Attributes -bxor [System.IO.FileAttributes]::ReadOnly
+        }
+    }
+}
 function Remove-Folder([string]$path) {
-    if (Test-Path -LiteralPath $path) { [System.IO.Directory]::Delete($path, $true) }
+    for ($i = 0; $i -lt 20; $i++) {
+        if (-not (Test-Path -LiteralPath $path)) { return }
+        try {
+            $dir = New-Object System.IO.DirectoryInfo $path
+            Clear-ReadOnly $dir
+            $dir.Delete($true)
+            return
+        } catch {
+            if ($i -eq 19) { throw }
+            Start-Sleep -Milliseconds 500
+        }
+    }
 }
 
 Write-Output "$(Get-Date): waiting for $ProcessId"

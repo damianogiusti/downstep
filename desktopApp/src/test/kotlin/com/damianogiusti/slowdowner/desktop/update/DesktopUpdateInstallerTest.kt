@@ -157,7 +157,8 @@ class DesktopUpdateInstallerTest {
 
     private fun windowsApp(folder: File, version: String): File {
         writeConfig(File(folder, "app"), version)
-        launcherExe().copyTo(File(folder, "Downstep.exe"))
+        // Read-only, as the launcher can be: the old folder must still go after the swap.
+        launcherExe().copyTo(File(folder, "Downstep.exe")).setReadOnly()
         return folder
     }
 

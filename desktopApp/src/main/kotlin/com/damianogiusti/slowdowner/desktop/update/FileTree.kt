@@ -28,6 +28,8 @@ internal fun File.deleteTree() {
             }
 
             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                // Windows refuses to delete a read-only file, and the launcher can be one.
+                if (isWindows && !attrs.isSymbolicLink) Files.setAttribute(file, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS)
                 Files.delete(file)
                 return FileVisitResult.CONTINUE
             }
@@ -40,3 +42,5 @@ internal fun File.deleteTree() {
         },
     )
 }
+
+private val isWindows = File.separatorChar == '\\'
