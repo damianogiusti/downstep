@@ -10,6 +10,7 @@ download_mac = 'Scarica per Mac'
 download_windows = 'Scarica per Windows'
 back_home = 'Downstep'
 footer_about = "Un'app gratuita per esercitarsi con la musica. Open source, GPL-3.0."
+footer_kmp = 'Proudly made with <a href="https://kotlinlang.org/multiplatform/">Kotlin Multiplatform</a> 🚀'
 footer_project = 'Progetto'
 footer_source = 'Codice sorgente'
 footer_versions = 'Tutte le versioni'
