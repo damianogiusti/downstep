@@ -32,8 +32,8 @@ nav = '''
     </nav>'''
 cta = '<a class="btn btn-primary btn-small head-cta" href="#download">Download</a>'
 chips = '<span class="chip on">Version 1.0</span><span class="chip">Free</span><span class="chip">macOS 11 or later</span><span class="chip">Windows 10 and 11</span>'
-h1 = 'To learn a song, I slow it down <em>first</em>.'
-lede = "Downstep is the app I made for that. It plays a song slower or faster without changing its key, and it repeats the part you're working on as many times as you need. It's free, for Mac and Windows."
+h1 = "The song you're learning, at your <em>speed</em> and in your <em>key</em>."
+lede = "With Downstep you slow a song down, change its key, or do both, independently. Then you repeat the hard part as many times as you need. It's free, for Mac and Windows."
 
 demo_label = 'Animation: the A-B loop closes around a passage and the speed goes down to 70%'
 demo_practicing = 'Practicing'
@@ -49,7 +49,7 @@ demo_faster = 'Then you speed it up, a bit at a time.'
 what_title = 'What it does'
 f1_tag = 'Speed and pitch'
 f1_title = 'Speed and pitch, separately'
-f1_text = "You can go from 25% to 200% of the original speed, and move the key up to 12 semitones up or down. Changing one doesn't touch the other."
+f1_text = "You can go from 25% to 200% of the original speed, and move the key up to 12 semitones up or down. Changing one doesn't touch the other, so you can slow a song down and put it in your vocal range at the same time."
 f1_alt = 'Speed at 75% and pitch at minus 2 semitones, each with a slider and step buttons'
 f2_title = 'A-B loop'
 f2_text = 'Press A and B while the song plays, or drag the markers on the timeline. The buttons next to them halve or double the loop, or move it to the next phrase.'

@@ -32,8 +32,8 @@ nav = '''
     </nav>'''
 cta = '<a class="btn btn-primary btn-small head-cta" href="#download">Scarica</a>'
 chips = '<span class="chip on">Versione 1.0</span><span class="chip">Gratis</span><span class="chip">macOS 11 o successivo</span><span class="chip">Windows 10 e 11</span>'
-h1 = 'Per imparare un brano, <em>prima</em> lo rallento.'
-lede = "Downstep è l'app che ho fatto per questo. Suona un brano più lento o più veloce senza cambiarne la tonalità, e ripete il pezzo su cui stai lavorando tutte le volte che serve. È gratis, per Mac e Windows."
+h1 = 'Il pezzo che stai studiando, alla tua <em>velocità</em> e nella tua <em>tonalità</em>.'
+lede = "Con Downstep rallenti un brano, cambi tonalità, o fai entrambe le cose in modo indipendente. Poi ripeti il passaggio difficile tutte le volte che serve. È gratis, per Mac e Windows."
 
 demo_label = 'Animazione: il loop A-B si chiude intorno a un passaggio e la velocità scende al 70%'
 demo_practicing = 'Stai studiando'
@@ -49,7 +49,7 @@ demo_faster = "Poi lo riacceleri, un po' alla volta."
 what_title = 'Cosa fa'
 f1_tag = 'Velocità e tonalità'
 f1_title = 'Velocità e tonalità, separate'
-f1_text = "Puoi andare dal 25% al 200% della velocità originale, e spostare la tonalità fino a 12 semitoni in su o in giù. Se cambi una delle due, l'altra non si muove."
+f1_text = "Puoi andare dal 25% al 200% della velocità originale, e spostare la tonalità fino a 12 semitoni in su o in giù. Se cambi una delle due, l'altra non si muove: puoi rallentare un pezzo e intanto portarlo nella tonalità della tua voce."
 f1_alt = 'Velocità al 75% e tonalità a meno 2 semitoni, ognuna con uno slider e i pulsanti per i passi'
 f2_title = 'Loop A-B'
 f2_text = 'Premi A e B mentre il brano suona, oppure trascina i marker sulla timeline. Con i pulsanti accanto dimezzi o raddoppi il loop, o lo sposti sulla frase dopo.'
