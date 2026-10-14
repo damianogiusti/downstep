@@ -36,7 +36,7 @@ h1 = 'Per imparare un brano, <em>prima</em> lo rallento.'
 lede = "Downstep è l'app che ho fatto per questo. Suona un brano più lento o più veloce senza cambiarne la tonalità, e ripete il pezzo su cui stai lavorando tutte le volte che serve. È gratis, per Mac e Windows."
 
 demo_label = 'Animazione: il loop A-B si chiude intorno a un passaggio e la velocità scende al 70%'
-demo_practicing = 'In pratica'
+demo_practicing = 'Stai studiando'
 demo_traditional = 'Tradizionale'
 speed = 'Velocità'
 pitch = 'Tonalità'
@@ -69,7 +69,7 @@ f6_title = 'Export e backup'
 f6_text = 'Puoi esportare un brano in MP3 con le tue modifiche. Il backup contiene tutta la libreria, e lo ripristini su un altro Mac o su Windows.'
 
 screens_title = 'Schermate'
-shot1 = 'Libreria e pratica'
+shot1 = 'Libreria e studio'
 shot1_alt = 'Downstep su Mac: la libreria a sinistra, il player a destra con velocità al 75%, tonalità a meno 2 e il loop A-B attivo'
 shot2 = 'Playlist'
 shot2_alt = 'La scheda delle playlist'
@@ -79,7 +79,7 @@ shot3_alt = 'Il pannello degli effetti con bilanciamento, preamp ed equalizzator
 all_title = 'Tutte le funzioni'
 catalog = '''
 <section class="surface">
-        <div class="label">Pratica</div>
+        <div class="label">Studio</div>
         <ul class="rows">
           <li class="row">{{ @icon:check }}<div><b>Velocità</b><span>dal 25% al 200%</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Tonalità</b><span>fino a 12 semitoni in su o in giù</span></div></li>
