@@ -26,6 +26,9 @@ class DefaultLibraryRepository(
     private val newId: () -> String = { UUID.randomUUID().toString() },
     // The user only sees a generic message: keep the real cause for debugging.
     private val logError: (String, Throwable) -> Unit = { message, error -> platformLogWarning(TAG, message, error) },
+    // Failures with no known cause go to the crash reports, with the link when there is one (a public
+    // YouTube URL, never a local path).
+    private val reportFailure: (url: String?, Throwable) -> Unit = { _, _ -> },
 ) : LibraryRepository {
 
     override fun observeTracks(): Flow<List<LibraryTrack>> =
@@ -41,7 +44,7 @@ class DefaultLibraryRepository(
         url: String,
         onProgress: (ImportProgress) -> Unit,
     ): ImportResult = withContext(dispatcher) {
-        mapErrors(onIoError = ImportResult.NetworkError) {
+        mapErrors(onIoError = ImportResult.NetworkError, url = url) {
             onProgress(ImportProgress.Resolving)
             val audio = youTube.resolve(url)
             val id = "yt_${audio.id}"
@@ -59,7 +62,7 @@ class DefaultLibraryRepository(
     }
 
     override suspend fun importDocument(contentUri: String): ImportResult = withContext(dispatcher) {
-        mapErrors(onIoError = ImportResult.Unavailable) {
+        mapErrors(onIoError = ImportResult.Unavailable, url = null) {
             val name = documents.displayName(contentUri) ?: DEFAULT_NAME
             val id = "local_${newId()}"
             val target = store.fileFor(id, name.substringAfterLast('.', DEFAULT_EXTENSION))
@@ -90,7 +93,7 @@ class DefaultLibraryRepository(
         }
     }
 
-    private inline fun mapErrors(onIoError: ImportResult, block: () -> LibraryTrackDto): ImportResult = try {
+    private inline fun mapErrors(onIoError: ImportResult, url: String?, block: () -> LibraryTrackDto): ImportResult = try {
         ImportResult.Success(LibraryTrackMapper.toDomain(block()))
     } catch (e: CancellationException) {
         throw e
@@ -102,6 +105,7 @@ class DefaultLibraryRepository(
         onIoError
     } catch (e: Exception) {
         logError("Import failed", e)
+        reportFailure(url, e)
         ImportResult.Failure(e)
     }
 

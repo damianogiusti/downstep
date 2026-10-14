@@ -170,8 +170,6 @@ faq = '''
         <p>Sul tuo computer: <code>~/Library/Application Support/SlowDowner</code> su Mac, <code>%APPDATA%\SlowDowner</code> su Windows. La cartella ha ancora il primo nome dell'app. Per spostare i brani su un altro computer, usa il backup.</p></details>
       <details><summary>Perché macOS la blocca?{{ @icon:expand_more }}</summary>
         <p>Perché non è distribuita tramite l'App Store. Basta autorizzarla una volta, la <a href="{{ @url:mac }}">pagina di download</a> spiega come. In futuro arriverà anche sull'App Store, e questo passaggio non servirà più.</p></details>
-      <details><summary>L'app manda dei dati?{{ @icon:expand_more }}</summary>
-        <p>No. Va online solo quando importi da un link.</p></details>
       <details><summary>Funziona su un Mac Intel?{{ @icon:expand_more }}</summary>
         <p>Per ora no, solo su Apple silicon (M1 e successivi).</p></details>
       <details><summary>C'è una versione per iPhone o Android?{{ @icon:expand_more }}</summary>

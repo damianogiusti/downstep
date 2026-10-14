@@ -87,7 +87,12 @@ fun desktopModule(
     singleOf(::OkHttpFileDataSource) { bind<HttpFileDataSource>() }
     single<DocumentDataSource> { FileDocumentDataSource() }
     single<MediaContainerDataSource> { PassthroughContainerDataSource() }
-    single<LibraryRepository> { DefaultLibraryRepository(get(), get(), get(), get(), get(), Dispatchers.IO) }
+    single<LibraryRepository> {
+        DefaultLibraryRepository(
+            get(), get(), get(), get(), get(), Dispatchers.IO,
+            reportFailure = CrashReporting::reportImportFailure,
+        )
+    }
 
     // Effects, export, practice, playlists, backup
     single<EffectsSettingsStore> { effectsStore }

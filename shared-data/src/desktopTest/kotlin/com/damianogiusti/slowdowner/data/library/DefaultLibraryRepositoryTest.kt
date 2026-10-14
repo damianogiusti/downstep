@@ -27,6 +27,7 @@ class DefaultLibraryRepositoryTest {
     private val http = FakeHttpFileDataSource()
     private val documents = FakeDocumentDataSource()
     private val containers = FakeMediaContainerDataSource()
+    private val reported = mutableListOf<Pair<String?, Throwable>>()
 
     private fun repository() = DefaultLibraryRepository(
         store = store,
@@ -38,6 +39,7 @@ class DefaultLibraryRepositoryTest {
         now = { NOW },
         newId = { "fixed" },
         logError = { _, _ -> },
+        reportFailure = { url, error -> reported += url to error },
     )
 
     @Test
@@ -107,6 +109,25 @@ class DefaultLibraryRepositoryTest {
 
         assertEquals(ImportResult.NetworkError, repository().importFromUrl(URL) {})
         assertTrue(store.tracks.value.isEmpty())
+        assertTrue(reported.isEmpty())
+    }
+
+    @Test
+    fun `when import fails for an unknown reason then it is reported with the link`() = runTest {
+        val error = IllegalStateException("parser changed")
+        youTube.error = error
+
+        assertEquals(ImportResult.Failure(error), repository().importFromUrl(URL) {})
+        assertEquals(listOf<Pair<String?, Throwable>>(URL to error), reported)
+    }
+
+    @Test
+    fun `when a document import fails then the report has no path`() = runTest {
+        documents.error = IllegalStateException("broken")
+
+        repository().importDocument("file:///Users/someone/Take 3.mp3")
+
+        assertEquals(listOf<String?>(null), reported.map { it.first })
     }
 
     @Test
@@ -165,8 +186,12 @@ class DefaultLibraryRepositoryTest {
 
     private class FakeDocumentDataSource : DocumentDataSource {
         var name: String? = null
+        var error: Exception? = null
         override fun displayName(contentUri: String) = name
-        override fun copy(contentUri: String, target: File) = target.writeBytes(byteArrayOf(1))
+        override fun copy(contentUri: String, target: File) {
+            error?.let { throw it }
+            target.writeBytes(byteArrayOf(1))
+        }
         override fun open(contentUri: String): java.io.InputStream = error("unused")
         override fun write(source: File, contentUri: String) = error("unused")
     }

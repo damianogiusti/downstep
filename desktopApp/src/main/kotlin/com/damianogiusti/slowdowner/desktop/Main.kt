@@ -58,6 +58,7 @@ import kotlin.system.exitProcess
 fun main() {
     val directories = AppDirectories()
     AppLog.start(directories.logs, appVersion)
+    CrashReporting.start(appVersion, directories)
     val (engine, hasAudioOutput) = startEngine()
     if (engine != null) {
         val koin = startKoin { modules(desktopModule(directories, engine), useCasesModule, uiModule) }.koin
@@ -102,6 +103,7 @@ fun main() {
     }
     // Only now no UI can call the engine any more: stop polling and free the native side.
     if (engine != null) KoinPlatform.getKoin().get<DesktopPlaybackEngine>().close()
+    CrashReporting.stop()
     exitProcess(0)
 }
 

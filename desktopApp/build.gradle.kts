@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.compose")
+    id("io.sentry.jvm.gradle")
 }
 
 kotlin {
@@ -26,6 +27,7 @@ dependencies {
     implementation("io.insert-koin:koin-compose-viewmodel")
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
+    implementation("io.sentry:sentry:8.61.0")
 
     testImplementation(kotlin("test"))
     testImplementation("io.insert-koin:koin-test")
@@ -68,6 +70,8 @@ tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(sy
 
 // CI passes -PappVersion=1.0.<run number>: the band reports it from the window title or the log.
 val appVersion = providers.gradleProperty("appVersion").getOrElse("1.0.0")
+// Only the release workflow has it: see CrashReporting.
+val sentryDsn: String? = providers.environmentVariable("SENTRY_DSN").orNull?.takeIf { it.isNotBlank() }
 
 compose.desktop {
     application {
@@ -75,6 +79,7 @@ compose.desktop {
         javaHome = javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(23)) }
             .get().metadata.installationPath.asFile.absolutePath
         jvmArgs += listOf("--enable-native-access=ALL-UNNAMED", "-Dslowdowner.version=$appVersion")
+        if (sentryDsn != null) jvmArgs += "-Dslowdowner.sentryDsn=$sentryDsn"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
@@ -97,4 +102,33 @@ compose.desktop {
             }
         }
     }
+}
+
+// Crash reports (Sentry). The DSN and the token exist only in the release workflow: local runs,
+// tests and the testers' builds report nothing. With the token, the release uploads the sources,
+// so a stack trace shows the code around each line.
+val sentryAuthToken: String? = providers.environmentVariable("SENTRY_AUTH_TOKEN").orNull?.takeIf { it.isNotBlank() }
+sentry {
+    org.set("damianogiusticom")
+    projectName.set("downstep")
+    authToken.set(sentryAuthToken)
+    includeSourceContext.set(sentryAuthToken != null)
+    // Most stack frames are in the shared modules, not here.
+    additionalSourceDirsForSourceContext.set(
+        listOf("shared/src/commonMain/kotlin", "shared-data/src/commonMain/kotlin", "shared-data/src/desktopMain/kotlin",
+            "shared-ui/src/commonMain/kotlin", "shared-ui/src/desktopMain/kotlin", "engine-desktop/src/main/kotlin")
+            .map { rootProject.file(it).path },
+    )
+    // The SDK is the dependency above, at a version we pick.
+    autoInstallation { enabled.set(false) }
+    telemetry.set(false)
+}
+// The Sentry tasks read the sources Compose generates (Res and friends) but do not declare it, and
+// Gradle stops the build. After compileKotlin those sources exist.
+tasks.matching { it.name.startsWith("generateSentryBundleId") || it.name.startsWith("sentryCollectSources") }
+    .configureEach { dependsOn("compileKotlin") }
+// The plugin uploads the sources on assemble, which the release does not run: it packages directly.
+if (sentryAuthToken != null) {
+    tasks.matching { it.name == "createDistributable" || it.name == "packageDmg" }
+        .configureEach { dependsOn("sentryUploadSourceBundleJava") }
 }
