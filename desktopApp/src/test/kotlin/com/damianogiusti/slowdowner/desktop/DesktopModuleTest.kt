@@ -11,6 +11,7 @@ import com.damianogiusti.slowdowner.ui.library.LibraryViewModel
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 import com.damianogiusti.slowdowner.ui.playlists.AddToPlaylistViewModel
 import com.damianogiusti.slowdowner.ui.support.SupportPromptViewModel
+import com.damianogiusti.slowdowner.ui.update.UpdateViewModel
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import java.nio.file.Files
@@ -49,5 +50,6 @@ class DesktopModuleTest {
         assertNotNull(koin.get<EffectsViewModel>())
         assertNotNull(koin.get<AddToPlaylistViewModel>())
         assertNotNull(koin.get<SupportPromptViewModel>())
+        assertNotNull(koin.get<UpdateViewModel>())
     }
 }
