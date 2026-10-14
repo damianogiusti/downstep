@@ -1,0 +1,127 @@
+# Builds Downstep for Mac and Windows from this repository and prepares a draft release for
+# every v* tag: it goes public only when someone publishes the draft. The file names stay the
+# same in every release, so the site can link to releases/latest/download/<name>. Run it by hand
+# to check the build without a release.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '23'
+
+      # The shared modules also have an Android target, so Gradle needs the SDK to configure.
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Version
+        run: echo "APP_VERSION=$(echo "${GITHUB_REF_NAME#v}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || echo 1.0.0)" >> "$GITHUB_ENV"
+
+      - name: Tests
+        run: ./gradlew :engine-desktop:test :desktopApp:test -PappVersion=$APP_VERSION --stacktrace
+
+      - name: DMG
+        run: |
+          ./gradlew :desktopApp:packageDmg -PappVersion=$APP_VERSION --stacktrace
+          mkdir -p dist
+          mv desktopApp/build/compose/binaries/main/dmg/Downstep-*.dmg dist/Downstep-mac.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/Downstep-mac.dmg
+          retention-days: 7
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      # Bungee builds for Windows with MinGW-w64, not MSVC: the engine uses MSYS2's GCC.
+      CMAKE_GENERATOR: Ninja
+      CC: gcc
+      CXX: g++
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '23'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: msys2/setup-msys2@v2
+        id: msys2
+        with:
+          msystem: UCRT64
+          update: false
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+
+      - name: Put MinGW first in PATH
+        run: Add-Content -Path $env:GITHUB_PATH -Value "${{ steps.msys2.outputs.msys2-location }}\ucrt64\bin"
+
+      - name: Version
+        run: |
+          $v = "$env:GITHUB_REF_NAME".TrimStart("v")
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { $v = "1.0.0" }
+          Add-Content -Path $env:GITHUB_ENV -Value "APP_VERSION=$v"
+
+      - name: Tests
+        run: ./gradlew.bat :engine-desktop:test :desktopApp:test "-PappVersion=$env:APP_VERSION" --stacktrace
+
+      - name: Zip
+        run: |
+          ./gradlew.bat :desktopApp:createDistributable "-PappVersion=$env:APP_VERSION" --stacktrace
+          $stage = "dist/zip"
+          New-Item -ItemType Directory -Force "$stage/licenses" | Out-Null
+          Copy-Item -Recurse desktopApp/build/compose/binaries/main/app/Downstep "$stage/Downstep"
+          # The same files the app carries in app/resources/licenses, also at the top of the zip.
+          Copy-Item "$stage/Downstep/app/resources/licenses/*" "$stage/licenses"
+          Compress-Archive -Path "$stage/*" -DestinationPath dist/Downstep-windows-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/Downstep-windows-x64.zip
+          retention-days: 7
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'EOF'
+          For Mac with Apple silicon (macOS 11 or later) and for Windows 10 and 11 (64 bit).
+
+          The Mac app is not notarized: the first time, macOS blocks it. Open System Settings, Privacy & Security, and choose Open Anyway.
+          On Windows, unzip the folder and start Downstep.exe. If SmartScreen appears, choose More info and Run anyway.
+          EOF
+          gh release create "$GITHUB_REF_NAME" dist/Downstep-mac.dmg dist/Downstep-windows-x64.zip \
+            --repo "$GITHUB_REPOSITORY" --title "Downstep ${GITHUB_REF_NAME#v}" --notes-file notes.md --draft
