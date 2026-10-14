@@ -1,13 +1,18 @@
 (function () {
   var root = document.documentElement;
 
-  // Theme toggle. The first choice comes from the system (see <head>).
+  // Theme toggle. The choice lasts 5 minutes from the last page view (see <head>).
   var themeButton = document.getElementById("theme");
   if (themeButton) themeButton.addEventListener("click", function () {
     var current = root.dataset.theme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
     var next = current === "light" ? "dark" : "light";
     root.dataset.theme = next;
-    localStorage.setItem("sd-theme", next);
+    localStorage.setItem("sd-theme", JSON.stringify({ value: next, at: Date.now() }));
+  });
+
+  // The language toggle is a plain link; the saved choice drives the redirect in <head>.
+  document.querySelectorAll("a.toggle[data-lang]").forEach(function (link) {
+    link.addEventListener("click", function () { localStorage.setItem("sd-lang", link.dataset.lang); });
   });
 
   loopDemo();

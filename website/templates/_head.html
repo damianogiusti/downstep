@@ -17,7 +17,22 @@
 <link rel="apple-touch-icon" href="{{ @root }}assets/icon.png">
 <link rel="preload" href="{{ @root }}assets/fonts/space_grotesk_bold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="{{ @root }}style.css">
-<script>(function () { var t = localStorage.getItem("sd-theme"); if (t) document.documentElement.dataset.theme = t; })();</script>
+<script>(function () {
+  // The theme chosen with the toggle lasts 5 minutes from the last page view, then the system decides again.
+  try {
+    var t = JSON.parse(localStorage.getItem("sd-theme"));
+    if (t && Date.now() - t.at < 5 * 60 * 1000) {
+      document.documentElement.dataset.theme = t.value;
+      localStorage.setItem("sd-theme", JSON.stringify({ value: t.value, at: Date.now() }));
+    } else localStorage.removeItem("sd-theme");
+  } catch (e) { localStorage.removeItem("sd-theme"); }
+})();
+(function () {
+  // English pages follow the language chosen with the toggle, or else the browser. Italian pages never move.
+  if ("{{ @lang }}" !== "en") return;
+  var l = localStorage.getItem("sd-lang") || (navigator.languages && navigator.languages[0]) || navigator.language || "";
+  if (/^it\b/i.test(l)) location.replace("{{ @alt }}" + location.hash);
+})();</script>
 </head>
 <body>
 <a class="skip" href="#main">{{ common.skip }}</a>
