@@ -188,6 +188,7 @@ install_title = 'Come si installa'
 free_title = 'Downstep è gratis'
 free_text = 'Se ti è utile, puoi ringraziarmi con una donazione.'
 donate_button = 'Dona con PayPal'
+source = '<a href="https://github.com/damianogiusti/downstep">Codice sorgente e licenze</a>'
 
 [mac]
 short_req = 'Apple silicon, macOS 11 o successivo'
