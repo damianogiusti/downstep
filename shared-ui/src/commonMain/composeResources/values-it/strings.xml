@@ -71,8 +71,8 @@
     <string name="library_summary">%1$s, %2$s</string>
     <string name="library_no_tracks_yet">Nessun brano ancora</string>
     <string name="library_empty_title">La tua libreria è vuota</string>
-    <string name="library_empty_message">Importa un file audio dal telefono, oppure condividi un link YouTube con Downstep. Lo trovi qui, pronto per la pratica.</string>
-    <string name="library_empty_message_desktop">Importa un file audio dal computer, oppure incolla un link YouTube. Lo trovi qui, pronto per la pratica.</string>
+    <string name="library_empty_message">Importa un file audio dal telefono, oppure condividi un link YouTube con Downstep. Lo trovi qui, pronto da studiare.</string>
+    <string name="library_empty_message_desktop">Importa un file audio dal computer, oppure incolla un link YouTube. Lo trovi qui, pronto da studiare.</string>
     <string name="tab_tracks">Brani</string>
     <string name="tab_playlists">Playlist</string>
     <string name="recently_added">Aggiunti di recente</string>
@@ -94,8 +94,8 @@
     <!-- Redesign: import -->
     <string name="import_action">Importa</string>
     <string name="import_title">Importa un brano</string>
-    <string name="import_subtitle">Il file resta sul telefono: puoi praticare anche offline.</string>
-    <string name="import_subtitle_desktop">Il file resta sul computer: puoi praticare anche offline.</string>
+    <string name="import_subtitle">Il file resta sul telefono: puoi esercitarti anche offline.</string>
+    <string name="import_subtitle_desktop">Il file resta sul computer: puoi esercitarti anche offline.</string>
     <string name="import_file">Da file</string>
     <string name="import_file_description">MP3, M4A, WAV, FLAC dal telefono</string>
     <string name="import_file_description_desktop">MP3, M4A, WAV, FLAC dal computer</string>
@@ -123,7 +123,7 @@
     <string name="playlist_empty_message">Aggiungi i brani che vuoi studiare insieme.</string>
     <string name="playlists_empty">Raggruppa i brani per concerto, per stile o per esercizio.</string>
     <string name="add_to_playlist">Aggiungi a playlist</string>
-    <string name="practice">Pratica</string>
+    <string name="practice">Studia</string>
     <string name="move_up">Sposta su</string>
     <string name="move_down">Sposta giù</string>
     <string name="reorder">Trascina per riordinare</string>
@@ -131,7 +131,7 @@
     <string name="error_playlist_add">Impossibile aggiungere: la playlist o il brano non esistono più.</string>
 
     <!-- Redesign: player -->
-    <string name="player_title">In pratica</string>
+    <string name="player_title">Stai studiando</string>
     <string name="collapse_player">Chiudi il player</string>
     <string name="no_track_hint">Scegli un brano dalla libreria per iniziare.</string>
     <string name="go_to_library">Vai alla libreria</string>
@@ -175,9 +175,9 @@
     <string name="backup_exporting_count">Creo il backup… %1$d di %2$d brani</string>
     <string name="backup_restoring">Ripristino il backup…</string>
     <string name="backup_restoring_count">Ripristino il backup… %1$d di %2$d brani</string>
-    <string name="backup_running_hint">Audio, impostazioni di pratica e preset in un solo file</string>
+    <string name="backup_running_hint">Audio, impostazioni di studio e preset in un solo file</string>
     <string name="backup_ready_title">Backup pronto</string>
-    <string name="backup_ready_text">"%1$s" è pronto. Contiene l'audio, le impostazioni di pratica e i preset. Per ripristinarlo, apri Importa e scegli Ripristina backup.</string>
+    <string name="backup_ready_text">"%1$s" è pronto. Contiene l'audio, le impostazioni di studio e i preset. Per ripristinarlo, apri Importa e scegli Ripristina backup.</string>
     <plurals name="backup_restored_tracks">
         <item quantity="one">Ripristinato %1$d brano</item>
         <item quantity="other">Ripristinati %1$d brani</item>
