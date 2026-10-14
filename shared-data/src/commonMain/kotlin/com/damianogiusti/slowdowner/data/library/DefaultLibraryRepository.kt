@@ -109,7 +109,19 @@ class DefaultLibraryRepository(
         // Many of these at once usually mean YouTube changed and the extractor needs an update.
         logger.w("Import unavailable", e, mapOf("source" to source))
         ImportResult.Unavailable
+    } catch (e: HttpStatusException) {
+        val properties = mapOf("source" to source, "status" to e.status.toString())
+        if (e.status < HTTP_SERVER_ERROR) {
+            // The stream was refused (403, 404): usually YouTube changed and the extractor needs an
+            // update. Retrying does not help, so it is not a network error for the user.
+            logger.e("Import refused by the server", e, properties)
+            ImportResult.Unavailable
+        } else {
+            logger.w("Import server error", e, properties)
+            onIoError
+        }
     } catch (e: IOException) {
+        // Timeouts, dropped connections, a full disk: the user's side.
         logger.w("Import I/O error", e, mapOf("source" to source))
         onIoError
     } catch (e: Exception) {
@@ -132,6 +144,7 @@ class DefaultLibraryRepository(
     private companion object {
         const val SOURCE_YOUTUBE = "youtube"
         const val SOURCE_FILE = "file"
+        const val HTTP_SERVER_ERROR = 500
         const val DEFAULT_NAME = "audio"
         const val DEFAULT_EXTENSION = "bin"
         val MP4_EXTENSIONS = setOf("m4a", "mp4")

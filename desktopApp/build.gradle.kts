@@ -70,8 +70,11 @@ tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(sy
 
 // CI passes -PappVersion=1.0.<run number>: the band reports it from the window title or the log.
 val appVersion = providers.gradleProperty("appVersion").getOrElse("1.0.0")
-// Only the release workflow has it: see CrashReporting.
+// Only the release workflow has it: see CrashReporting. A local try sets SENTRY_ENVIRONMENT=development,
+// so its events stay apart from the users' ones.
 val sentryDsn: String? = providers.environmentVariable("SENTRY_DSN").orNull?.takeIf { it.isNotBlank() }
+val sentryEnvironment: String = providers.environmentVariable("SENTRY_ENVIRONMENT").orNull?.takeIf { it.isNotBlank() }
+    ?: "production"
 
 compose.desktop {
     application {
@@ -79,7 +82,9 @@ compose.desktop {
         javaHome = javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(23)) }
             .get().metadata.installationPath.asFile.absolutePath
         jvmArgs += listOf("--enable-native-access=ALL-UNNAMED", "-Dslowdowner.version=$appVersion")
-        if (sentryDsn != null) jvmArgs += "-Dslowdowner.sentryDsn=$sentryDsn"
+        if (sentryDsn != null) {
+            jvmArgs += listOf("-Dslowdowner.sentryDsn=$sentryDsn", "-Dslowdowner.sentryEnvironment=$sentryEnvironment")
+        }
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)

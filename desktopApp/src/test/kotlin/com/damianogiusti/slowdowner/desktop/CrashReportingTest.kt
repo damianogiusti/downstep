@@ -102,9 +102,12 @@ class CrashReportingTest {
         assertFalse("Autumn Leaves" in all)
         // Sentry Logs: info and warnings, scrubbed; debug stays on the computer.
         assertTrue("App started" in all)
-        // A log line keeps only the type of the cause: its message could name a file.
-        assertTrue("java.io.IOException" in all)
-        assertFalse("No space in" in all)
+        // A warning carries its cause and a short stack trace, without paths.
+        assertTrue("java.io.IOException: No space in <path>" in all)
+        assertTrue("\"stacktrace\"" in all)
+        assertTrue("CrashReportingTest" in all.substringAfter("\"stacktrace\""))
+        // An error's log line points to its issue.
+        assertTrue("\"issue\"" in all)
         assertFalse("Only for development" in all)
         // One random id for the user and the session.
         assertTrue(""""id":"$installation"""" in all)

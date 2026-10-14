@@ -45,7 +45,7 @@ object CrashReporting {
             Sentry.init { options ->
                 options.dsn = dsn
                 options.release = release(version)
-                options.environment = "production"
+                options.environment = System.getProperty("slowdowner.sentryEnvironment") ?: "production"
                 // Events written while offline are sent at the next start.
                 options.cacheDirPath = File(directories.cache, "sentry").path
                 // The computer's name is often the owner's name ("Anna's MacBook").

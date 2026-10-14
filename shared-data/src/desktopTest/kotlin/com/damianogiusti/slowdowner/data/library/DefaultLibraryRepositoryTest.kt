@@ -114,6 +114,23 @@ class DefaultLibraryRepositoryTest {
     }
 
     @Test
+    fun `when YouTube refuses the stream then it is unavailable and an error`() = runTest {
+        http.error = HttpStatusException(403)
+
+        assertEquals(ImportResult.Unavailable, repository().importFromUrl(URL) {})
+        assertEquals(mapOf("source" to "youtube", "status" to "403"), logger.at('E').single().properties)
+    }
+
+    @Test
+    fun `when the server fails then it is a network error and a warning`() = runTest {
+        http.error = HttpStatusException(503)
+
+        assertEquals(ImportResult.NetworkError, repository().importFromUrl(URL) {})
+        assertEquals(mapOf("source" to "youtube", "status" to "503"), logger.at('W').single().properties)
+        assertTrue(logger.at('E').isEmpty())
+    }
+
+    @Test
     fun `when import fails for an unknown reason then it is logged as an error with the link`() = runTest {
         val error = IllegalStateException("parser changed")
         youTube.error = error
