@@ -62,4 +62,5 @@ overwrite them: if you send one, I will bring the change over by hand.
 ## License
 
 GPL-3.0, see [LICENSE](LICENSE). Third-party components and their licenses are listed in
-[desktopApp/windows/THIRD-PARTY-NOTICES.txt](desktopApp/windows/THIRD-PARTY-NOTICES.txt).
+[desktopApp/licenses/THIRD-PARTY-NOTICES.txt](desktopApp/licenses/THIRD-PARTY-NOTICES.txt),
+next to the full license texts. The app carries the same folder.
