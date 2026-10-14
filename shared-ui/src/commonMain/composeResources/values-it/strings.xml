@@ -221,4 +221,13 @@
     <string name="menu_window">Finestra</string>
     <string name="menu_close_window">Chiudi finestra</string>
     <string name="menu_minimize">Contrai</string>
+
+    <!-- Support prompt (desktop) -->
+    <string name="support_title">Downstep è gratis</string>
+    <string name="support_message">Non ci sono pubblicità né abbonamenti, e non ci saranno. Sul sito spiego perché ho scelto di regalarla.</string>
+    <string name="support_why_free">Perché è gratis?</string>
+    <string name="support_donate">Dona</string>
+    <string name="support_close">Chiudi</string>
+    <string name="support_close_countdown">Chiudi (%1$d)</string>
+    <string name="support_why_free_url">https://downstep.app/it/perche-gratis/</string>
 </resources>

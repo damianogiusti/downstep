@@ -10,6 +10,7 @@ import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.library.LibraryViewModel
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 import com.damianogiusti.slowdowner.ui.playlists.AddToPlaylistViewModel
+import com.damianogiusti.slowdowner.ui.support.SupportPromptViewModel
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import java.nio.file.Files
@@ -25,7 +26,11 @@ class DesktopModuleTest {
 
     private val directories = AppDirectories(Files.createTempDirectory("slowdowner-desktop").toFile())
     private val koin = startKoin {
-        modules(desktopModule(directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore()), useCasesModule, uiModule)
+        modules(
+            desktopModule(directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(), InMemorySupportPromptStore()),
+            useCasesModule,
+            uiModule,
+        )
     }.koin
 
     @AfterTest
@@ -43,5 +48,6 @@ class DesktopModuleTest {
         assertNotNull(koin.get<LibraryViewModel>())
         assertNotNull(koin.get<EffectsViewModel>())
         assertNotNull(koin.get<AddToPlaylistViewModel>())
+        assertNotNull(koin.get<SupportPromptViewModel>())
     }
 }
