@@ -4,6 +4,8 @@ import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEvent
 import com.damianogiusti.slowdowner.domain.source.AudioSource
+import com.damianogiusti.slowdowner.logging.ConsoleLogger
+import com.damianogiusti.slowdowner.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -115,15 +117,40 @@ class DesktopPlaybackEngineTest {
     }
 
     @Test
-    fun `a missing file does not open`() = runTest {
+    fun `a missing file does not open and is a warning`() = runTest {
         val engine = DesktopPlaybackEngine(native, backgroundScope)
-        assertFalse(DesktopAudioSourceRepository(engine).open(AudioSource.LocalFile("/nope/missing.m4a")))
+        val logged = mutableListOf<String>()
+        val repository = DesktopAudioSourceRepository(engine, LineLogger(logged))
+
+        assertFalse(repository.open(AudioSource.LocalFile("/nope/missing.m4a")))
         assertFalse(engine.isOpen)
+        assertEquals(listOf("W Cannot open track {extension=m4a, reason=unreadable}"), logged)
+    }
+
+    @Test
+    fun `a file the decoder rejects is an error`() = runTest {
+        val engine = DesktopPlaybackEngine(native, backgroundScope)
+        val logged = mutableListOf<String>()
+        val notAudio = File.createTempFile("not-audio", ".mp3").apply {
+            writeText("not audio")
+            deleteOnExit()
+        }
+
+        assertFalse(DesktopAudioSourceRepository(engine, LineLogger(logged)).open(AudioSource.LocalFile(notAudio.path)))
+        assertEquals(listOf("E Cannot open track {extension=mp3, reason=decoder}"), logged)
+    }
+
+    /** One string per line: level, message and properties. */
+    private class LineLogger(private val lines: MutableList<String>) : Logger {
+        override fun d(message: String, properties: Map<String, String>) { lines += "D $message $properties" }
+        override fun i(message: String, properties: Map<String, String>) { lines += "I $message $properties" }
+        override fun w(message: String, throwable: Throwable?, properties: Map<String, String>) { lines += "W $message $properties" }
+        override fun e(message: String, throwable: Throwable?, properties: Map<String, String>) { lines += "E $message $properties" }
     }
 
     private fun TestScope.openEngine(): DesktopPlaybackEngine {
         val engine = DesktopPlaybackEngine(native, backgroundScope)
-        assertTrue(DesktopAudioSourceRepository(engine).open(AudioSource.LocalFile(file.path)))
+        assertTrue(DesktopAudioSourceRepository(engine, ConsoleLogger()).open(AudioSource.LocalFile(file.path)))
         assertEquals(10f, engine.durationSeconds, 0.01f)
         return engine
     }

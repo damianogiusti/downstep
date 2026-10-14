@@ -62,7 +62,7 @@ class OkHttpFileDataSource(client: OkHttpClient) : HttpFileDataSource {
             }
             if (!response.isSuccessful) {
                 response.close()
-                throw IOException("HTTP ${response.code} while downloading")
+                throw HttpStatusException(response.code)
             }
             return response
         }

@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.data.library
 
+import com.damianogiusti.slowdowner.fake.RecordingLogger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -13,8 +14,8 @@ class LegacyJsonLibraryIndexTest {
     @get:Rule
     val folder = TemporaryFolder()
 
-    private val errors = mutableListOf<String>()
-    private val index by lazy { LegacyJsonLibraryIndex(folder.root) { message, _ -> errors += message } }
+    private val logger = RecordingLogger()
+    private val index by lazy { LegacyJsonLibraryIndex(folder.root, logger) }
 
     @Test
     fun `when the index lists existing files then read returns them`() {
@@ -44,7 +45,7 @@ class LegacyJsonLibraryIndexTest {
         writeIndex("not json")
 
         assertEquals(emptyList<LibraryTrackDto>(), index.read())
-        assertEquals(1, errors.size)
+        assertEquals(1, logger.at('E').size)
     }
 
     @Test

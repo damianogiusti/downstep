@@ -31,6 +31,7 @@ import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
 import com.damianogiusti.slowdowner.di.uiModule
 import com.damianogiusti.slowdowner.di.useCasesModule
+import com.damianogiusti.slowdowner.logging.Logger
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.common.LocalTextInputFocus
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
@@ -58,9 +59,20 @@ import kotlin.system.exitProcess
 fun main() {
     val directories = AppDirectories()
     AppLog.start(directories.logs, appVersion)
-    val (engine, hasAudioOutput) = startEngine()
+    CrashReporting.start(appVersion, directories)
+    val logger = CrashReporting.logger()
+    val (engine, hasAudioOutput) = startEngine(logger)
+    // One line per run: how many people use which OS, and whether the engine started there.
+    logger.i(
+        "App started",
+        mapOf(
+            "engine" to if (engine != null) "ok" else "unavailable",
+            "audioOutput" to hasAudioOutput.toString(),
+            "java" to System.getProperty("java.version").orEmpty(),
+        ),
+    )
     if (engine != null) {
-        val koin = startKoin { modules(desktopModule(directories, engine), useCasesModule, uiModule) }.koin
+        val koin = startKoin { modules(desktopModule(directories, engine, logger = logger), useCasesModule, uiModule) }.koin
         // Main (Swing) thread, as on Android: engine settings are applied from the UI thread.
         startAppWork(koin, MainScope())
     }
@@ -94,7 +106,7 @@ fun main() {
                 Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(top = titleBarHeight)) {
                     if (engine != null && !hasAudioOutput) NoAudioOutputBanner()
                     Box(modifier = Modifier.weight(1f)) {
-                        if (engine == null) EngineUnavailable() else DesktopApp(window) { shortcuts = it }
+                        if (engine == null) EngineUnavailable() else DesktopApp(window, logger) { shortcuts = it }
                     }
                 }
             }
@@ -102,6 +114,7 @@ fun main() {
     }
     // Only now no UI can call the engine any more: stop polling and free the native side.
     if (engine != null) KoinPlatform.getKoin().get<DesktopPlaybackEngine>().close()
+    CrashReporting.stop()
     exitProcess(0)
 }
 
@@ -115,17 +128,18 @@ private const val MIN_HEIGHT = 600
 /** A null engine shows the error screen: no library, or a library that does not load. */
 private data class EngineStart(val engine: NativeEngine?, val hasAudioOutput: Boolean)
 
-private fun startEngine(): EngineStart = runCatching {
+private fun startEngine(logger: Logger): EngineStart = runCatching {
     val library = engineLibrary() ?: error("libsdengine not found")
     NativeEngine.withDevice(library)?.let { EngineStart(it, hasAudioOutput = true) }
         ?: run {
             // No output device (a PC without speakers, a CI machine): library, imports and exports
             // still work. Playback stays silent and does not move: a banner says so.
-            System.err.println("No audio output device: playback is off")
+            logger.w("No audio output device: playback is off")
             EngineStart(NativeEngine.manual(NO_OUTPUT_SAMPLE_RATE, library), hasAudioOutput = false)
         }
 }
-    .onFailure { System.err.println("Cannot start the audio engine: $it") }
+    // The app is useless without it: the most important line of all.
+    .onFailure { logger.e("Cannot start the audio engine", it) }
     .getOrElse { EngineStart(null, hasAudioOutput = false) }
 
 private const val NO_OUTPUT_SAMPLE_RATE = 44_100
@@ -142,7 +156,7 @@ private fun NoAudioOutputBanner() {
 }
 
 @Composable
-private fun DesktopApp(window: java.awt.Frame, onShortcutsReady: (PracticeShortcuts) -> Unit) {
+private fun DesktopApp(window: java.awt.Frame, logger: Logger, onShortcutsReady: (PracticeShortcuts) -> Unit) {
     // One store for the window, as the activity is on Android: pickers report into these ViewModels.
     val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
     val textInput = remember { TextInputFocus() }
@@ -152,7 +166,7 @@ private fun DesktopApp(window: java.awt.Frame, onShortcutsReady: (PracticeShortc
             imports = koinViewModel<ImportViewModel>(),
             backup = koinViewModel<BackupViewModel>(),
         )
-        val actions = remember(viewModels) { DesktopActions(window, viewModels).toActivityActions() }
+        val actions = remember(viewModels) { DesktopActions(window, viewModels, logger).toActivityActions() }
         LaunchedEffect(viewModels.player) { onShortcutsReady(PracticeShortcuts(viewModels.player, textInput)) }
         SlowDownerApp(viewModels = viewModels, activity = actions)
     }

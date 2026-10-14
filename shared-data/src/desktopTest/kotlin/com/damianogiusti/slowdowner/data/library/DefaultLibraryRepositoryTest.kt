@@ -2,6 +2,7 @@ package com.damianogiusti.slowdowner.data.library
 
 import com.damianogiusti.slowdowner.domain.library.ImportProgress
 import com.damianogiusti.slowdowner.domain.library.ImportResult
+import com.damianogiusti.slowdowner.fake.RecordingLogger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +28,7 @@ class DefaultLibraryRepositoryTest {
     private val http = FakeHttpFileDataSource()
     private val documents = FakeDocumentDataSource()
     private val containers = FakeMediaContainerDataSource()
+    private val logger = RecordingLogger()
 
     private fun repository() = DefaultLibraryRepository(
         store = store,
@@ -35,9 +37,9 @@ class DefaultLibraryRepositoryTest {
         documents = documents,
         containers = containers,
         dispatcher = UnconfinedTestDispatcher(),
+        logger = logger,
         now = { NOW },
         newId = { "fixed" },
-        logError = { _, _ -> },
     )
 
     @Test
@@ -107,6 +109,65 @@ class DefaultLibraryRepositoryTest {
 
         assertEquals(ImportResult.NetworkError, repository().importFromUrl(URL) {})
         assertTrue(store.tracks.value.isEmpty())
+        assertTrue(logger.at('E').isEmpty())
+        assertEquals(mapOf("source" to "youtube"), logger.at('W').single().properties)
+    }
+
+    @Test
+    fun `when YouTube refuses the stream then it is unavailable and an error`() = runTest {
+        http.error = HttpStatusException(403)
+
+        assertEquals(ImportResult.Unavailable, repository().importFromUrl(URL) {})
+        assertEquals(mapOf("source" to "youtube", "status" to "403"), logger.at('E').single().properties)
+    }
+
+    @Test
+    fun `when the server fails then it is a network error and a warning`() = runTest {
+        http.error = HttpStatusException(503)
+
+        assertEquals(ImportResult.NetworkError, repository().importFromUrl(URL) {})
+        assertEquals(mapOf("source" to "youtube", "status" to "503"), logger.at('W').single().properties)
+        assertTrue(logger.at('E').isEmpty())
+    }
+
+    @Test
+    fun `when import fails for an unknown reason then it is logged as an error with the link`() = runTest {
+        val error = IllegalStateException("parser changed")
+        youTube.error = error
+
+        assertEquals(ImportResult.Failure(error), repository().importFromUrl(URL) {})
+        val line = logger.at('E').single()
+        assertEquals(error, line.throwable)
+        assertEquals(mapOf("source" to "youtube", "url" to URL), line.properties)
+    }
+
+    @Test
+    fun `the logged link keeps only the video`() = runTest {
+        youTube.error = IllegalStateException("parser changed")
+
+        repository().importFromUrl("https://www.youtube.com/watch?v=abc&list=PLprivate&si=token") {}
+        repository().importFromUrl("https://youtu.be/abc?si=token") {}
+
+        assertEquals(
+            listOf("https://www.youtube.com/watch?v=abc", "https://youtu.be/abc"),
+            logger.at('E').map { it.properties["url"] },
+        )
+    }
+
+    @Test
+    fun `a finished import is logged with source and format only`() = runTest {
+        repository().importFromUrl(URL) {}
+
+        assertEquals(mapOf("source" to "youtube", "extension" to "m4a"), logger.at('I').single().properties)
+    }
+
+    @Test
+    fun `when a document import fails then the log has no path`() = runTest {
+        documents.error = IllegalStateException("broken")
+
+        repository().importDocument("file:///Users/someone/Take 3.mp3")
+
+        assertEquals(mapOf("source" to "file"), logger.at('E').single().properties)
     }
 
     @Test
@@ -165,8 +226,12 @@ class DefaultLibraryRepositoryTest {
 
     private class FakeDocumentDataSource : DocumentDataSource {
         var name: String? = null
+        var error: Exception? = null
         override fun displayName(contentUri: String) = name
-        override fun copy(contentUri: String, target: File) = target.writeBytes(byteArrayOf(1))
+        override fun copy(contentUri: String, target: File) {
+            error?.let { throw it }
+            target.writeBytes(byteArrayOf(1))
+        }
         override fun open(contentUri: String): java.io.InputStream = error("unused")
         override fun write(source: File, contentUri: String) = error("unused")
     }

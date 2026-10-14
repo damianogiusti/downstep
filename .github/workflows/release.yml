@@ -2,6 +2,8 @@
 # every v* tag: it goes public only when someone publishes the draft. The file names stay the
 # same in every release, so the site can link to releases/latest/download/<name>. Run it by hand
 # to check the build without a release.
+# Only the packaging steps get the Sentry secrets: the app carries the DSN (crash reports) and the
+# build uploads the sources for the stack traces. Tests and other builds report nothing.
 name: Release
 
 on:
@@ -36,6 +38,9 @@ jobs:
         run: ./gradlew :engine-desktop:test :desktopApp:test -PappVersion=$APP_VERSION --stacktrace
 
       - name: DMG
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           ./gradlew :desktopApp:packageDmg -PappVersion=$APP_VERSION --stacktrace
           mkdir -p dist
@@ -88,6 +93,9 @@ jobs:
         run: ./gradlew.bat :engine-desktop:test :desktopApp:test "-PappVersion=$env:APP_VERSION" --stacktrace
 
       - name: Zip
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           ./gradlew.bat :desktopApp:createDistributable "-PappVersion=$env:APP_VERSION" --stacktrace
           $stage = "dist/zip"

@@ -3,6 +3,7 @@ package com.damianogiusti.slowdowner.data.export
 import com.damianogiusti.slowdowner.data.library.DocumentDataSource
 import com.damianogiusti.slowdowner.domain.export.ExportResult
 import com.damianogiusti.slowdowner.domain.export.ExportedFile
+import com.damianogiusti.slowdowner.fake.RecordingLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -22,9 +23,10 @@ class DefaultExportRepositoryTest {
 
     private val renderer = FakeOfflineRenderer()
     private val documents = FakeDocumentDataSource()
+    private val logger = RecordingLogger()
 
     private fun repository(exportDir: File = File(temp.root, "exports")) =
-        DefaultExportRepository(renderer, documents, exportDir, UnconfinedTestDispatcher())
+        DefaultExportRepository(renderer, documents, exportDir, UnconfinedTestDispatcher(), logger)
 
     @Test
     fun `when the render completes then the file is returned and progress reported`() = runTest {
@@ -37,6 +39,7 @@ class DefaultExportRepositoryTest {
         assertTrue(File(file.path).length() > 0)
         assertEquals(listOf(0.5f, 1f), progress)
         assertTrue(renderer.isEnded)
+        assertEquals(mapOf("format" to "mp3"), logger.at('I').single().properties)
     }
 
     @Test
@@ -57,6 +60,7 @@ class DefaultExportRepositoryTest {
 
         assertTrue(result is ExportResult.Failure)
         assertFalse(renderer.isEnded)
+        assertEquals(mapOf("format" to "mp3", "stage" to "begin"), logger.at('E').single().properties)
     }
 
     @Test
@@ -68,6 +72,7 @@ class DefaultExportRepositoryTest {
         assertTrue(result is ExportResult.Failure)
         assertTrue(renderer.isEnded)
         assertFalse(File(temp.root, "exports/Song.mp3").exists())
+        assertEquals(renderer.error, logger.at('E').single().throwable)
     }
 
     @Test

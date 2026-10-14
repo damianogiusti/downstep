@@ -8,4 +8,5 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "2.4.21" apply false
     id("com.google.devtools.ksp") version "2.3.12" apply false
     id("androidx.room") version "2.8.5" apply false
+    id("io.sentry.jvm.gradle") version "6.23.0" apply false
 }

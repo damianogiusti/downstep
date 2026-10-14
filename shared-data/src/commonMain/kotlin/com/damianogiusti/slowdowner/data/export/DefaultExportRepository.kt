@@ -1,9 +1,11 @@
 package com.damianogiusti.slowdowner.data.export
 
 import com.damianogiusti.slowdowner.data.library.DocumentDataSource
+import com.damianogiusti.slowdowner.data.logging.failure
 import com.damianogiusti.slowdowner.domain.export.ExportRepository
 import com.damianogiusti.slowdowner.domain.export.ExportResult
 import com.damianogiusti.slowdowner.domain.export.ExportedFile
+import com.damianogiusti.slowdowner.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ensureActive
@@ -17,6 +19,7 @@ class DefaultExportRepository(
     /** App-private and shared through a FileProvider: it holds only the latest export. */
     private val exportDir: File,
     private val dispatcher: CoroutineDispatcher, // injected (IO); swap in tests
+    private val logger: Logger,
 ) : ExportRepository {
 
     override suspend fun exportOpenTrack(
@@ -27,7 +30,11 @@ class DefaultExportRepository(
         // Old exports were already shared or saved: do not let the cache grow.
         exportDir.listFiles()?.forEach(File::delete)
         val target = File(exportDir, fileName)
-        if (!renderer.begin(target.path)) return@withContext ExportResult.Failure(IOException("Cannot start export"))
+        val format = mapOf("format" to target.extension.lowercase())
+        if (!renderer.begin(target.path)) {
+            logger.e("Export failed", properties = format + ("stage" to "begin"))
+            return@withContext ExportResult.Failure(IOException("Cannot start export"))
+        }
 
         var isComplete = false
         try {
@@ -40,6 +47,7 @@ class DefaultExportRepository(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            logger.failure("Export failed", e, format + ("stage" to "render"))
             return@withContext ExportResult.Failure(e)
         } finally {
             renderer.end()
@@ -47,8 +55,10 @@ class DefaultExportRepository(
         }
 
         if (target.length() > 0) {
+            logger.i("Export finished", format)
             ExportResult.Success(ExportedFile(target.path, target.name))
         } else {
+            logger.e("Export failed", properties = format + ("stage" to "empty"))
             target.delete()
             ExportResult.Failure(IOException("Export produced an empty file"))
         }
@@ -59,6 +69,7 @@ class DefaultExportRepository(
             documents.write(File(file.path), contentUri)
             true
         } catch (e: IOException) {
+            logger.w("Cannot save the export", e)
             false
         }
     }
