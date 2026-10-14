@@ -16,9 +16,8 @@ data class SupportPrompt(val isFirst: Boolean) {
     val closeDelay: Duration get() = if (isFirst) SupportPromptRules.FIRST_CLOSE_DELAY else Duration.ZERO
 }
 
-/** How the prompt was closed. */
+/** How the prompt was closed. "Why is it free?" is not one: it keeps the prompt open. */
 enum class SupportPromptAction(val logName: String) {
-    WHY_FREE("why_free"),
     DONATE("donate"),
     CLOSE("close"),
     /** Esc or a click outside. */

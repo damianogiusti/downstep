@@ -48,6 +48,7 @@ import com.damianogiusti.slowdowner.domain.support.DismissSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.ObserveSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.RecordAppLaunchUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportSupportPromptShownUseCase
+import com.damianogiusti.slowdowner.domain.support.ReportWhyFreeOpenedUseCase
 import com.damianogiusti.slowdowner.domain.support.SupportPromptRepository
 import com.damianogiusti.slowdowner.logging.ConsoleLogger
 import com.damianogiusti.slowdowner.logging.Logger
@@ -142,5 +143,6 @@ fun desktopModule(
     factory { ObserveSupportPromptUseCase(get()) }
     factory { DismissSupportPromptUseCase(get(), get()) }
     factoryOf(::ReportSupportPromptShownUseCase)
+    factoryOf(::ReportWhyFreeOpenedUseCase)
     viewModelOf(::SupportPromptViewModel)
 }

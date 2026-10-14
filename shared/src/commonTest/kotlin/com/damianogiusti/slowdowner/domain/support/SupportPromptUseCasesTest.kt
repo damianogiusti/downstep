@@ -20,6 +20,7 @@ class SupportPromptUseCasesTest {
     private val recordLaunch = RecordAppLaunchUseCase(repository)
     private val observe = ObserveSupportPromptUseCase(repository, clock)
     private val reportShown = ReportSupportPromptShownUseCase(logger)
+    private val reportWhyFreeOpened = ReportWhyFreeOpenedUseCase(repository, logger)
     private val dismiss = DismissSupportPromptUseCase(repository, logger, clock)
 
     @Test
@@ -87,15 +88,28 @@ class SupportPromptUseCasesTest {
     fun `when dismissed the first time then action and countdown are logged`() = runTest {
         repeat(3) { recordLaunch() }
 
-        dismiss(SupportPromptAction.WHY_FREE, duringCountdown = true)
+        dismiss(SupportPromptAction.DONATE, duringCountdown = true)
 
         assertEquals(
             FakeLogger.Line(
                 "Support prompt closed",
-                mapOf("occurrence" to "first", "action" to "why_free", "duringCountdown" to "true"),
+                mapOf("occurrence" to "first", "action" to "donate", "duringCountdown" to "true"),
             ),
             logger.infos.single(),
         )
+    }
+
+    @Test
+    fun `when why free is opened then it is logged and the prompt stays due`() = runTest {
+        repeat(3) { recordLaunch() }
+
+        reportWhyFreeOpened(duringCountdown = true)
+
+        assertEquals(
+            FakeLogger.Line("Support prompt why free opened", mapOf("occurrence" to "first", "duringCountdown" to "true")),
+            logger.infos.single(),
+        )
+        assertEquals(SupportPrompt(isFirst = true), observe().first())
     }
 
     @Test

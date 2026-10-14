@@ -3,6 +3,7 @@ package com.damianogiusti.slowdowner.ui.support
 import com.damianogiusti.slowdowner.domain.support.DismissSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.ObserveSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportSupportPromptShownUseCase
+import com.damianogiusti.slowdowner.domain.support.ReportWhyFreeOpenedUseCase
 import com.damianogiusti.slowdowner.domain.support.SupportPromptHistory
 import com.damianogiusti.slowdowner.domain.support.SupportPromptRepository
 import com.damianogiusti.slowdowner.logging.Logger
@@ -98,7 +99,7 @@ class SupportPromptViewModelTest {
     }
 
     @Test
-    fun `when why free is clicked during the countdown then prompt hides and the action is logged`() = runTest {
+    fun `when why free is clicked during the countdown then prompt stays and the click is logged`() = runTest {
         repository.history.value = SupportPromptHistory(launchCount = 3)
         val viewModel = viewModel()
         subscribe(viewModel)
@@ -106,10 +107,27 @@ class SupportPromptViewModelTest {
         viewModel.onWhyFreeClicked()
         runCurrent()
 
+        assertEquals(SupportPromptUiState.Visible(closeSecondsLeft = 5), viewModel.state.value)
+        assertEquals(null, repository.history.value.lastShownAt)
+        assertEquals(
+            "Support prompt why free opened" to mapOf("occurrence" to "first", "duringCountdown" to "true"),
+            logger.infos.last(),
+        )
+    }
+
+    @Test
+    fun `when donate is clicked then prompt hides and the action is logged`() = runTest {
+        repository.history.value = SupportPromptHistory(launchCount = 3)
+        val viewModel = viewModel()
+        subscribe(viewModel)
+
+        viewModel.onDonateClicked()
+        runCurrent()
+
         assertEquals(SupportPromptUiState.Hidden, viewModel.state.value)
         assertEquals(clock.now(), repository.history.value.lastShownAt)
         assertEquals(
-            "Support prompt closed" to mapOf("occurrence" to "first", "action" to "why_free", "duringCountdown" to "true"),
+            "Support prompt closed" to mapOf("occurrence" to "first", "action" to "donate", "duringCountdown" to "true"),
             logger.infos.last(),
         )
     }
@@ -134,6 +152,7 @@ class SupportPromptViewModelTest {
     private fun viewModel() = SupportPromptViewModel(
         ObserveSupportPromptUseCase(repository, clock),
         ReportSupportPromptShownUseCase(logger),
+        ReportWhyFreeOpenedUseCase(repository, logger),
         DismissSupportPromptUseCase(repository, logger, clock),
     )
 

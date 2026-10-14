@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.damianogiusti.slowdowner.domain.support.DismissSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.ObserveSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportSupportPromptShownUseCase
+import com.damianogiusti.slowdowner.domain.support.ReportWhyFreeOpenedUseCase
 import com.damianogiusti.slowdowner.domain.support.SupportPrompt
 import com.damianogiusti.slowdowner.domain.support.SupportPromptAction
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,6 +25,7 @@ import kotlin.time.Duration.Companion.seconds
 class SupportPromptViewModel(
     observeSupportPrompt: ObserveSupportPromptUseCase,
     private val reportSupportPromptShown: ReportSupportPromptShownUseCase,
+    private val reportWhyFreeOpened: ReportWhyFreeOpenedUseCase,
     private val dismissSupportPrompt: DismissSupportPromptUseCase,
 ) : ViewModel() {
 
@@ -37,7 +39,11 @@ class SupportPromptViewModel(
         .flatMapLatest { prompt -> prompt?.let(::countdown) ?: flowOf(SupportPromptUiState.Hidden) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SupportPromptUiState.Hidden)
 
-    fun onWhyFreeClicked() = dismiss(SupportPromptAction.WHY_FREE)
+    /** The prompt stays open: back from the browser, people can still donate or close it. */
+    fun onWhyFreeClicked() {
+        val duringCountdown = isCountingDown()
+        viewModelScope.launch { reportWhyFreeOpened(duringCountdown) }
+    }
 
     fun onDonateClicked() = dismiss(SupportPromptAction.DONATE)
 
@@ -46,8 +52,10 @@ class SupportPromptViewModel(
     /** Esc or a click outside: the dialog only asks once the countdown is over. */
     fun onDismissRequested() = dismiss(SupportPromptAction.DISMISS)
 
+    private fun isCountingDown() = (state.value as? SupportPromptUiState.Visible)?.canClose == false
+
     private fun dismiss(action: SupportPromptAction) {
-        val duringCountdown = (state.value as? SupportPromptUiState.Visible)?.canClose == false
+        val duringCountdown = isCountingDown()
         viewModelScope.launch { dismissSupportPrompt(action, duringCountdown) }
     }
 
