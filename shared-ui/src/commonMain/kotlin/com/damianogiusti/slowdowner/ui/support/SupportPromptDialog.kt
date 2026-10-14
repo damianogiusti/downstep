@@ -55,13 +55,14 @@ fun SupportPromptHost(viewModel: SupportPromptViewModel = koinViewModel()) {
         state = visible,
         onWhyFree = {
             uriHandler.openUri(whyFreeUrl)
-            viewModel.onDismissed()
+            viewModel.onWhyFreeClicked()
         },
         onDonate = {
             uriHandler.openUri(DONATE_URL)
-            viewModel.onDismissed()
+            viewModel.onDonateClicked()
         },
-        onClose = viewModel::onDismissed,
+        onClose = viewModel::onCloseClicked,
+        onDismiss = viewModel::onDismissRequested,
     )
 }
 
@@ -72,9 +73,10 @@ internal fun SupportPromptDialog(
     onWhyFree: () -> Unit,
     onDonate: () -> Unit,
     onClose: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     BasicAlertDialog(
-        onDismissRequest = { if (state.canClose) onClose() },
+        onDismissRequest = { if (state.canClose) onDismiss() },
         properties = DialogProperties(dismissOnBackPress = state.canClose, dismissOnClickOutside = state.canClose),
     ) {
         Surface(

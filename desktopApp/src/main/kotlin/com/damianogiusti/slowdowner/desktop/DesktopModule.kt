@@ -47,6 +47,7 @@ import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
 import com.damianogiusti.slowdowner.domain.support.DismissSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.ObserveSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.RecordAppLaunchUseCase
+import com.damianogiusti.slowdowner.domain.support.ReportSupportPromptShownUseCase
 import com.damianogiusti.slowdowner.domain.support.SupportPromptRepository
 import com.damianogiusti.slowdowner.logging.ConsoleLogger
 import com.damianogiusti.slowdowner.logging.Logger
@@ -139,6 +140,7 @@ fun desktopModule(
     factoryOf(::RecordAppLaunchUseCase)
     // Explicit lambdas: the clock parameter keeps its default.
     factory { ObserveSupportPromptUseCase(get()) }
-    factory { DismissSupportPromptUseCase(get()) }
+    factory { DismissSupportPromptUseCase(get(), get()) }
+    factoryOf(::ReportSupportPromptShownUseCase)
     viewModelOf(::SupportPromptViewModel)
 }
