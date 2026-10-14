@@ -1,0 +1,186 @@
+{{> head }}
+{{> header }}
+
+<main id="main">
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <div class="chips">{{ home.chips }}</div>
+    <h1>{{ home.h1 }}</h1>
+    <p class="lede">{{ home.lede }}</p>
+    <div class="ctas">
+      {{> download-buttons }}
+    </div>
+
+    <!-- Animated A-B loop laid out like the player, the waveform drawn like the app icon. Built by main.js. -->
+    <div class="demo surface" role="img" aria-label="{{ home.demo_label }}">
+      <div class="label">{{ home.demo_practicing }}</div>
+      <div class="demo-title" style="margin-top:14px">Scarborough Fair</div>
+      <div class="demo-sub">{{ home.demo_traditional }}</div>
+      <svg class="wave" id="wave" viewBox="0 0 1000 170" aria-hidden="true"></svg>
+      <div class="times"><span id="demo-time">0:00</span><span class="a" id="demo-a"></span><span class="b" id="demo-b"></span><span class="end" id="demo-end">3:12</span></div>
+      <div class="readouts">
+        <div class="readout speed"><div class="label">{{ home.speed }}</div><div class="v" id="demo-speed">100%</div></div>
+        <div class="readout pitch"><div class="label">{{ home.pitch }}</div><div class="v" id="demo-pitch">0 st</div></div>
+      </div>
+      <p class="demo-caption" id="demo-caption"
+         data-listen="{{ home.demo_listen }}" data-mark="{{ home.demo_mark }}" data-slow="{{ home.demo_slow }}"
+         data-key="{{ home.demo_key }}" data-faster="{{ home.demo_faster }}"></p>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="what">
+  <div class="wrap">
+    <div class="sec-head"><h2>{{ home.what_title }}</h2></div>
+
+    <div class="features">
+      <article class="feature wide surface">
+        <div>
+          <div class="feature-head"><span class="tile solid">{{ @icon:tune }}</span><span class="label">{{ home.f1_tag }}</span></div>
+          <h3>{{ home.f1_title }}</h3>
+          <p>{{ home.f1_text }}</p>
+        </div>
+        <figure class="crop">
+          <img class="only-dark" src="{{ @root }}assets/screens/crop-speedpitch-dark.webp" width="1030" height="460" loading="lazy" alt="{{ home.f1_alt }}">
+          <img class="only-light" src="{{ @root }}assets/screens/crop-speedpitch-light.webp" width="1030" height="460" loading="lazy" alt="{{ home.f1_alt }}">
+        </figure>
+      </article>
+
+      <article class="feature wide flip surface">
+        <figure class="crop">
+          <img class="only-dark" src="{{ @root }}assets/screens/crop-loop-dark.webp" width="1030" height="665" loading="lazy" alt="{{ home.f2_alt }}">
+          <img class="only-light" src="{{ @root }}assets/screens/crop-loop-light.webp" width="1030" height="665" loading="lazy" alt="{{ home.f2_alt }}">
+        </figure>
+        <div>
+          <div class="feature-head"><span class="tile solid">{{ @icon:repeat }}</span><span class="label">Loop</span></div>
+          <h3>{{ home.f2_title }}</h3>
+          <p>{{ home.f2_text }}</p>
+        </div>
+      </article>
+
+      <article class="feature surface">
+        <div class="feature-head"><span class="tile">{{ @icon:library_music }}</span><span class="label">{{ home.f3_tag }}</span></div>
+        <h3>{{ home.f3_title }}</h3>
+        <p>{{ home.f3_text }}</p>
+      </article>
+
+      <article class="feature surface">
+        <div class="feature-head"><span class="tile">{{ @icon:bookmark }}</span><span class="label">{{ home.f4_tag }}</span></div>
+        <h3>{{ home.f4_title }}</h3>
+        <p>{{ home.f4_text }}</p>
+        <div class="chips">{{ home.f4_chips }}</div>
+      </article>
+
+      <article class="feature surface">
+        <div class="feature-head"><span class="tile">{{ @icon:graphic_eq }}</span><span class="label">{{ home.f5_tag }}</span></div>
+        <h3>{{ home.f5_title }}</h3>
+        <div class="eq" aria-hidden="true">
+          <div><span style="height:78%"></span><small>60</small></div>
+          <div><span style="height:66%"></span><small>150</small></div>
+          <div><span style="height:44%"></span><small>400</small></div>
+          <div><span style="height:38%"></span><small>1k</small></div>
+          <div><span style="height:46%"></span><small>2.4k</small></div>
+          <div><span style="height:34%"></span><small>6k</small></div>
+          <div><span style="height:28%"></span><small>15k</small></div>
+        </div>
+        <p>{{ home.f5_text }}</p>
+      </article>
+
+      <article class="feature surface">
+        <div class="feature-head"><span class="tile">{{ @icon:share }}</span><span class="label">{{ home.f6_tag }}</span></div>
+        <h3>{{ home.f6_title }}</h3>
+        <p>{{ home.f6_text }}</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="screens">
+  <div class="wrap">
+    <div class="sec-head"><h2>{{ home.screens_title }}</h2></div>
+    <div class="shots" tabindex="0" aria-label="{{ home.screens_title }}">
+      <figure class="shot">
+        <img class="only-dark" src="{{ @root }}assets/screens/practice-dark.webp" width="2560" height="1640" loading="lazy" alt="{{ home.shot1_alt }}">
+        <img class="only-light" src="{{ @root }}assets/screens/practice-light.webp" width="2560" height="1640" loading="lazy" alt="{{ home.shot1_alt }}">
+        <figcaption class="label">{{ home.shot1 }}</figcaption>
+      </figure>
+      <figure class="shot">
+        <img class="only-dark" src="{{ @root }}assets/screens/playlists-dark.webp" width="2560" height="1640" loading="lazy" alt="{{ home.shot2_alt }}">
+        <img class="only-light" src="{{ @root }}assets/screens/playlists-light.webp" width="2560" height="1640" loading="lazy" alt="{{ home.shot2_alt }}">
+        <figcaption class="label">{{ home.shot2 }}</figcaption>
+      </figure>
+      <figure class="shot">
+        <img class="only-dark" src="{{ @root }}assets/screens/effects-dark.webp" width="2560" height="1408" loading="lazy" alt="{{ home.shot3_alt }}">
+        <img class="only-light" src="{{ @root }}assets/screens/effects-light.webp" width="2560" height="1408" loading="lazy" alt="{{ home.shot3_alt }}">
+        <figcaption class="label">{{ home.shot3 }}</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="features">
+  <div class="wrap">
+    <div class="sec-head"><h2>{{ home.all_title }}</h2></div>
+    <div class="catalog">{{ home.catalog }}</div>
+  </div>
+</section>
+
+<section class="block" id="download">
+  <div class="wrap">
+    <div class="sec-head"><h2>{{ home.download_title }}</h2></div>
+    <div class="targets">
+      <article class="target surface">
+        <span class="tile solid">{{> icon-apple }}</span>
+        <h3>Mac</h3>
+        <p>{{ home.mac_req }}</p>
+        <a class="btn btn-primary" href="{{ @url:mac }}">{{ common.download_mac }}</a>
+      </article>
+      <article class="target surface">
+        <span class="tile">{{> icon-windows }}</span>
+        <h3>Windows <span class="badge">beta</span></h3>
+        <p>{{ home.win_req }}</p>
+        <a class="btn btn-tonal" href="{{ @url:windows }}">{{ common.download_windows }}</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="note">
+  <div class="wrap">
+    <div class="note-card surface">
+      <h2>{{ home.note_title }}</h2>
+      <div>
+        {{ home.note_text }}
+        <div class="sign">
+          <img src="{{ @root }}assets/avatar.webp" alt="" width="52" height="52" loading="lazy">
+          <div>
+            <b>Damiano Giusti</b>
+            <a href="https://www.damianogiusti.com">damianogiusti.com</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="faq">
+  <div class="wrap">
+    <div class="sec-head"><h2>{{ home.faq_title }}</h2></div>
+    <div class="faq">{{ home.faq }}</div>
+  </div>
+</section>
+
+<section class="closing">
+  <div class="wrap">
+    <img src="{{ @root }}assets/icon.svg" alt="" width="96" height="96">
+    <h2>{{ home.closing }}</h2>
+    <div class="ctas">
+      {{> download-buttons }}
+    </div>
+  </div>
+</section>
+
+</main>
+
+{{> footer }}

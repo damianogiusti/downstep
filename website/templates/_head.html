@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="{{ @lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page.title }}</title>
+<meta name="description" content="{{ page.description }}">
+<link rel="canonical" href="{{ @canonical }}">
+{{ @hreflang }}
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ page.title }}">
+<meta property="og:description" content="{{ page.description }}">
+<meta property="og:image" content="{{ @root }}assets/og-card.png">
+<meta name="theme-color" content="#0F1114" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#FAF6F0" media="(prefers-color-scheme: light)">
+<link rel="icon" href="{{ @root }}assets/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="{{ @root }}assets/icon.png">
+<link rel="preload" href="{{ @root }}assets/fonts/space_grotesk_bold.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{{ @root }}style.css">
+<script>(function () { var t = localStorage.getItem("sd-theme"); if (t) document.documentElement.dataset.theme = t; })();</script>
+</head>
+<body>
+<a class="skip" href="#main">{{ common.skip }}</a>

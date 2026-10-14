@@ -1,0 +1,279 @@
+# Testi in italiano. Ogni chiave deve esistere anche in en.toml (build.py lo controlla).
+# Stringhe letterali ('''): backslash e virgolette restano come sono.
+
+[common]
+skip = 'Vai al contenuto'
+theme = 'Tema chiaro o scuro'
+other_language = 'English'
+other_code = 'EN'
+download_mac = 'Scarica per Mac'
+download_windows = 'Scarica per Windows'
+back_home = 'Downstep'
+footer_about = "Un'app gratuita per esercitarsi con la musica. Open source, GPL-3.0."
+footer_project = 'Progetto'
+footer_source = 'Codice sorgente'
+footer_versions = 'Tutte le versioni'
+footer_issues = 'Segnala un problema'
+footer_why = 'Perché è gratis'
+footer_built = 'Fatta con'
+trademarks = 'Mac e macOS sono marchi di Apple Inc., Windows di Microsoft Corporation, YouTube di Google LLC.'
+top = 'Torna su'
+
+[home]
+title = 'Downstep, rallenta i brani e ripetili in loop per impararli. Per Mac e Windows'
+description = "Downstep è un'app gratuita per Mac e Windows per esercitarsi con la musica. Rallenta un brano senza cambiarne la tonalità e ripete in loop il pezzo che stai imparando."
+nav = '''
+<nav class="index" aria-label="Sezioni">
+      <a href="#what">Cosa fa</a>
+      <a href="#screens">Schermate</a>
+      <a href="#features">Funzioni</a>
+      <a href="#download">Download</a>
+      <a href="#faq">Domande</a>
+    </nav>'''
+cta = '<a class="btn btn-primary btn-small head-cta" href="#download">Scarica</a>'
+chips = '<span class="chip on">Versione 1.0</span><span class="chip">Gratis</span><span class="chip">macOS 11 o successivo</span><span class="chip">Windows 10 e 11</span>'
+h1 = 'Per imparare un brano, <em>prima</em> lo rallento.'
+lede = "Downstep è l'app che ho fatto per questo. Suona un brano più lento o più veloce senza cambiarne la tonalità, e ripete il pezzo su cui stai lavorando tutte le volte che serve. È gratis, per Mac e Windows."
+
+demo_label = 'Animazione: il loop A-B si chiude intorno a un passaggio e la velocità scende al 70%'
+demo_practicing = 'In pratica'
+demo_traditional = 'Tradizionale'
+speed = 'Velocità'
+pitch = 'Tonalità'
+demo_listen = 'Ascolti il brano.'
+demo_mark = 'Metti A e B intorno al pezzo difficile.'
+demo_slow = 'Rallenti al 70%, e la tonalità resta quella.'
+demo_key = 'Se serve, lo abbassi di 2 semitoni.'
+demo_faster = "Poi lo riacceleri, un po' alla volta."
+
+what_title = 'Cosa fa'
+f1_tag = 'Velocità e tonalità'
+f1_title = 'Velocità e tonalità, separate'
+f1_text = "Puoi andare dal 25% al 200% della velocità originale, e spostare la tonalità fino a 12 semitoni in su o in giù. Se cambi una delle due, l'altra non si muove."
+f1_alt = 'Velocità al 75% e tonalità a meno 2 semitoni, ognuna con uno slider e i pulsanti per i passi'
+f2_title = 'Loop A-B'
+f2_text = 'Premi A e B mentre il brano suona, oppure trascina i marker sulla timeline. Con i pulsanti accanto dimezzi o raddoppi il loop, o lo sposti sulla frase dopo.'
+f2_alt = 'La timeline con i marker A e B, e i controlli del loop'
+f3_tag = 'Libreria'
+f3_title = 'I tuoi brani, anche offline'
+f3_text = 'Importi file MP3, M4A, WAV o FLAC, oppure un link YouTube (solo per contenuti di cui hai i diritti). Tutto resta sul tuo computer, quindi ti eserciti anche senza connessione. Puoi anche raggruppare i brani in playlist.'
+f4_tag = 'Preset'
+f4_title = 'Preset'
+f4_text = "Ogni brano si ricorda velocità, tonalità e loop, così lo ritrovi come l'avevi lasciato. Puoi anche salvare dei preset con un nome e passare dall'uno all'altro."
+f4_chips = '<span class="chip">Assolo 70%</span><span class="chip">Brano intero −2</span>'
+f5_tag = 'Effetti'
+f5_title = 'Equalizzatore e bilanciamento'
+f5_text = 'Un equalizzatore a 7 bande e il bilanciamento tra sinistra e destra, utili quando vuoi sentire meglio uno strumento.'
+f6_tag = 'Export'
+f6_title = 'Export e backup'
+f6_text = 'Puoi esportare un brano in MP3 con le tue modifiche. Il backup contiene tutta la libreria, e lo ripristini su un altro Mac o su Windows.'
+
+screens_title = 'Schermate'
+shot1 = 'Libreria e pratica'
+shot1_alt = 'Downstep su Mac: la libreria a sinistra, il player a destra con velocità al 75%, tonalità a meno 2 e il loop A-B attivo'
+shot2 = 'Playlist'
+shot2_alt = 'La scheda delle playlist'
+shot3 = 'Effetti'
+shot3_alt = 'Il pannello degli effetti con bilanciamento, preamp ed equalizzatore'
+
+all_title = 'Tutte le funzioni'
+catalog = '''
+<section class="surface">
+        <div class="label">Pratica</div>
+        <ul class="rows">
+          <li class="row">{{ @icon:check }}<div><b>Velocità</b><span>dal 25% al 200%</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Tonalità</b><span>fino a 12 semitoni in su o in giù</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Passi piccoli</b><span>del 5% e di 1 semitono</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Salti</b><span>di 5 secondi indietro o avanti</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Memoria</b><span>impostazioni salvate per ogni brano</span></div></li>
+        </ul>
+      </section>
+      <section class="surface">
+        <div class="label">Loop A-B</div>
+        <ul class="rows">
+          <li class="row">{{ @icon:check }}<div><b>A e B</b><span>mentre ascolti, o trascinando</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>½ e ×2</b><span>per cambiarne la lunghezza</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>◀ ▶</b><span>sulla frase prima o dopo</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Resta salvato</b><span>quando lo spegni</span></div></li>
+        </ul>
+      </section>
+      <section class="surface">
+        <div class="label">Tastiera</div>
+        <ul class="rows">
+          <li class="row"><kbd>Spazio</kbd><div><span>play e stop</span></div></li>
+          <li class="row"><kbd>←</kbd><kbd>→</kbd><div><span>5 secondi, 1 con Maiusc</span></div></li>
+          <li class="row"><kbd>A</kbd><kbd>B</kbd><div><span>inizio e fine del loop</span></div></li>
+          <li class="row"><kbd>L</kbd><div><span>accende e spegne il loop</span></div></li>
+        </ul>
+      </section>
+      <section class="surface">
+        <div class="label">Libreria</div>
+        <ul class="rows">
+          <li class="row">{{ @icon:check }}<div><b>File</b><span>MP3, M4A, WAV, FLAC</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Link YouTube</b><span>solo l'audio</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Ricerca e playlist</b></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Offline</b><span>tutto resta sul computer</span></div></li>
+        </ul>
+      </section>
+      <section class="surface">
+        <div class="label">Suono</div>
+        <ul class="rows">
+          <li class="row">{{ @icon:check }}<div><b>Equalizzatore</b><span>7 bande, da 60 Hz a 15 kHz</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Preamp</b></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Bilanciamento</b><span>tra sinistra e destra</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Time-stretch</b><span>con <a href="https://github.com/bungee-audio-stretch/bungee">Bungee</a></span></div></li>
+        </ul>
+      </section>
+      <section class="surface">
+        <div class="label">Export e backup</div>
+        <ul class="rows">
+          <li class="row">{{ @icon:check }}<div><b>Export MP3</b><span>con le tue modifiche</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Backup</b><span>brani, preset e playlist</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Ripristino</b><span>senza perdere quello che hai</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Stesso formato</b><span>su Mac e Windows</span></div></li>
+        </ul>
+      </section>'''
+
+download_title = 'Download'
+mac_req = 'Un Mac con Apple silicon (M1 o successivi) e macOS 11 o successivo.'
+win_req = 'Windows 10 o 11, 64 bit.'
+
+note_title = "Perché l'ho fatta"
+note_text = '''
+<p>Suono la chitarra in una band, e per imparare i pezzi nuovi li rallento e ripeto in loop i passaggi difficili. Volevo qualcosa di semplice, che funzionasse offline e che tutta la band potesse usare con gli stessi preset. Così ho fatto Downstep nel tempo libero.</p>
+        <p>È gratis, e <a href="{{ @url:why }}">qui spiego perché</a>.</p>'''
+
+faq_title = 'Domande'
+faq = '''
+<details><summary>È davvero gratis?{{ @icon:expand_more }}</summary>
+        <p>Sì, e non c'è una versione a pagamento. Se ti piace, puoi <a href="{{ @url:why }}">sostenerla con una donazione</a>.</p></details>
+      <details><summary>Dove vengono salvati i brani?{{ @icon:expand_more }}</summary>
+        <p>Sul tuo computer: <code>~/Library/Application Support/SlowDowner</code> su Mac, <code>%APPDATA%\SlowDowner</code> su Windows. La cartella ha ancora il primo nome dell'app. Per spostare i brani su un altro computer, usa il backup.</p></details>
+      <details><summary>Perché macOS la blocca?{{ @icon:expand_more }}</summary>
+        <p>Perché non è distribuita tramite l'App Store. Basta autorizzarla una volta, la <a href="{{ @url:mac }}">pagina di download</a> spiega come.</p></details>
+      <details><summary>L'app manda dei dati?{{ @icon:expand_more }}</summary>
+        <p>No. Va online solo quando importi da un link.</p></details>
+      <details><summary>Funziona su un Mac Intel?{{ @icon:expand_more }}</summary>
+        <p>Per ora no, solo su Apple silicon (M1 e successivi).</p></details>
+      <details><summary>C'è una versione per iPhone o Android?{{ @icon:expand_more }}</summary>
+        <p>Per ora no. Mi piacerebbe fare una versione per iPhone, ma non c'è ancora una data.</p></details>
+      <details><summary>Posso importare da YouTube?{{ @icon:expand_more }}</summary>
+        <p>Sì, incolli un link e l'app salva solo l'audio. Scaricare da YouTube può andare contro i suoi termini di servizio, quindi usalo solo per contenuti di cui hai i diritti.</p></details>
+      <details><summary>Ho trovato un bug, o ho un'idea{{ @icon:expand_more }}</summary>
+        <p>Apri una issue su <a href="https://github.com/damianogiusti/downstep/issues">GitHub</a>, le leggo tutte.</p></details>'''
+closing = 'Scarica Downstep'
+
+[download]
+why_button = 'Perché è gratis?'
+install_title = 'Come si installa'
+free_title = 'Downstep è gratis'
+free_text = 'Se ti è utile, puoi ringraziarmi con una donazione.'
+donate_button = 'Dona con PayPal'
+
+[mac]
+short_req = 'Apple silicon, macOS 11 o successivo'
+title = 'Scarica Downstep per Mac'
+description = 'Scarica Downstep per Mac e installala in pochi passi. Per Mac con Apple silicon e macOS 11 o successivo.'
+nav = ''
+cta = ''
+icon = '{{> icon-apple }}'
+label = 'Mac'
+h1 = 'Downstep per Mac'
+file_name = 'Downstep-mac.dmg'
+req = 'Un Mac con Apple silicon (M1 o successivi) e macOS 11 o successivo. I Mac Intel per ora non sono supportati.'
+button = 'Scarica'
+steps = '''
+<li class="row"><span class="tile">1</span><div><b>Apri il .dmg</b><p>e trascina Downstep in Applicazioni.</p></div></li>
+      <li class="row"><span class="tile">2</span><div><b>Apri Downstep</b><p>La prima volta macOS la blocca, perché non arriva dall'App Store. Chiudi il messaggio.</p></div></li>
+      <li class="row"><span class="tile">3</span><div><b>Vai in Impostazioni di Sistema, Privacy e sicurezza</b><p>Scorri in basso e fai clic su “Apri comunque” accanto a Downstep. macOS ti chiede la password o Touch ID.</p></div></li>
+      <li class="row"><span class="tile">4</span><div><b>Fatto</b><p>Da adesso si apre normalmente.</p></div></li>'''
+extra = '''
+<details class="terminal">
+      <summary>Se preferisci il Terminale</summary>
+      <p class="muted">Dopo il passo 1, questo comando toglie il blocco:</p>
+      <pre><code>xattr -dr com.apple.quarantine /Applications/Downstep.app</code></pre>
+    </details>'''
+
+[windows]
+short_req = 'Windows 10 o 11, 64 bit'
+title = 'Scarica Downstep per Windows'
+description = 'Scarica Downstep per Windows 10 e 11 e installala in pochi passi.'
+nav = ''
+cta = ''
+icon = '{{> icon-windows }}'
+label = 'Windows beta'
+h1 = 'Downstep per Windows'
+file_name = 'Downstep-windows-x64.zip'
+req = 'Windows 10 o 11, 64 bit.'
+button = 'Scarica'
+steps = '''
+<li class="row"><span class="tile">1</span><div><b>Estrai lo .zip</b><p>Tasto destro, poi “Estrai tutto”.</p></div></li>
+      <li class="row"><span class="tile">2</span><div><b>Apri Downstep.exe</b><p>Lo trovi nella cartella Downstep.</p></div></li>
+      <li class="row"><span class="tile">3</span><div><b>Se vedi “PC protetto da Windows”</b><p>fai clic su “Ulteriori informazioni” e poi su “Esegui comunque”.</p></div></li>'''
+extra = '''
+<div class="callout teal" style="margin:10px 0 0">Non ho un PC Windows, quindi questa versione la provano dei test automatici e qualche amico. Se qualcosa non va, <a href="https://github.com/damianogiusti/downstep/issues">fammelo sapere</a>.</div>'''
+
+[why]
+title = 'Perché Downstep è gratis'
+description = 'Perché Downstep è gratis, e come puoi sostenerla con una donazione.'
+nav = ''
+cta = '<a class="btn btn-primary btn-small head-cta" href="#donate">Dona</a>'
+h1 = 'Perché Downstep è gratis'
+text = '''
+<p>Downstep è nata come app Android per il mio telefono. Volevo metterla sull'App Store e su Google Play a pochi euro, da pagare una volta sola. Poi ho guardato cosa vuol dire in Italia, dove vivo. Per venderne anche solo qualche copia mi servirebbero la partita IVA, un commercialista e una fattura ad Apple e a Google ogni mese. Per una cosa che faccio nel tempo libero, non ne valeva la pena.</p>
+  <p>Così ho deciso di regalarla, e mi sono dedicato alle versioni desktop per Mac e Windows. Per metterci meno tempo mio, ho usato strumenti di AI per buona parte del lavoro, e pubblico l'app solo su questo sito.</p>
+  <p>Se Downstep ti è utile e ti va di ringraziarmi, puoi farmi una donazione su PayPal. Grazie!</p>'''
+donate_button = 'Dona con PayPal'
+donate_note = "È un regalo: l'app resta gratis e uguale per tutti."
+more_link = 'Più dettagli sulla burocrazia italiana, e come funziona in altri paesi'
+
+[more]
+title = "Vendere un'app in Italia, i dettagli"
+description = "Cosa serve per vendere una piccola app dall'Italia, a confronto con USA, Regno Unito, Germania, Francia e Spagna."
+nav = ''
+cta = '<a class="btn btn-primary btn-small head-cta" href="{{ @url:why }}#donate">Dona</a>'
+back = 'Perché Downstep è gratis'
+h1 = "Vendere un'app in Italia, i dettagli"
+meta = 'Quello che ho trovato a ottobre 2026. Le fonti sono in fondo.'
+italy_title = 'Cosa serve in Italia'
+sum = '''
+<div class="surface"><b>35 €</b><span>circa di diritti per aprire, più il commercialista</span></div>
+      <div class="surface"><b>300 €</b><span>o più l'anno per il commercialista, fino a 1.200 €</span></div>
+      <div class="surface"><b>Ogni mese</b><span>una fattura elettronica a ogni store</span></div>'''
+start_title = 'Per iniziare'
+start = '''
+<li><span><b>Aprire la partita IVA</b> come ditta individuale, perché vendere la propria app è un'attività commerciale (ATECO 58.29.00). <span class="cost">Circa 35 €</span> <sup>[1][2]</sup></span></li>
+        <li><span><b>Iscriversi al Registro Imprese</b> con ComUnica. Servono una PEC e una firma digitale. <sup>[3]</sup></span></li>
+        <li><span><b>Chiedere all'INPS l'esenzione</b> da dipendente a tempo pieno, altrimenti c'è un contributo fisso ogni anno. Va dichiarata da te. <sup>[4]</sup></span></li>
+        <li><span><b>Iscriversi al VIES</b>, perché vendi ad Apple e Google in Irlanda. <sup>[5]</sup></span></li>
+        <li><span><b>Scegliere il regime fiscale.</b> Quello semplice (forfettario) non è possibile se l'anno prima hai guadagnato più di 35.000 € da dipendente. <sup>[6][7]</sup></span></li>'''
+often_title = 'Ogni mese o trimestre'
+often = '''
+<li><span><b>Una fattura elettronica via SdI</b> ad Apple e a Google, di solito una per ogni pagamento mensile. <sup>[8]</sup></span></li>
+        <li><span><b>Il bollo da 2 €</b> sulle fatture sopra i 77,47 €. <sup>[9]</sup></span></li>
+        <li><span><b>Gli elenchi INTRA</b> dei servizi venduti a imprese UE, ogni trimestre. <sup>[10]</sup></span></li>'''
+yearly_title = 'Ogni anno, anche senza vendite'
+yearly = '''
+<li><span><b>Commercialista</b>, da 300 a 1.200 € <sup>[11]</sup></span></li>
+        <li><span><b>Diritto annuale</b> alla Camera di Commercio, da 44 a 53 € <sup>[12]</sup></span></li>
+        <li><span><b>PEC e firma digitale</b>, circa da 30 a 50 € <sup>[13]</sup></span></li>
+        <li><span><b>Dichiarazione dei redditi</b> e versamenti a giugno e novembre.</span></li>'''
+stores_title = 'Negli store'
+stores = '''
+<li><span><b>Indirizzo e telefono diventano pubblici.</b> Con il Digital Services Act europeo, le app a pagamento mostrano indirizzo, telefono ed email del venditore nella pagina dello store. <sup>[14][15]</sup></span></li>'''
+fair = '''
+<p>Si può fare, e tanti lo fanno. Le tasse del forfettario sono basse (5% per i primi cinque anni, poi 15%), e da dipendente a tempo pieno probabilmente non pagherei il contributo INPS fisso, che per chi lo deve è di 4.611,64 € l'anno <sup>[16]</sup>. Qualche vendita occasionale si può dichiarare anche senza partita IVA, ma un'app in vendita tutto l'anno è difficile chiamarla occasionale <sup>[17]</sup>.</p>
+      <p>Quello che mi frena sono i tanti piccoli adempimenti fissi, che sono gli stessi sia che vendi tre copie sia che ne vendi tremila.</p>'''
+abroad_title = 'Come funziona in altri paesi'
+abroad_intro = 'Lo stesso caso: un dipendente che vende una piccola app nel tempo libero.'
+table_head = '<th>Paese</th><th>Per iniziare</th><th>Costo fisso annuo</th><th>Soglia semplificata</th>'
+table_rows = '''
+<tr class="it"><th>Italia</th><td>Partita IVA, Registro Imprese, PEC, firma digitale, VIES</td><td class="bad">Commercialista e diritto annuale, più INPS 4.611,64 € se non esente</td><td>Nessuna, fatture dal primo euro</td></tr>
+          <tr><th>USA</th><td>Niente, vendi a tuo nome</td><td class="good">Nessuno</td><td>Contributi solo sopra 400 $ di utile <sup>[18]</sup></td></tr>
+          <tr><th>Regno Unito</th><td>Niente sotto la soglia, poi Self Assessment</td><td class="good">Nessuno</td><td>I primi 1.000 £ l'anno sono esenti <sup>[19]</sup></td></tr>
+          <tr><th>Germania</th><td>Gewerbeanmeldung (circa da 15 a 65 €) e un modulo su ELSTER</td><td class="good">Nessuno per una piccola attività</td><td>Niente IVA fino a 25.000 € l'anno <sup>[20]</sup></td></tr>
+          <tr><th>Francia</th><td>Micro-entrepreneur, online</td><td class="good">Nessuno, senza incassi niente contributi</td><td>Niente IVA fino a 37.500 € per i servizi <sup>[21]</sup></td></tr>
+          <tr><th>Spagna</th><td>Iscrizione come autónomo</td><td class="bad">Circa 200 € al mese (80 € il primo anno)</td><td>Quote ridotte per i dipendenti <sup>[22]</sup></td></tr>'''
+abroad_outro = "La Spagna è pesante quasi quanto l'Italia, quindi non siamo i soli. Non credo che qualcuno l'abbia pensata contro i piccoli sviluppatori. Le regole sono scritte per negozi e professionisti, e un hobby con poche vendite finisce nella stessa casella."
+disclaimer = "Non sono un commercialista, e regole e importi cambiano. Se vuoi vendere un'app, prima senti un commercialista. Le opinioni sono mie."
+sources_title = 'Fonti'

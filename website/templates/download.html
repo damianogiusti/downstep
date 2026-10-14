@@ -1,0 +1,35 @@
+{{> head }}
+{{> header }}
+
+<main id="main" class="article">
+  <a class="back" href="{{ @url:home }}">{{ @icon:expand_more }}{{ common.back_home }}</a>
+  <div class="feature-head" style="margin-bottom:18px"><span class="tile solid">{{ page.icon }}</span><span class="label">{{ page.label }}</span></div>
+  <h1>{{ page.h1 }}</h1>
+  <p class="meta">{{ page.req }}</p>
+
+  <h2>{{ download.install_title }}</h2>
+  <div class="panel surface">
+    <ol class="rows">{{ page.steps }}</ol>
+    {{ page.extra }}
+  </div>
+
+  <div class="donate surface" id="donate">
+    <h2 style="margin:0 0 10px">{{ download.free_title }}</h2>
+    <p style="font-size:17px;margin:0 auto 22px">{{ download.free_text }}</p>
+    <div class="actions" style="justify-content:center;margin:0">
+      <a class="btn btn-paypal" href="https://www.paypal.me/damianogiusti" rel="noopener">{{ download.donate_button }}</a>
+      <a class="btn btn-tonal" href="{{ @url:why }}">{{ download.why_button }}</a>
+    </div>
+  </div>
+
+  <!-- The download is the last thing on the page: read the steps first, then get the file. -->
+  <div class="get surface">
+    <div>
+      <b>{{ page.file_name }}</b>
+      <p class="req">{{ page.short_req }}</p>
+    </div>
+    <a class="btn btn-primary" href="{{ @file }}">{{ @icon:arrow_downward }}{{ page.button }}</a>
+  </div>
+</main>
+
+{{> footer }}

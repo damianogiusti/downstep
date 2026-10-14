@@ -1,0 +1,30 @@
+Downstep uses these third-party components.
+
+LAME 3.100 (MP3 encoder)
+  License: GNU Library General Public License v2 (LGPL), full text in LAME-COPYING.txt.
+  It is the separate file Downstep\app\resources\mp3lame.dll, built unmodified from
+  https://sourceforge.net/projects/lame/files/lame/3.100/ . You may replace it with your own
+  build of LAME 3.100.
+
+NewPipe Extractor (YouTube import)
+  License: GNU General Public License v3. https://github.com/TeamNewPipe/NewPipeExtractor
+  The source code of Downstep is at https://github.com/damianogiusti/downstep
+
+Bungee 2.4.8 (time stretching and pitch)
+  License: Mozilla Public License 2.0. https://github.com/bungee-audio-stretch/bungee
+  Includes Eigen (MPL-2.0) and PFFFT (BSD-like license).
+
+miniaudio 0.11.25 (audio output)
+  License: public domain (Unlicense) or MIT No Attribution. https://github.com/mackron/miniaudio
+
+Inter and Space Grotesk (fonts)
+  License: SIL Open Font License 1.1, full text in FONTS-OFL.txt.
+  https://github.com/rsms/inter , https://github.com/floriankarsten/space-grotesk
+
+Java runtime (OpenJDK)
+  License: GNU General Public License v2 with the Classpath Exception.
+  Notices in Downstep\runtime\legal.
+
+Kotlin, kotlinx libraries, Compose Multiplatform, Skiko, AndroidX Room and SQLite bindings,
+Koin, OkHttp
+  License: Apache License 2.0. SQLite itself is in the public domain.

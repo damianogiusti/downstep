@@ -1,0 +1,44 @@
+{{> head }}
+{{> header }}
+
+<main id="main" class="article">
+  <a class="back" href="{{ @url:why }}">{{ @icon:expand_more }}{{ more.back }}</a>
+  <h1>{{ more.h1 }}</h1>
+  <p class="meta">{{ more.meta }}</p>
+
+  <section>
+    <h2>{{ more.italy_title }}</h2>
+    <div class="sum">{{ more.sum }}</div>
+    <div class="panel surface"><span class="label">{{ more.start_title }}</span><ul class="list">{{ more.start }}</ul></div>
+    <div class="panel surface"><span class="label">{{ more.often_title }}</span><ul class="list">{{ more.often }}</ul></div>
+    <div class="panel surface"><span class="label">{{ more.yearly_title }}</span><ul class="list">{{ more.yearly }}</ul></div>
+    <div class="panel surface"><span class="label">{{ more.stores_title }}</span><ul class="list">{{ more.stores }}</ul></div>
+    <div class="callout teal">{{ more.fair }}</div>
+  </section>
+
+  <section>
+    <h2>{{ more.abroad_title }}</h2>
+    <p>{{ more.abroad_intro }}</p>
+    <div class="table-wrap surface">
+      <table class="compare">
+        <thead><tr class="label">{{ more.table_head }}</tr></thead>
+        <tbody>{{ more.table_rows }}</tbody>
+      </table>
+    </div>
+    <p style="margin-top:18px">{{ more.abroad_outro }}</p>
+  </section>
+
+  <div class="actions">
+    <a class="btn btn-paypal" href="https://www.paypal.me/damianogiusti" rel="noopener">{{ why.donate_button }}</a>
+    <a class="btn btn-tonal" href="{{ @url:why }}">{{ more.back }}</a>
+  </div>
+
+  <p class="disclaimer">{{ more.disclaimer }}</p>
+
+  <section class="sources">
+    <h2 style="font-size:20px;margin-top:28px">{{ more.sources_title }}</h2>
+    <ol>{{> sources }}</ol>
+  </section>
+</main>
+
+{{> footer }}

@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Italian. The default language (English) lives in values. -->
+<resources>
+    <string name="no_track">Nessun brano aperto</string>
+    <string name="open_file">Apri file</string>
+    <string name="spotify">Spotify</string>
+    <string name="play">Play</string>
+    <string name="stop">Stop</string>
+    <string name="loop_start">A</string>
+    <string name="loop_end">B</string>
+    <string name="loop">Loop</string>
+    <string name="library">Libreria</string>
+    <string name="source_youtube">YouTube</string>
+    <string name="source_local">File locale</string>
+    <string name="remove">Rimuovi</string>
+    <string name="remove_confirm">Rimuovere "%1$s" dalla libreria? Il file verrà cancellato.</string>
+    <string name="position_format">%1$s / %2$s</string>
+    <string name="loop_format">A %1$s, B %2$s</string>
+
+    <string name="import_resolving">Cerco lo stream audio…</string>
+    <string name="import_downloading">Scarico "%1$s"…</string>
+
+    <string name="error_cannot_open">Impossibile aprire "%1$s": formato non supportato dal motore?</string>
+    <string name="error_unsupported_link">Link non supportato. Condividi un link YouTube.</string>
+    <string name="error_unsupported_link_desktop">Link non supportato. Incolla un link YouTube.</string>
+    <string name="error_import_running">Un import è già in corso.</string>
+    <string name="error_unavailable">Contenuto non disponibile o senza audio scaricabile.</string>
+    <string name="error_network">Errore di rete. Riprova.</string>
+    <string name="error_generic">Import fallito: %1$s</string>
+    <string name="effects">Effetti</string>
+    <string name="loop_halve">½</string>
+    <string name="loop_double">×2</string>
+    <string name="loop_shift_backward">◀</string>
+    <string name="loop_shift_forward">▶</string>
+    <string name="loop_halve_description">Dimezza il loop</string>
+    <string name="loop_double_description">Raddoppia il loop</string>
+    <string name="loop_shift_backward_description">Sposta il loop indietro</string>
+    <string name="loop_shift_forward_description">Sposta il loop avanti</string>
+
+    <string name="mix_title">Bilanciamento L / R</string>
+    <string name="effects_subtitle">Valgono per tutti i brani.</string>
+    <string name="mix_format">Sinistra %1$d / Destra %2$d</string>
+    <string name="reset">Reset</string>
+    <string name="eq_title">Equalizzatore</string>
+    <string name="eq_preamp">Preamp</string>
+    <string name="decimal_separator">,</string>
+    <string name="gain_format">%1$s dB</string>
+    <string name="hz_format">%1$d Hz</string>
+    <string name="khz_format">%1$s kHz</string>
+    <string name="quality_title">Qualità time-stretch</string>
+    <string name="quality_hint">Più alta suona meglio ma usa più CPU. Il cambio interrompe l'audio per un attimo.</string>
+    <string name="quality_low">Bassa</string>
+    <string name="quality_medium">Media</string>
+    <string name="quality_high">Alta</string>
+    <string name="quality_very_high">Max</string>
+
+    <string name="export">Esporta</string>
+    <string name="export_running">Esporto in MP3… %1$d%%</string>
+    <string name="export_ready_title">Export pronto</string>
+    <string name="export_ready_text">"%1$s" è pronto. Velocità, pitch ed effetti sono applicati.</string>
+    <string name="export_share">Condividi</string>
+    <string name="export_save">Salva…</string>
+    <string name="export_saved">Salvato "%1$s".</string>
+    <string name="error_export_save">Impossibile salvare "%1$s".</string>
+    <string name="error_export_nothing_open">Apri un brano della libreria per esportarlo.</string>
+    <string name="error_export">Export fallito: %1$s</string>
+
+    <string name="notification_channel_playback">Riproduzione</string>
+
+    <!-- Redesign: library -->
+    <string name="library_summary">%1$s, %2$s</string>
+    <string name="library_no_tracks_yet">Nessun brano ancora</string>
+    <string name="library_empty_title">La tua libreria è vuota</string>
+    <string name="library_empty_message">Importa un file audio dal telefono, oppure condividi un link YouTube con Downstep. Lo trovi qui, pronto per la pratica.</string>
+    <string name="library_empty_message_desktop">Importa un file audio dal computer, oppure incolla un link YouTube. Lo trovi qui, pronto per la pratica.</string>
+    <string name="tab_tracks">Brani</string>
+    <string name="tab_playlists">Playlist</string>
+    <string name="recently_added">Aggiunti di recente</string>
+    <string name="search">Cerca</string>
+    <string name="search_close">Chiudi la ricerca</string>
+    <string name="search_hint">Cerca un brano</string>
+    <string name="search_results">Risultati</string>
+    <string name="search_no_results">Nessun brano per "%1$s".</string>
+    <string name="more_options">Altre opzioni</string>
+    <plurals name="tracks_count">
+        <item quantity="one">%1$d brano</item>
+        <item quantity="other">%1$d brani</item>
+    </plurals>
+    <plurals name="playlists_count">
+        <item quantity="one">%1$d playlist</item>
+        <item quantity="other">%1$d playlist</item>
+    </plurals>
+
+    <!-- Redesign: import -->
+    <string name="import_action">Importa</string>
+    <string name="import_title">Importa un brano</string>
+    <string name="import_subtitle">Il file resta sul telefono: puoi praticare anche offline.</string>
+    <string name="import_subtitle_desktop">Il file resta sul computer: puoi praticare anche offline.</string>
+    <string name="import_file">Da file</string>
+    <string name="import_file_description">MP3, M4A, WAV, FLAC dal telefono</string>
+    <string name="import_file_description_desktop">MP3, M4A, WAV, FLAC dal computer</string>
+    <string name="import_link">Da link YouTube</string>
+    <string name="import_link_description">Incolla un link: scarico solo l'audio</string>
+    <string name="import_spotify_description">Scegli un brano dal tuo account</string>
+    <string name="import_share_hint">Da YouTube puoi anche toccare Condividi e scegliere Downstep.</string>
+    <string name="import_link_title">Importa da YouTube</string>
+    <string name="import_link_label">Link YouTube</string>
+
+    <!-- Redesign: playlists -->
+    <string name="playlist_label">Playlist</string>
+    <string name="playlist_new">Nuova playlist</string>
+    <string name="playlist_new_hint">Raggruppa i brani</string>
+    <string name="playlist_rename">Rinomina playlist</string>
+    <string name="playlist_delete">Elimina playlist</string>
+    <string name="playlist_delete_confirm">Eliminare la playlist "%1$s"? I brani restano in libreria.</string>
+    <plurals name="customized_count">
+        <item quantity="one">%1$d personalizzato</item>
+        <item quantity="other">%1$d personalizzati</item>
+    </plurals>
+    <string name="playlist_add_tracks">Aggiungi brani</string>
+    <string name="playlist_remove_track">Togli dalla playlist</string>
+    <string name="playlist_empty_title">Playlist vuota</string>
+    <string name="playlist_empty_message">Aggiungi i brani che vuoi studiare insieme.</string>
+    <string name="playlists_empty">Raggruppa i brani per concerto, per stile o per esercizio.</string>
+    <string name="add_to_playlist">Aggiungi a playlist</string>
+    <string name="practice">Pratica</string>
+    <string name="move_up">Sposta su</string>
+    <string name="move_down">Sposta giù</string>
+    <string name="reorder">Trascina per riordinare</string>
+    <string name="error_playlist_name">Il nome deve avere da 1 a 60 caratteri.</string>
+    <string name="error_playlist_add">Impossibile aggiungere: la playlist o il brano non esistono più.</string>
+
+    <!-- Redesign: player -->
+    <string name="player_title">In pratica</string>
+    <string name="collapse_player">Chiudi il player</string>
+    <string name="no_track_hint">Scegli un brano dalla libreria per iniziare.</string>
+    <string name="go_to_library">Vai alla libreria</string>
+    <string name="external_track">Brano esterno</string>
+    <string name="speed">Velocità</string>
+    <string name="pitch">Intonazione</string>
+    <string name="reset_value">Ripristina %1$s</string>
+    <string name="loop_title">Loop A-B</string>
+    <string name="loop_summary">Da %1$s a %2$s (%3$d s)</string>
+    <string name="loop_hint">Premi A e B mentre ascolti, o trascina i marker.</string>
+    <string name="loop_mark_start">Imposta A qui</string>
+    <string name="loop_mark_end">Imposta B qui</string>
+    <string name="loop_toggle_description">Loop</string>
+    <string name="rewind_description">Torna ad A o all'inizio</string>
+    <string name="nudge_back_description">Indietro di 5 secondi</string>
+    <string name="nudge_forward_description">Avanti di 5 secondi</string>
+    <string name="timeline_description">Posizione %1$s di %2$s</string>
+    <string name="practice_default">Velocità e intonazione originali</string>
+    <string name="export_running_hint">Applico velocità, intonazione ed effetti al file audio</string>
+
+    <!-- Redesign: presets -->
+    <string name="presets_title">Preset di questo brano</string>
+    <string name="preset_save">Salva</string>
+    <string name="preset_save_title">Salva preset</string>
+    <string name="preset_save_message">Salvo velocità, intonazione e loop di adesso. Li ritrovi con un tap su questo brano.</string>
+    <string name="preset_saved">Preset "%1$s" salvato.</string>
+    <string name="preset_delete">Elimina preset</string>
+    <string name="preset_delete_confirm">Eliminare il preset "%1$s"?</string>
+    <string name="error_preset_name">Il nome deve avere da 1 a 40 caratteri.</string>
+    <string name="error_preset_name_taken">Esiste già un preset "%1$s" per questo brano.</string>
+    <string name="error_preset_nothing_open">Apri un brano della libreria per salvare un preset.</string>
+
+    <!-- Backup (.sldbackup) -->
+    <string name="backup_export">Esporta backup</string>
+    <string name="backup_library">Backup della libreria</string>
+    <string name="backup_restore">Ripristina backup</string>
+    <string name="backup_restore_confirm">Ripristinare questo backup? Brani, preset e playlist si aggiungono alla libreria: brani e preset che hai già restano come sono. Se una playlist esiste già, potrai scegliere cosa fare.</string>
+    <string name="backup_restore_action">Ripristina</string>
+    <string name="backup_restore_description">Brani, preset e playlist da un file .sldbackup</string>
+    <string name="backup_exporting">Creo il backup…</string>
+    <string name="backup_exporting_count">Creo il backup… %1$d di %2$d brani</string>
+    <string name="backup_restoring">Ripristino il backup…</string>
+    <string name="backup_restoring_count">Ripristino il backup… %1$d di %2$d brani</string>
+    <string name="backup_running_hint">Audio, impostazioni di pratica e preset in un solo file</string>
+    <string name="backup_ready_title">Backup pronto</string>
+    <string name="backup_ready_text">"%1$s" è pronto. Contiene l'audio, le impostazioni di pratica e i preset. Per ripristinarlo, apri Importa e scegli Ripristina backup.</string>
+    <plurals name="backup_restored_tracks">
+        <item quantity="one">Ripristinato %1$d brano</item>
+        <item quantity="other">Ripristinati %1$d brani</item>
+    </plurals>
+    <string name="backup_restored">%1$s.</string>
+    <string name="backup_restored_skipped">%1$s (%2$d già in libreria).</string>
+    <string name="backup_restored_playlists">%1$s e %2$s.</string>
+    <string name="backup_restored_skipped_playlists">%1$s (%2$d già in libreria) e %3$s.</string>
+    <plurals name="backup_playlist_conflict_title">
+        <item quantity="one">Playlist già presente</item>
+        <item quantity="other">Playlist già presenti</item>
+    </plurals>
+    <plurals name="backup_playlist_conflict_text">
+        <item quantity="one">La playlist %1$s esiste già con brani diversi. Puoi sovrascriverla con quella del backup o aggiungere una copia.</item>
+        <item quantity="other">Le playlist %1$s esistono già con brani diversi. Puoi sovrascriverle con quelle del backup o aggiungere delle copie.</item>
+    </plurals>
+    <string name="backup_playlist_overwrite">Sovrascrivi</string>
+    <string name="backup_playlist_copy">Crea copia</string>
+    <string name="error_backup_running">Un backup è già in corso.</string>
+    <string name="error_backup_nothing">Niente da esportare: il brano o la playlist non c'è più, oppure mancano i file audio.</string>
+    <string name="error_backup_export">Backup fallito: %1$s</string>
+    <string name="error_backup_invalid">Il file non è un backup di Downstep valido.</string>
+    <string name="error_backup_version">Questo backup viene da una versione più recente di Downstep. Aggiorna l'app e riprova.</string>
+    <string name="error_backup_restore">Ripristino fallito: %1$s</string>
+
+    <!-- Redesign: common -->
+    <string name="name">Nome</string>
+    <string name="save">Salva</string>
+    <string name="create">Crea</string>
+    <string name="delete">Elimina</string>
+    <string name="done">Fatto</string>
+    <string name="back">Indietro</string>
+    <string name="cancel">Annulla</string>
+
+    <string name="error_unsupported_cpu">Questo processore non è supportato dal motore audio (serve NEON).</string>
+    <string name="error_engine_unavailable">Il motore audio non si è avviato: la sua libreria manca o non si carica.</string>
+    <string name="error_no_audio_output">Nessuna uscita audio trovata, quindi la riproduzione è disattivata. Collega casse o cuffie e riavvia Downstep.</string>
+
+    <!-- Desktop menu bar -->
+    <string name="menu_file">File</string>
+    <string name="menu_window">Finestra</string>
+    <string name="menu_close_window">Chiudi finestra</string>
+    <string name="menu_minimize">Contrai</string>
+</resources>

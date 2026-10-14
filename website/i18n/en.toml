@@ -1,0 +1,279 @@
+# English texts. Every key must exist in it.toml too (build.py checks it).
+# Literal strings (''') keep backslashes and quotes as they are.
+
+[common]
+skip = 'Skip to content'
+theme = 'Light or dark theme'
+other_language = 'Italiano'
+other_code = 'IT'
+download_mac = 'Download for Mac'
+download_windows = 'Download for Windows'
+back_home = 'Downstep'
+footer_about = 'A free app to practice music. Open source, GPL-3.0.'
+footer_project = 'Project'
+footer_source = 'Source code'
+footer_versions = 'All versions'
+footer_issues = 'Report a problem'
+footer_why = "Why it's free"
+footer_built = 'Built with'
+trademarks = 'Mac and macOS are trademarks of Apple Inc., Windows of Microsoft Corporation, YouTube of Google LLC.'
+top = 'Back to top'
+
+[home]
+title = 'Downstep, slow down and loop songs to learn them. For Mac and Windows'
+description = 'Downstep is a free app for Mac and Windows to practice music. It slows a song down without changing its key, and loops the part you are learning.'
+nav = '''
+<nav class="index" aria-label="Sections">
+      <a href="#what">What it does</a>
+      <a href="#screens">Screens</a>
+      <a href="#features">All features</a>
+      <a href="#download">Download</a>
+      <a href="#faq">Questions</a>
+    </nav>'''
+cta = '<a class="btn btn-primary btn-small head-cta" href="#download">Download</a>'
+chips = '<span class="chip on">Version 1.0</span><span class="chip">Free</span><span class="chip">macOS 11 or later</span><span class="chip">Windows 10 and 11</span>'
+h1 = 'To learn a song, I slow it down <em>first</em>.'
+lede = "Downstep is the app I made for that. It plays a song slower or faster without changing its key, and it repeats the part you're working on as many times as you need. It's free, for Mac and Windows."
+
+demo_label = 'Animation: the A-B loop closes around a passage and the speed goes down to 70%'
+demo_practicing = 'Practicing'
+demo_traditional = 'Traditional'
+speed = 'Speed'
+pitch = 'Pitch'
+demo_listen = 'You listen to the song.'
+demo_mark = 'You set A and B around the hard part.'
+demo_slow = 'You slow it down to 70%, and the key stays the same.'
+demo_key = 'If you need to, you lower it by 2 semitones.'
+demo_faster = 'Then you speed it up, a bit at a time.'
+
+what_title = 'What it does'
+f1_tag = 'Speed and pitch'
+f1_title = 'Speed and pitch, separately'
+f1_text = "You can go from 25% to 200% of the original speed, and move the key up to 12 semitones up or down. Changing one doesn't touch the other."
+f1_alt = 'Speed at 75% and pitch at minus 2 semitones, each with a slider and step buttons'
+f2_title = 'A-B loop'
+f2_text = 'Press A and B while the song plays, or drag the markers on the timeline. The buttons next to them halve or double the loop, or move it to the next phrase.'
+f2_alt = 'The timeline with markers A and B, and the loop controls'
+f3_tag = 'Library'
+f3_title = 'Your songs, offline'
+f3_text = 'Import MP3, M4A, WAV or FLAC files, or a YouTube link (only for content you have the rights to). Everything is saved on your computer, so you can practice without a connection. You can also group songs in playlists.'
+f4_tag = 'Presets'
+f4_title = 'Presets'
+f4_text = 'Each song keeps its own speed, pitch and loop, so you find it as you left it. You can also save presets with a name and switch between them.'
+f4_chips = '<span class="chip">Solo 70%</span><span class="chip">Whole song −2</span>'
+f5_tag = 'Effects'
+f5_title = 'Equalizer and balance'
+f5_text = 'A 7-band equalizer and a left and right balance, useful when you want to hear one instrument better.'
+f6_tag = 'Export'
+f6_title = 'Export and backup'
+f6_text = 'You can export a song to MP3 with your changes applied. The backup holds the whole library, and you can restore it on another Mac or on Windows.'
+
+screens_title = 'Screens'
+shot1 = 'Library and practice'
+shot1_alt = 'Downstep on Mac: the library on the left, the player on the right with speed at 75%, pitch at minus 2 and the A-B loop on'
+shot2 = 'Playlists'
+shot2_alt = 'The playlists tab'
+shot3 = 'Effects'
+shot3_alt = 'The effects panel with balance, preamp and equalizer'
+
+all_title = 'All features'
+catalog = '''
+<section class="surface">
+        <div class="label">Practice</div>
+        <ul class="rows">
+          <li class="row">{{ @icon:check }}<div><b>Speed</b><span>from 25% to 200%</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Pitch</b><span>up to 12 semitones up or down</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Small steps</b><span>5% and 1 semitone at a time</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Jump</b><span>5 seconds back or forward</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Memory</b><span>settings saved for each song</span></div></li>
+        </ul>
+      </section>
+      <section class="surface">
+        <div class="label">Loop A-B</div>
+        <ul class="rows">
+          <li class="row">{{ @icon:check }}<div><b>A and B</b><span>while you listen, or by dragging</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>½ and ×2</b><span>to change its length</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>◀ ▶</b><span>to the previous or next phrase</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Kept</b><span>when you turn it off</span></div></li>
+        </ul>
+      </section>
+      <section class="surface">
+        <div class="label">Keyboard</div>
+        <ul class="rows">
+          <li class="row"><kbd>Space</kbd><div><span>play and stop</span></div></li>
+          <li class="row"><kbd>←</kbd><kbd>→</kbd><div><span>5 seconds, 1 with Shift</span></div></li>
+          <li class="row"><kbd>A</kbd><kbd>B</kbd><div><span>start and end of the loop</span></div></li>
+          <li class="row"><kbd>L</kbd><div><span>loop on and off</span></div></li>
+        </ul>
+      </section>
+      <section class="surface">
+        <div class="label">Library</div>
+        <ul class="rows">
+          <li class="row">{{ @icon:check }}<div><b>Files</b><span>MP3, M4A, WAV, FLAC</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>YouTube links</b><span>audio only</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Search and playlists</b></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Offline</b><span>everything stays on your computer</span></div></li>
+        </ul>
+      </section>
+      <section class="surface">
+        <div class="label">Sound</div>
+        <ul class="rows">
+          <li class="row">{{ @icon:check }}<div><b>Equalizer</b><span>7 bands, from 60 Hz to 15 kHz</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Preamp</b></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Balance</b><span>between left and right</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Time-stretch</b><span>with <a href="https://github.com/bungee-audio-stretch/bungee">Bungee</a></span></div></li>
+        </ul>
+      </section>
+      <section class="surface">
+        <div class="label">Export and backup</div>
+        <ul class="rows">
+          <li class="row">{{ @icon:check }}<div><b>MP3 export</b><span>with your changes</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Backup</b><span>songs, presets and playlists</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Restore</b><span>without losing what you have</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Same format</b><span>on Mac and Windows</span></div></li>
+        </ul>
+      </section>'''
+
+download_title = 'Download'
+mac_req = 'A Mac with Apple silicon (M1 or later) and macOS 11 or later.'
+win_req = 'Windows 10 or 11, 64-bit.'
+
+note_title = 'Why I made it'
+note_text = '''
+<p>I play guitar in a band, and to learn new songs I slow them down and loop the hard parts. I wanted something simple, that works offline and that everyone in the band can use with the same presets. So I made Downstep in my free time.</p>
+        <p>It's free, and <a href="{{ @url:why }}">here I explain why</a>.</p>'''
+
+faq_title = 'Questions'
+faq = '''
+<details><summary>Is it really free?{{ @icon:expand_more }}</summary>
+        <p>Yes, and there is no paid version. If you like it, you can <a href="{{ @url:why }}">support it with a donation</a>.</p></details>
+      <details><summary>Where are my songs saved?{{ @icon:expand_more }}</summary>
+        <p>On your computer: <code>~/Library/Application Support/SlowDowner</code> on Mac, <code>%APPDATA%\SlowDowner</code> on Windows. The folder still has the app's first name. To move your songs to another computer, use the backup.</p></details>
+      <details><summary>Why does macOS block it?{{ @icon:expand_more }}</summary>
+        <p>Because it isn't distributed through the App Store. You only need to allow it once, the <a href="{{ @url:mac }}">download page</a> explains how.</p></details>
+      <details><summary>Does the app send any data?{{ @icon:expand_more }}</summary>
+        <p>No. It only goes online when you import from a link.</p></details>
+      <details><summary>Does it work on an Intel Mac?{{ @icon:expand_more }}</summary>
+        <p>Not for now, only on Apple silicon (M1 and later).</p></details>
+      <details><summary>Is there an iPhone or Android version?{{ @icon:expand_more }}</summary>
+        <p>Not for now. I'd like to make an iPhone version, but there is no date yet.</p></details>
+      <details><summary>Can I import from YouTube?{{ @icon:expand_more }}</summary>
+        <p>Yes, paste a link and the app saves only the audio. Downloading from YouTube can be against its terms of service, so use it only for content you have the rights to.</p></details>
+      <details><summary>I found a bug, or I have an idea{{ @icon:expand_more }}</summary>
+        <p>Open an issue on <a href="https://github.com/damianogiusti/downstep/issues">GitHub</a>, I read them all.</p></details>'''
+closing = 'Download Downstep'
+
+[download]
+why_button = 'Why is it free?'
+install_title = 'How to install'
+free_title = 'Downstep is free'
+free_text = 'If it helps you, you can say thanks with a donation.'
+donate_button = 'Donate with PayPal'
+
+[mac]
+short_req = 'Apple silicon, macOS 11 or later'
+title = 'Download Downstep for Mac'
+description = 'Download Downstep for Mac and install it in a few steps. For Macs with Apple silicon and macOS 11 or later.'
+nav = ''
+cta = ''
+icon = '{{> icon-apple }}'
+label = 'Mac'
+h1 = 'Downstep for Mac'
+file_name = 'Downstep-mac.dmg'
+req = 'A Mac with Apple silicon (M1 or later) and macOS 11 or later. Intel Macs are not supported for now.'
+button = 'Download'
+steps = '''
+<li class="row"><span class="tile">1</span><div><b>Open the .dmg</b><p>and drag Downstep into Applications.</p></div></li>
+      <li class="row"><span class="tile">2</span><div><b>Open Downstep</b><p>The first time, macOS blocks it because it doesn't come from the App Store. Close the message.</p></div></li>
+      <li class="row"><span class="tile">3</span><div><b>Go to System Settings, Privacy and Security</b><p>Scroll down and click “Open Anyway” next to Downstep. macOS asks for your password or Touch ID.</p></div></li>
+      <li class="row"><span class="tile">4</span><div><b>That's it</b><p>From now on it opens normally.</p></div></li>'''
+extra = '''
+<details class="terminal">
+      <summary>If you prefer the Terminal</summary>
+      <p class="muted">After step 1, this command removes the block:</p>
+      <pre><code>xattr -dr com.apple.quarantine /Applications/Downstep.app</code></pre>
+    </details>'''
+
+[windows]
+short_req = 'Windows 10 or 11, 64-bit'
+title = 'Download Downstep for Windows'
+description = 'Download Downstep for Windows 10 and 11 and install it in a few steps.'
+nav = ''
+cta = ''
+icon = '{{> icon-windows }}'
+label = 'Windows beta'
+h1 = 'Downstep for Windows'
+file_name = 'Downstep-windows-x64.zip'
+req = 'Windows 10 or 11, 64-bit.'
+button = 'Download'
+steps = '''
+<li class="row"><span class="tile">1</span><div><b>Extract the .zip</b><p>Right-click it, then “Extract All”.</p></div></li>
+      <li class="row"><span class="tile">2</span><div><b>Open Downstep.exe</b><p>It's in the Downstep folder.</p></div></li>
+      <li class="row"><span class="tile">3</span><div><b>If you see “Windows protected your PC”</b><p>click “More info” and then “Run anyway”.</p></div></li>'''
+extra = '''
+<div class="callout teal" style="margin:10px 0 0">I don't have a Windows PC, so this version is tested automatically and by a few friends. If something doesn't work, <a href="https://github.com/damianogiusti/downstep/issues">let me know</a>.</div>'''
+
+[why]
+title = 'Why Downstep is free'
+description = 'Why Downstep is free, and how you can support it with a donation.'
+nav = ''
+cta = '<a class="btn btn-primary btn-small head-cta" href="#donate">Donate</a>'
+h1 = 'Why Downstep is free'
+text = '''
+<p>Downstep started as an Android app for my phone. I wanted to put it on the App Store and Google Play for a few euros, paid once. Then I looked into what that means in Italy, where I live. To sell even a few copies I would need a partita IVA, an accountant, and an invoice to Apple and Google every month. For something I do in my free time, it wasn't worth it.</p>
+  <p>So I decided to give it away, and I moved on to the desktop versions for Mac and Windows. To spend less of my own time on it, I used AI tools for a big part of the work, and I publish the app only on this site.</p>
+  <p>If Downstep is useful to you and you'd like to say thanks, you can send me a donation on PayPal. Thank you!</p>'''
+donate_button = 'Donate with PayPal'
+donate_note = "It's a gift: the app stays free and the same for everyone."
+more_link = 'More about the Italian bureaucracy, and how it works in other countries'
+
+[more]
+title = 'Selling an app in Italy, the details'
+description = 'What it takes to sell a small app from Italy, compared with the USA, the UK, Germany, France and Spain.'
+nav = ''
+cta = '<a class="btn btn-primary btn-small head-cta" href="{{ @url:why }}#donate">Donate</a>'
+back = 'Why Downstep is free'
+h1 = 'Selling an app in Italy, the details'
+meta = 'What I found in October 2026. The sources are at the bottom.'
+italy_title = 'What it takes in Italy'
+sum = '''
+<div class="surface"><b>35 €</b><span>more or less in fees to open, plus the accountant</span></div>
+      <div class="surface"><b>300 €</b><span>or more a year for the accountant, up to 1.200 €</span></div>
+      <div class="surface"><b>Monthly</b><span>an e-invoice to each store</span></div>'''
+start_title = 'To start'
+start = '''
+<li><span><b>Open a partita IVA</b> as a ditta individuale, because selling your own app counts as a commercial activity (ATECO 58.29.00). <span class="cost">About 35 €</span> <sup>[1][2]</sup></span></li>
+        <li><span><b>Register with the Registro Imprese</b> through ComUnica. You need a PEC address and a digital signature. <sup>[3]</sup></span></li>
+        <li><span><b>Ask INPS for the exemption</b> as a full-time employee, or there is a fixed yearly contribution. You have to declare it yourself. <sup>[4]</sup></span></li>
+        <li><span><b>Register in VIES</b>, because you sell to Apple and Google in Ireland. <sup>[5]</sup></span></li>
+        <li><span><b>Pick a tax regime.</b> The simple one (forfettario) is not allowed if you earned more than 35.000 € as an employee the year before. <sup>[6][7]</sup></span></li>'''
+often_title = 'Every month or quarter'
+often = '''
+<li><span><b>An e-invoice through SdI</b> to Apple and Google, usually one for each monthly payout. <sup>[8]</sup></span></li>
+        <li><span><b>A 2 € stamp duty</b> on the invoices above 77,47 €. <sup>[9]</sup></span></li>
+        <li><span><b>INTRA lists</b> for the services you sell to EU companies, every quarter. <sup>[10]</sup></span></li>'''
+yearly_title = 'Every year, even with no sales'
+yearly = '''
+<li><span><b>Accountant</b>, from 300 to 1.200 € <sup>[11]</sup></span></li>
+        <li><span><b>Chamber of Commerce fee</b>, from 44 to 53 € <sup>[12]</sup></span></li>
+        <li><span><b>PEC and digital signature</b>, about 30 to 50 € <sup>[13]</sup></span></li>
+        <li><span><b>Tax return</b> and payments in June and November.</span></li>'''
+stores_title = 'In the stores'
+stores = '''
+<li><span><b>Your address and phone number become public.</b> With the EU Digital Services Act, paid apps show the seller's address, phone and email on the store page. <sup>[14][15]</sup></span></li>'''
+fair = '''
+<p>It can be done, and many people do it. The forfettario tax is low (5% for the first five years, then 15%), and as a full-time employee I probably wouldn't pay the fixed INPS contribution, which is 4.611,64 € a year for those who have to <sup>[16]</sup>. A few occasional sales can even be declared without a partita IVA, but an app that is on sale all year is hard to call occasional <sup>[17]</sup>.</p>
+      <p>What stops me is the number of small fixed tasks, which are the same whether you sell three copies or three thousand.</p>'''
+abroad_title = 'How it works in other countries'
+abroad_intro = 'The same case: an employee who sells a small app in their free time.'
+table_head = '<th>Country</th><th>To start</th><th>Fixed yearly cost</th><th>Simple threshold</th>'
+table_rows = '''
+<tr class="it"><th>Italy</th><td>Partita IVA, Registro Imprese, PEC, digital signature, VIES</td><td class="bad">Accountant and Chamber fee, plus INPS 4.611,64 € if not exempt</td><td>None, invoices from the first euro</td></tr>
+          <tr><th>USA</th><td>Nothing, you sell in your own name</td><td class="good">None</td><td>Self-employment tax only above $400 of profit <sup>[18]</sup></td></tr>
+          <tr><th>UK</th><td>Nothing below the allowance, then Self Assessment</td><td class="good">None</td><td>The first £1,000 a year is tax-free <sup>[19]</sup></td></tr>
+          <tr><th>Germany</th><td>Gewerbeanmeldung (about 15 to 65 €) and a form on ELSTER</td><td class="good">None for a small side business</td><td>No VAT up to 25.000 € a year <sup>[20]</sup></td></tr>
+          <tr><th>France</th><td>Micro-entrepreneur, online</td><td class="good">None, no revenue means no contributions</td><td>No VAT up to 37.500 € for services <sup>[21]</sup></td></tr>
+          <tr><th>Spain</th><td>Register as autónomo</td><td class="bad">About 200 € a month (80 € the first year)</td><td>Lower rates for employees <sup>[22]</sup></td></tr>'''
+abroad_outro = "Spain is about as heavy as Italy, so it's not only us. I don't think anyone designed this against small developers. The rules were written for shops and professionals, and a hobby with a few sales ends up in the same box."
+disclaimer = "I'm not an accountant, and rules and amounts change. If you want to sell an app, talk to a commercialista first. Views are my own."
+sources_title = 'Sources'

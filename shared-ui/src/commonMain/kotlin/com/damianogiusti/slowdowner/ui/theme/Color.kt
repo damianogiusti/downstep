@@ -1,0 +1,88 @@
+package com.damianogiusti.slowdowner.ui.theme
+
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.graphics.Color
+
+// Studio palette: warm amber accent on dark graphite. Values match the
+// "Color" variables in the Figma redesign file.
+
+internal val DarkColors = darkColorScheme(
+    primary = Color(0xFFF2A541),
+    onPrimary = Color(0xFF2A1800),
+    primaryContainer = Color(0xFF5B3B0B),
+    onPrimaryContainer = Color(0xFFFFDDB0),
+    secondary = Color(0xFFE07A5F),
+    onSecondary = Color(0xFF3A0F04),
+    // Material uses secondaryContainer for slider tracks, segmented and tonal buttons:
+    // a neutral keeps those calm and leaves the accent colors to the practice controls.
+    secondaryContainer = Color(0xFF2C323B),
+    onSecondaryContainer = Color(0xFFECE8E2),
+    tertiary = Color(0xFF62B6B0),
+    onTertiary = Color(0xFF00201E),
+    tertiaryContainer = Color(0xFF17403D),
+    onTertiaryContainer = Color(0xFFCDEEEA),
+    error = Color(0xFFFF6B6B),
+    onError = Color(0xFF410002),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6),
+    background = Color(0xFF0F1114),
+    onBackground = Color(0xFFECE8E2),
+    surface = Color(0xFF0F1114),
+    onSurface = Color(0xFFECE8E2),
+    surfaceVariant = Color(0xFF272D35),
+    onSurfaceVariant = Color(0xFFA4AAB4),
+    surfaceTint = Color(0xFFF2A541),
+    inverseSurface = Color(0xFFECE8E2),
+    inverseOnSurface = Color(0xFF1C1B19),
+    inversePrimary = Color(0xFFA86400),
+    outline = Color(0xFF3B424C),
+    outlineVariant = Color(0xFF2C323B),
+    scrim = Color(0xFF000000),
+    surfaceBright = Color(0xFF2E343D),
+    surfaceDim = Color(0xFF0F1114),
+    surfaceContainerLowest = Color(0xFF0B0D10),
+    surfaceContainerLow = Color(0xFF1A1E24),
+    surfaceContainer = Color(0xFF20252C),
+    surfaceContainerHigh = Color(0xFF272D35),
+    surfaceContainerHighest = Color(0xFF2E343D),
+)
+
+internal val LightColors = lightColorScheme(
+    primary = Color(0xFFA86400),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFFFE1B8),
+    onPrimaryContainer = Color(0xFF3A2300),
+    secondary = Color(0xFFB0533A),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFE2D9CC),
+    onSecondaryContainer = Color(0xFF1C1B19),
+    tertiary = Color(0xFF2D7C77),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFCDEEEA),
+    onTertiaryContainer = Color(0xFF00201E),
+    error = Color(0xFFBA1A1A),
+    onError = Color(0xFFFFFFFF),
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002),
+    background = Color(0xFFFAF6F0),
+    onBackground = Color(0xFF1C1B19),
+    surface = Color(0xFFFAF6F0),
+    onSurface = Color(0xFF1C1B19),
+    surfaceVariant = Color(0xFFE6DED1),
+    onSurfaceVariant = Color(0xFF5E5A54),
+    surfaceTint = Color(0xFFA86400),
+    inverseSurface = Color(0xFF32302D),
+    inverseOnSurface = Color(0xFFF5F0E8),
+    inversePrimary = Color(0xFFF2A541),
+    outline = Color(0xFFD3CABD),
+    outlineVariant = Color(0xFFE2D9CC),
+    scrim = Color(0xFF000000),
+    surfaceBright = Color(0xFFFFFFFF),
+    surfaceDim = Color(0xFFE6DED1),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF4EEE5),
+    surfaceContainer = Color(0xFFEEE7DC),
+    surfaceContainerHigh = Color(0xFFE6DED1),
+    surfaceContainerHighest = Color(0xFFDDD4C6),
+)

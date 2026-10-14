@@ -1,0 +1,4 @@
+# Site build on statichost.eu: the generator needs only Python 3.11+.
+image: python:3.12-slim
+command: cd website && python3 build.py
+public: website/public

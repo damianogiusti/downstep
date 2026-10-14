@@ -1,0 +1,17 @@
+{{> head }}
+{{> header }}
+
+<main id="main" class="article">
+  <a class="back" href="{{ @url:home }}">{{ @icon:expand_more }}{{ common.back_home }}</a>
+  <h1>{{ why.h1 }}</h1>
+  {{ why.text }}
+
+  <section class="donate surface" id="donate">
+    <a class="btn btn-paypal" href="https://www.paypal.me/damianogiusti" rel="noopener">{{ why.donate_button }}</a>
+    <p>{{ why.donate_note }}</p>
+  </section>
+
+  <p><a href="{{ @url:more }}">{{ why.more_link }}</a></p>
+</main>
+
+{{> footer }}
