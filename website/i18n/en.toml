@@ -10,6 +10,7 @@ download_mac = 'Download for Mac'
 download_windows = 'Download for Windows'
 back_home = 'Downstep'
 footer_about = 'A free app to practice music. Open source, GPL-3.0.'
+footer_kmp = 'Proudly made with <a href="https://kotlinlang.org/multiplatform/">Kotlin Multiplatform</a> 🚀'
 footer_project = 'Project'
 footer_source = 'Source code'
 footer_versions = 'All versions'
@@ -32,8 +33,8 @@ nav = '''
     </nav>'''
 cta = '<a class="btn btn-primary btn-small head-cta" href="#download">Download</a>'
 chips = '<span class="chip on">Version 1.0</span><span class="chip">Free</span><span class="chip">macOS 11 or later</span><span class="chip">Windows 10 and 11</span>'
-h1 = 'To learn a song, I slow it down <em>first</em>.'
-lede = "Downstep is the app I made for that. It plays a song slower or faster without changing its key, and it repeats the part you're working on as many times as you need. It's free, for Mac and Windows."
+h1 = "The song you're learning, at your <em>speed</em> and in your <em>key</em>."
+lede = "With Downstep you slow a song down, change its key, or do both, independently. Then you repeat the hard part as many times as you need. It's free, for Mac and Windows."
 
 demo_label = 'Animation: the A-B loop closes around a passage and the speed goes down to 70%'
 demo_practicing = 'Practicing'
@@ -49,7 +50,7 @@ demo_faster = 'Then you speed it up, a bit at a time.'
 what_title = 'What it does'
 f1_tag = 'Speed and pitch'
 f1_title = 'Speed and pitch, separately'
-f1_text = "You can go from 25% to 200% of the original speed, and move the key up to 12 semitones up or down. Changing one doesn't touch the other."
+f1_text = "You can go from 25% to 200% of the original speed, and move the key up to 12 semitones up or down. Changing one doesn't touch the other, so you can slow a song down and put it in your vocal range at the same time."
 f1_alt = 'Speed at 75% and pitch at minus 2 semitones, each with a slider and step buttons'
 f2_title = 'A-B loop'
 f2_text = 'Press A and B while the song plays, or drag the markers on the timeline. The buttons next to them halve or double the loop, or move it to the next phrase.'
@@ -67,6 +68,24 @@ f5_text = 'A 7-band equalizer and a left and right balance, useful when you want
 f6_tag = 'Export'
 f6_title = 'Export and backup'
 f6_text = 'You can export a song to MP3 with your changes applied. The backup holds the whole library, and you can restore it on another Mac or on Windows.'
+
+uses_title = 'Use cases'
+u1_tag = 'Voice'
+u1_title = 'Find the right key'
+u1_text = 'Before you decide what key to sing a song in, try it one semitone at a time, up or down, until it sits well in your voice.'
+u1_chips = '<span class="chip">−1 st</span><span class="chip">−2 st</span><span class="chip">−3 st</span>'
+u2_tag = 'Instrument'
+u2_title = "Your tuning, not the record's"
+u2_text = "Many records are tuned a half step down. Raise the song by one semitone and play along without retuning."
+u2_chips = '<span class="chip">+1 st</span>'
+u3_tag = 'Band'
+u3_title = 'Two semitones down, for the singer'
+u3_text = 'The band decides to play the song lower for the singer. Save the preset, send the backup to the others, and everyone practices at home on the same version.'
+u3_chips = '<span class="chip">−2 st</span>'
+u4_tag = 'Stage'
+u4_title = 'A medley with no gaps'
+u4_text = 'Two songs back to back in the set: move the second one to the key of the first, and practice the change until it feels natural.'
+u4_chips = '<span class="chip">+2 st</span>'
 
 screens_title = 'Screens'
 shot1 = 'Library and practice'
@@ -140,7 +159,7 @@ win_req = 'Windows 10 or 11, 64-bit.'
 
 note_title = 'Why I made it'
 note_text = '''
-<p>I play guitar in a band, and to learn new songs I slow them down and loop the hard parts. I wanted something simple, that works offline and that everyone in the band can use with the same presets. So I made Downstep in my free time.</p>
+<p>I play guitar in a band, and to learn new songs I slow down the hard parts and loop them. I wanted something simple, that works offline and that everyone in the band can use with the same presets. So I made Downstep in my free time.</p>
         <p>It's free, and <a href="{{ @url:why }}">here I explain why</a>.</p>'''
 
 faq_title = 'Questions'
@@ -150,7 +169,7 @@ faq = '''
       <details><summary>Where are my songs saved?{{ @icon:expand_more }}</summary>
         <p>On your computer: <code>~/Library/Application Support/SlowDowner</code> on Mac, <code>%APPDATA%\SlowDowner</code> on Windows. The folder still has the app's first name. To move your songs to another computer, use the backup.</p></details>
       <details><summary>Why does macOS block it?{{ @icon:expand_more }}</summary>
-        <p>Because it isn't distributed through the App Store. You only need to allow it once, the <a href="{{ @url:mac }}">download page</a> explains how.</p></details>
+        <p>Because it isn't distributed through the App Store. You only need to allow it once, the <a href="{{ @url:mac }}">download page</a> explains how. In the future it will come to the App Store too, and this step won't be needed anymore.</p></details>
       <details><summary>Does the app send any data?{{ @icon:expand_more }}</summary>
         <p>No. It only goes online when you import from a link.</p></details>
       <details><summary>Does it work on an Intel Mac?{{ @icon:expand_more }}</summary>

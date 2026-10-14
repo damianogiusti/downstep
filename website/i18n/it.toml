@@ -10,6 +10,7 @@ download_mac = 'Scarica per Mac'
 download_windows = 'Scarica per Windows'
 back_home = 'Downstep'
 footer_about = "Un'app gratuita per esercitarsi con la musica. Open source, GPL-3.0."
+footer_kmp = 'Proudly made with <a href="https://kotlinlang.org/multiplatform/">Kotlin Multiplatform</a> 🚀'
 footer_project = 'Progetto'
 footer_source = 'Codice sorgente'
 footer_versions = 'Tutte le versioni'
@@ -32,11 +33,11 @@ nav = '''
     </nav>'''
 cta = '<a class="btn btn-primary btn-small head-cta" href="#download">Scarica</a>'
 chips = '<span class="chip on">Versione 1.0</span><span class="chip">Gratis</span><span class="chip">macOS 11 o successivo</span><span class="chip">Windows 10 e 11</span>'
-h1 = 'Per imparare un brano, <em>prima</em> lo rallento.'
-lede = "Downstep è l'app che ho fatto per questo. Suona un brano più lento o più veloce senza cambiarne la tonalità, e ripete il pezzo su cui stai lavorando tutte le volte che serve. È gratis, per Mac e Windows."
+h1 = 'Il pezzo che stai studiando, alla tua <em>velocità</em> e nella tua <em>tonalità</em>.'
+lede = "Con Downstep rallenti un brano, cambi tonalità, o fai entrambe le cose in modo indipendente. Poi ripeti il passaggio difficile tutte le volte che serve. È gratis, per Mac e Windows."
 
 demo_label = 'Animazione: il loop A-B si chiude intorno a un passaggio e la velocità scende al 70%'
-demo_practicing = 'In pratica'
+demo_practicing = 'Stai studiando'
 demo_traditional = 'Tradizionale'
 speed = 'Velocità'
 pitch = 'Tonalità'
@@ -49,7 +50,7 @@ demo_faster = "Poi lo riacceleri, un po' alla volta."
 what_title = 'Cosa fa'
 f1_tag = 'Velocità e tonalità'
 f1_title = 'Velocità e tonalità, separate'
-f1_text = "Puoi andare dal 25% al 200% della velocità originale, e spostare la tonalità fino a 12 semitoni in su o in giù. Se cambi una delle due, l'altra non si muove."
+f1_text = "Puoi andare dal 25% al 200% della velocità originale, e spostare la tonalità fino a 12 semitoni in su o in giù. Se cambi una delle due, l'altra non si muove: puoi rallentare un pezzo e intanto portarlo nella tonalità della tua voce."
 f1_alt = 'Velocità al 75% e tonalità a meno 2 semitoni, ognuna con uno slider e i pulsanti per i passi'
 f2_title = 'Loop A-B'
 f2_text = 'Premi A e B mentre il brano suona, oppure trascina i marker sulla timeline. Con i pulsanti accanto dimezzi o raddoppi il loop, o lo sposti sulla frase dopo.'
@@ -68,8 +69,26 @@ f6_tag = 'Export'
 f6_title = 'Export e backup'
 f6_text = 'Puoi esportare un brano in MP3 con le tue modifiche. Il backup contiene tutta la libreria, e lo ripristini su un altro Mac o su Windows.'
 
+uses_title = "Casi d'uso"
+u1_tag = 'Voce'
+u1_title = 'Trovare la tonalità giusta'
+u1_text = 'Prima di decidere in che tonalità cantare un pezzo, lo provi un semitono alla volta, in su o in giù, finché la voce non sta comoda.'
+u1_chips = '<span class="chip">−1 st</span><span class="chip">−2 st</span><span class="chip">−3 st</span>'
+u2_tag = 'Strumento'
+u2_title = 'La tua accordatura, non quella del disco'
+u2_text = 'Molti dischi sono accordati mezzo tono sotto. Alzi il brano di un semitono e ci suoni sopra senza riaccordare.'
+u2_chips = '<span class="chip">+1 st</span>'
+u3_tag = 'Band'
+u3_title = 'Due semitoni sotto, per chi canta'
+u3_text = 'La band decide di fare il pezzo più basso per il cantante. Salvi il preset, mandi il backup agli altri e tutti provano a casa sulla stessa versione.'
+u3_chips = '<span class="chip">−2 st</span>'
+u4_tag = 'Palco'
+u4_title = 'Un medley senza stacchi'
+u4_text = 'Due pezzi attaccati in scaletta: porti il secondo nella tonalità del primo e provi il passaggio finché non viene naturale.'
+u4_chips = '<span class="chip">+2 st</span>'
+
 screens_title = 'Schermate'
-shot1 = 'Libreria e pratica'
+shot1 = 'Libreria e studio'
 shot1_alt = 'Downstep su Mac: la libreria a sinistra, il player a destra con velocità al 75%, tonalità a meno 2 e il loop A-B attivo'
 shot2 = 'Playlist'
 shot2_alt = 'La scheda delle playlist'
@@ -79,7 +98,7 @@ shot3_alt = 'Il pannello degli effetti con bilanciamento, preamp ed equalizzator
 all_title = 'Tutte le funzioni'
 catalog = '''
 <section class="surface">
-        <div class="label">Pratica</div>
+        <div class="label">Studio</div>
         <ul class="rows">
           <li class="row">{{ @icon:check }}<div><b>Velocità</b><span>dal 25% al 200%</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Tonalità</b><span>fino a 12 semitoni in su o in giù</span></div></li>
@@ -140,7 +159,7 @@ win_req = 'Windows 10 o 11, 64 bit.'
 
 note_title = "Perché l'ho fatta"
 note_text = '''
-<p>Suono la chitarra in una band, e per imparare i pezzi nuovi li rallento e ripeto in loop i passaggi difficili. Volevo qualcosa di semplice, che funzionasse offline e che tutta la band potesse usare con gli stessi preset. Così ho fatto Downstep nel tempo libero.</p>
+<p>Suono la chitarra in una band, e per imparare i pezzi nuovi rallento e ripeto in loop i passaggi difficili. Volevo qualcosa di semplice, che funzionasse offline e che tutta la band potesse usare con gli stessi preset. Così ho fatto Downstep nel tempo libero.</p>
         <p>È gratis, e <a href="{{ @url:why }}">qui spiego perché</a>.</p>'''
 
 faq_title = 'Domande'
@@ -150,7 +169,7 @@ faq = '''
       <details><summary>Dove vengono salvati i brani?{{ @icon:expand_more }}</summary>
         <p>Sul tuo computer: <code>~/Library/Application Support/SlowDowner</code> su Mac, <code>%APPDATA%\SlowDowner</code> su Windows. La cartella ha ancora il primo nome dell'app. Per spostare i brani su un altro computer, usa il backup.</p></details>
       <details><summary>Perché macOS la blocca?{{ @icon:expand_more }}</summary>
-        <p>Perché non è distribuita tramite l'App Store. Basta autorizzarla una volta, la <a href="{{ @url:mac }}">pagina di download</a> spiega come.</p></details>
+        <p>Perché non è distribuita tramite l'App Store. Basta autorizzarla una volta, la <a href="{{ @url:mac }}">pagina di download</a> spiega come. In futuro arriverà anche sull'App Store, e questo passaggio non servirà più.</p></details>
       <details><summary>L'app manda dei dati?{{ @icon:expand_more }}</summary>
         <p>No. Va online solo quando importi da un link.</p></details>
       <details><summary>Funziona su un Mac Intel?{{ @icon:expand_more }}</summary>
