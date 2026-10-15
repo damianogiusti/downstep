@@ -5,12 +5,14 @@ import com.damianogiusti.slowdowner.logging.Logger
 import io.sentry.Attachment
 import io.sentry.Hint
 import io.sentry.Sentry
+import io.sentry.SentryAttributeType
 import io.sentry.SentryEvent
 import io.sentry.SentryLevel
 import io.sentry.SentryLogEvent
 import io.sentry.SentryLogEventAttributeValue
 import io.sentry.SentryOptions
 import io.sentry.protocol.Message
+import io.sentry.protocol.OperatingSystem
 import io.sentry.protocol.User
 import java.io.File
 import java.util.UUID
@@ -52,7 +54,7 @@ object CrashReporting {
                 options.isAttachServerName = false
                 // The native crash event would get the stack of the thread that sends it: misleading.
                 options.isAttachStacktrace = false
-                options.setTag("os", "${System.getProperty("os.name")} ${System.getProperty("os.version")}")
+                options.setTag("os", osDescription)
                 options.setTag("arch", System.getProperty("os.arch"))
                 options.beforeSend = SentryOptions.BeforeSendCallback { event, _ -> scrub(event) }
                 options.logs.isEnabled = true
@@ -108,6 +110,16 @@ object CrashReporting {
     private val home: String? = System.getProperty("user.home")
 
     private fun scrub(event: SentryEvent): SentryEvent = event.apply {
+        // The JVM SDK sends no OS context: without it Sentry cannot tell macOS from Windows.
+        if (contexts.operatingSystem == null) {
+            contexts.setOperatingSystem(
+                OperatingSystem().apply {
+                    name = osName
+                    version = osVersion
+                    rawDescription = osDescription
+                },
+            )
+        }
         exceptions?.forEach { it.value = scrubText(it.value) }
         message?.let {
             it.formatted = scrubText(it.formatted)
@@ -121,10 +133,18 @@ object CrashReporting {
         attributes = attributes?.mapValues { (_, attribute) ->
             val value = attribute.value
             if (value is String) SentryLogEventAttributeValue(attribute.type, scrubText(value)) else attribute
-        }
+        }.orEmpty() + mapOf(
+            // Tags in options reach only events: logs need the OS as attributes to be split by platform.
+            "os.name" to SentryLogEventAttributeValue(SentryAttributeType.STRING, osName),
+            "os.version" to SentryLogEventAttributeValue(SentryAttributeType.STRING, osVersion),
+        )
     }
 
     private fun scrubText(text: String?) = scrubPaths(scrubHome(text, home))
+
+    private val osDescription = "${System.getProperty("os.name")} ${System.getProperty("os.version")}"
+    private val osName = osFamily(System.getProperty("os.name"))
+    private val osVersion = System.getProperty("os.version").orEmpty()
 
     private val OFFSET = Regex("""\+0x[0-9a-fA-F]+""")
 }
@@ -145,4 +165,12 @@ internal fun scrubHome(text: String?, home: String? = System.getProperty("user.h
     return listOf(home, home.replace('\\', '/')).distinct().fold(text) { scrubbed, form ->
         scrubbed.replace(form, "~", ignoreCase = true)
     }
+}
+
+/** The name Sentry knows: Java says "Mac OS X" on every macOS and "Windows 11" with version 10.0. */
+internal fun osFamily(javaName: String?): String = when {
+    javaName == null -> "unknown"
+    javaName.startsWith("Mac", ignoreCase = true) -> "macOS"
+    javaName.startsWith("Windows", ignoreCase = true) -> "Windows"
+    else -> javaName
 }
