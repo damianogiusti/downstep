@@ -1,31 +1,28 @@
 # Started by Downstep before it quits to update itself. Waits for it to quit, puts the new folder in
-# place of the old one, and starts the app again. Paths go through -LiteralPath: [ and ] are not wildcards.
-param([int]$ProcessId, [string]$NewApp, [string]$Target)
+# place of the old one, and starts the app again. The old folder goes to the Recycle Bin: nothing is
+# deleted for good. Paths go through -LiteralPath: [ and ] are not wildcards.
+# $TrashDir stands in for the Recycle Bin in tests.
+param([int]$ProcessId, [string]$NewApp, [string]$Target, [string]$TrashDir = "")
 
 $exe = Join-Path $Target "Downstep.exe"
 $name = Split-Path $Target -Leaf
-$backupName = "$name.old"
-$backup = Join-Path (Split-Path $Target -Parent) $backupName
+$oldName = "$name (old)"
+$old = Join-Path (Split-Path $Target -Parent) $oldName
 
-# Never follows a junction out of the folder, unlike Remove-Item -Recurse in Windows PowerShell 5.1.
-# Read-only files (the launcher can be one) lose the flag first; an exe that was just closed can stay
-# locked for a moment, so it tries again.
-function Clear-ReadOnly([System.IO.DirectoryInfo]$dir) {
-    foreach ($item in $dir.GetFileSystemInfos()) {
-        if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { continue }
-        if ($item -is [System.IO.DirectoryInfo]) { Clear-ReadOnly $item }
-        elseif ($item.Attributes -band [System.IO.FileAttributes]::ReadOnly) {
-            $item.Attributes = $item.Attributes -bxor [System.IO.FileAttributes]::ReadOnly
-        }
-    }
-}
-function Remove-Folder([string]$path) {
+# Moves the whole folder at once, as Explorer's Delete does: nothing inside it is opened or followed.
+# An exe that just quit can stay locked for a moment, so it tries again.
+function Move-ToTrash([string]$path) {
     for ($i = 0; $i -lt 20; $i++) {
         if (-not (Test-Path -LiteralPath $path)) { return }
         try {
-            $dir = New-Object System.IO.DirectoryInfo $path
-            Clear-ReadOnly $dir
-            $dir.Delete($true)
+            if ($TrashDir) {
+                Move-Item -LiteralPath $path -Destination $TrashDir -ErrorAction Stop
+            } else {
+                Add-Type -AssemblyName Microsoft.VisualBasic
+                [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(
+                    $path, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
+                    [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)
+            }
             return
         } catch {
             if ($i -eq 19) { throw }
@@ -41,12 +38,19 @@ if (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) {
     exit 1
 }
 
-try { Remove-Folder $backup } catch { Write-Output "Cannot remove an old backup: $_" }
+# Left by an update that stopped halfway.
+try {
+    Move-ToTrash $old
+} catch {
+    Write-Output "Cannot move $old to the Recycle Bin: nothing changed. $_"
+    Start-Process -FilePath $exe -WorkingDirectory $Target
+    exit 1
+}
 # Antivirus or the search indexer can hold a file for a moment after the app quits: try again.
 $moved = $false
 for ($i = 0; $i -lt 40 -and -not $moved; $i++) {
     try {
-        Rename-Item -LiteralPath $Target -NewName $backupName -ErrorAction Stop
+        Rename-Item -LiteralPath $Target -NewName $oldName -ErrorAction Stop
         $moved = $true
     } catch {
         Start-Sleep -Milliseconds 500
@@ -65,10 +69,15 @@ try {
     Write-Output "Replaced"
 } catch {
     Write-Output "Cannot move the new app: the old one goes back. $_"
-    Rename-Item -LiteralPath $backup -NewName $name -ErrorAction Stop
+    Rename-Item -LiteralPath $old -NewName $name -ErrorAction Stop
 }
 $app = Start-Process -FilePath $exe -WorkingDirectory $Target -PassThru
 Write-Output "Started $($app.Id)"
 if ($replaced) {
-    try { Remove-Folder $backup } catch { Write-Output "Cannot remove the old app: $_" }
+    try {
+        Move-ToTrash $old
+        Write-Output "Old app in the Recycle Bin"
+    } catch {
+        Write-Output "The old app stays as $old. $_"
+    }
 }

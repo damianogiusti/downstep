@@ -17,12 +17,14 @@ import kotlin.test.assertTrue
 
 /**
  * The real swap, with the real scripts, on a fake app: a few files that look like a jpackage app,
- * with a launcher that does nothing. Each test runs on its own OS.
+ * with a launcher that does nothing. Each test runs on its own OS, and only in CI (-PupdateSwapTests=true).
  */
 class DesktopUpdateInstallerTest {
 
     private val root = Files.createTempDirectory("downstep-update").toFile().canonicalFile
     private val workDir = File(root, "work")
+    // Never the user's Trash in a test.
+    private val trash = File(root, "trash").apply { mkdirs() }
     private val started = File(root, "started.txt")
     private val waiting = mutableListOf<Process>()
 
@@ -44,12 +46,12 @@ class DesktopUpdateInstallerTest {
 
     @Test
     fun `on macOS the new app from the disk image replaces the old one after the app quits, and opens`() {
-        assumeTrue(isMac)
+        assumeTrue(isMac && isEnabled)
         val installed = macApp(File(root, "Applications/Downstep.app"), "1.0.3")
         val dmg = macDiskImage("1.0.4")
         val app = sleepingProcess()
 
-        DesktopUpdateInstaller(AppInstallation.MacBundle(installed), workDir, ConsoleLogger(), app.pid()).prepare(dmg, "1.0.4")
+        DesktopUpdateInstaller(AppInstallation.MacBundle(installed), workDir, ConsoleLogger(), app.pid(), trash).prepare(dmg, "1.0.4")
         // The swap waits for the app to quit.
         Thread.sleep(1_000)
         assertEquals("1.0.3", versionOf(File(installed, "Contents/app")))
@@ -59,7 +61,9 @@ class DesktopUpdateInstallerTest {
         // The new launcher wrote it: the opened app is the new one.
         assertEquals("1.0.4", started.readText().trim())
         assertEquals("1.0.4", versionOf(File(installed, "Contents/app")))
-        assertFalse(File(installed.parentFile, ".Downstep.app.old").exists())
+        assertFalse(File(installed.parentFile, "Downstep (old).app").exists())
+        // Not deleted: in the Trash, whole.
+        assertEquals("1.0.3", versionOf(File(trash, "Downstep (old).app/Contents/app")))
         assertFalse(File(workDir, "Downstep.app").exists())
         run("codesign", "--verify", "--deep", "--strict", installed.path)
         assertFalse("com.apple.quarantine" in run("xattr", "-r", installed.path))
@@ -67,12 +71,12 @@ class DesktopUpdateInstallerTest {
 
     @Test
     fun `on macOS a disk image with another version changes nothing`() {
-        assumeTrue(isMac)
+        assumeTrue(isMac && isEnabled)
         val installed = macApp(File(root, "Applications/Downstep.app"), "1.0.3")
         val dmg = macDiskImage("1.0.5")
 
         assertFailsWith<IOException> {
-            DesktopUpdateInstaller(AppInstallation.MacBundle(installed), workDir, ConsoleLogger(), sleepingProcess().pid()).prepare(dmg, "1.0.4")
+            DesktopUpdateInstaller(AppInstallation.MacBundle(installed), workDir, ConsoleLogger(), sleepingProcess().pid(), trash).prepare(dmg, "1.0.4")
         }
 
         assertFalse(File(workDir, "replace-app.sh").exists())
@@ -81,30 +85,32 @@ class DesktopUpdateInstallerTest {
 
     @Test
     fun `on Windows the new folder from the zip replaces the old one after the app quits, and starts`() {
-        assumeTrue(isWindows)
+        assumeTrue(isWindows && isEnabled)
         val installed = windowsApp(File(root, "Apps/Downstep"), "1.0.3")
         val zip = windowsZip("1.0.4")
         val app = sleepingProcess()
 
-        DesktopUpdateInstaller(AppInstallation.WindowsFolder(installed), workDir, ConsoleLogger(), app.pid()).prepare(zip, "1.0.4")
+        DesktopUpdateInstaller(AppInstallation.WindowsFolder(installed), workDir, ConsoleLogger(), app.pid(), trash).prepare(zip, "1.0.4")
         Thread.sleep(1_000)
         assertEquals("1.0.3", versionOf(File(installed, "app")))
         app.destroy()
 
         waitFor { "Started" in scriptLog() }
-        waitFor { !File(installed.parentFile, "Downstep.old").exists() }
+        waitFor { File(trash, "Downstep (old)").exists() }
+        assertFalse(File(installed.parentFile, "Downstep (old)").exists())
+        assertEquals("1.0.3", versionOf(File(trash, "Downstep (old)/app")))
         assertEquals("1.0.4", versionOf(File(installed, "app")))
         assertFalse(File(installed.parentFile, "Downstep.update").exists())
     }
 
     @Test
     fun `on Windows a zip with another app changes nothing`() {
-        assumeTrue(isWindows)
+        assumeTrue(isWindows && isEnabled)
         val installed = windowsApp(File(root, "Apps/Downstep"), "1.0.3")
         val zip = windowsZip("1.0.4", mainClass = "com.example.Other")
 
         assertFailsWith<IOException> {
-            DesktopUpdateInstaller(AppInstallation.WindowsFolder(installed), workDir, ConsoleLogger(), sleepingProcess().pid()).prepare(zip, "1.0.4")
+            DesktopUpdateInstaller(AppInstallation.WindowsFolder(installed), workDir, ConsoleLogger(), sleepingProcess().pid(), trash).prepare(zip, "1.0.4")
         }
 
         assertEquals("1.0.3", versionOf(File(installed, "app")))
@@ -217,6 +223,8 @@ class DesktopUpdateInstallerTest {
     private companion object {
         const val MAIN_CLASS = "com.damianogiusti.slowdowner.desktop.MainKt"
         val isMac = System.getProperty("os.name").startsWith("Mac")
+        // Only in CI: see desktopApp/build.gradle.kts.
+        val isEnabled = System.getProperty("slowdowner.updateSwapTests") == "true"
         val isWindows = System.getProperty("os.name").startsWith("Windows")
     }
 }

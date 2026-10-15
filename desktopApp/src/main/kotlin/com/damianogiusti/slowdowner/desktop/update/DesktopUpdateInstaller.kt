@@ -13,13 +13,16 @@ import java.util.concurrent.TimeUnit
  * old one did.
  *
  * The swap happens in a small script after the app quits: a running app cannot replace its own
- * files safely (Windows locks them, macOS caches code signatures by file).
+ * files safely (Windows locks them, macOS caches code signatures by file). The script never deletes
+ * the old app: it goes to the Trash or the Recycle Bin, where the user can still get it back.
+ * [trashDir] stands in for those in tests.
  */
 class DesktopUpdateInstaller(
     private val installation: AppInstallation?,
     private val workDir: File,
     private val logger: Logger,
     private val processId: Long = ProcessHandle.current().pid(),
+    private val trashDir: File? = null,
 ) : UpdateInstaller {
 
     override val assetName: String? = when (installation) {
@@ -45,7 +48,7 @@ class DesktopUpdateInstaller(
         // Checks the whole bundle against its signature: a damaged copy would not open.
         run("codesign", "--verify", "--deep", "--strict", staged.path)
         val script = script("replace-app.sh")
-        start(listOf("/bin/sh", script.path, processId.toString(), staged.path, bundle.path))
+        start(listOf("/bin/sh", script.path, processId.toString(), staged.path, bundle.path) + listOfNotNull(trashDir?.path))
     }
 
     private fun prepareWindows(folder: File, zip: File, version: String) {
@@ -61,7 +64,7 @@ class DesktopUpdateInstaller(
             listOf(
                 "powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass",
                 "-File", script.path, "-ProcessId", processId.toString(), "-NewApp", staged.path, "-Target", folder.path,
-            ),
+            ) + (trashDir?.let { listOf("-TrashDir", it.path) } ?: emptyList()),
         )
     }
 

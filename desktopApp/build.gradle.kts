@@ -44,6 +44,9 @@ tasks.test {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
     // ./gradlew :desktopApp:test -PnetworkTests=true runs the YouTube import too.
     systemProperty("slowdowner.networkTests", providers.gradleProperty("networkTests").getOrElse("false"))
+    // The real app swap (scripts, disk images, Trash) runs only in CI, on machines that are thrown away:
+    // ./gradlew :desktopApp:test -PupdateSwapTests=true. Never on a developer's computer.
+    systemProperty("slowdowner.updateSwapTests", providers.gradleProperty("updateSwapTests").getOrElse("false"))
     enabled = osName.startsWith("Mac") || isWindows
 }
 
