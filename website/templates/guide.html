@@ -1,0 +1,25 @@
+{{> head }}
+{{> header }}
+
+<!-- A guide answers one question people search for. The short answer comes first, the details after. -->
+<main id="main" class="article">
+  <a class="back" href="{{ @url:home }}">{{ @icon:expand_more }}{{ common.back_home }}</a>
+  <h1>{{ page.h1 }}</h1>
+  <div class="callout teal"><p>{{ page.answer }}</p></div>
+  {{ page.body }}
+
+  <section class="donate surface">
+    <h2 style="margin:0 0 10px">{{ guides.cta_title }}</h2>
+    <p style="font-size:17px;margin:0 auto 22px">{{ guides.cta_text }}</p>
+    <div class="actions" style="justify-content:center;margin:0">
+      {{> download-buttons }}
+    </div>
+  </section>
+
+  <section>
+    <h2>{{ guides.more_title }}</h2>
+    <ul class="list">{{ guides.list }}</ul>
+  </section>
+</main>
+
+{{> footer }}

@@ -19,10 +19,12 @@ footer_why = 'Perché è gratis'
 footer_built = 'Fatta con'
 trademarks = 'Mac e macOS sono marchi di Apple Inc., Windows di Microsoft Corporation, YouTube di Google LLC.'
 top = 'Torna su'
+og_locale = 'it_IT'
+footer_guides = 'Guide'
 
 [home]
-title = 'Downstep, rallenta i brani e ripetili in loop per impararli. Per Mac e Windows'
-description = "Downstep è un'app gratuita per Mac e Windows per esercitarsi con la musica. Rallenta un brano senza cambiarne la tonalità e ripete in loop il pezzo che stai imparando."
+title = 'Downstep: rallenta la musica senza cambiare tonalità. Gratis per Mac e Windows'
+description = "App gratuita per Mac e Windows per imparare i brani a orecchio. Rallenta la musica senza cambiare tonalità, cambia tonalità e ripeti in loop il passaggio difficile. Open source, funziona offline."
 nav = '''
 <nav class="index" aria-label="Sezioni">
       <a href="#what">Cosa fa</a>
@@ -32,7 +34,7 @@ nav = '''
       <a href="#faq">Domande</a>
     </nav>'''
 cta = '<a class="btn btn-primary btn-small head-cta" href="#download">Scarica</a>'
-chips = '<span class="chip on">Versione 1.0</span><span class="chip">Gratis</span><span class="chip">macOS 11 o successivo</span><span class="chip">Windows 10 e 11</span>'
+chips = '<span class="chip">Gratis</span><span class="chip">macOS 11 o successivo</span><span class="chip">Windows 10 e 11</span>'
 h1 = 'Il pezzo che stai studiando, alla tua <em>velocità</em> e nella tua <em>tonalità</em>.'
 lede = "Con Downstep rallenti un brano, cambi tonalità, o fai entrambe le cose in modo indipendente. Poi ripeti il passaggio difficile tutte le volte che serve. È gratis, per Mac e Windows."
 
@@ -296,3 +298,121 @@ table_rows = '''
 abroad_outro = "La Spagna è pesante quasi quanto l'Italia, quindi non siamo i soli. Non credo che qualcuno l'abbia pensata contro i piccoli sviluppatori. Le regole sono scritte per negozi e professionisti, e un hobby con poche vendite finisce nella stessa casella."
 disclaimer = "Non sono un commercialista, e regole e importi cambiano. Se vuoi vendere un'app, prima senti un commercialista. Le opinioni sono mie."
 sources_title = 'Fonti'
+
+[schema]
+# Per motori di ricerca e assistenti AI (JSON-LD in build.py): testo semplice, niente HTML.
+app_description = "App gratuita e open source per Mac e Windows per esercitarsi con la musica. Rallenta un brano senza cambiarne la tonalità, cambia la tonalità senza cambiare la velocità e ripete in loop il pezzo che stai imparando."
+category = 'Studio della musica'
+features = [
+  'Velocità dal 25% al 200% senza cambiare la tonalità',
+  'Tonalità fino a 12 semitoni sopra o sotto senza cambiare la velocità',
+  'Loop A-B con scorciatoie da tastiera',
+  'Importa file MP3, M4A, WAV e FLAC, o link di YouTube',
+  'Libreria offline con playlist',
+  'Velocità, tonalità e loop salvati per ogni brano, e preset con un nome',
+  'Equalizzatore a 7 bande, preamplificatore e bilanciamento',
+  'Esportazione in MP3 con velocità e tonalità applicate',
+  'Backup e ripristino tra Mac e Windows',
+]
+
+[guides]
+cta_title = 'Provalo con Downstep'
+cta_text = 'Gratis, per Mac e Windows. Nessun account, e i tuoi brani restano sul tuo computer.'
+more_title = 'Guide'
+list = '''
+<li><span><a href="{{ @url:slow }}"><b>Come rallentare un brano senza cambiare tonalità</b></a><br>Il time-stretching spiegato, e quanto rallentare.</span></li>
+      <li><span><a href="{{ @url:key }}"><b>Come cambiare tonalità a una canzone</b></a><br>Per cantarla nella tua estensione, o suonarla con l'accordatura standard.</span></li>
+      <li><span><a href="{{ @url:loop }}"><b>Come imparare un brano a orecchio con il loop A-B</b></a><br>Ripeti il passaggio difficile, rallentalo, poi riaccelera.</span></li>'''
+footer = '''
+<li><a href="{{ @url:slow }}">Rallentare un brano</a></li>
+            <li><a href="{{ @url:key }}">Cambiare tonalità</a></li>
+            <li><a href="{{ @url:loop }}">Imparare con il loop</a></li>'''
+
+[slow]
+title = 'Come rallentare un brano senza cambiare tonalità | Downstep'
+description = 'Rallenta una canzone per impararla, e tienila nella stessa tonalità. Come funziona il time-stretching, e come si fa passo per passo con Downstep, gratis per Mac e Windows.'
+nav = ''
+cta = '<a class="btn btn-primary btn-small head-cta" href="{{ @url:home }}#download">Scarica</a>'
+h1 = 'Come rallentare un brano senza cambiare tonalità'
+answer = "Ti serve un'app che fa <b>time-stretching</b>: cambia la velocità dell'audio e lascia l'altezza delle note dov'è. Con Downstep importi il brano, sposti lo slider Velocità, per esempio al 70%, e la tonalità resta la stessa. È gratis, per Mac e Windows."
+body = '''
+<h2>Perché un brano più lento di solito suona più basso</h2>
+  <p>Se fai girare un disco o una cassetta più piano, l'altezza delle note scende insieme alla velocità. A metà velocità, un brano suona un'ottava sotto. Per imparare una parte non serve: senti il ritmo giusto, ma le note sbagliate.</p>
+  <p>Il time-stretching tiene separate le due cose. L'audio viene diviso in pezzi brevissimi, che vengono distanziati nel tempo (o avvicinati): il brano diventa più lento o più veloce, ma le note restano le stesse. Downstep usa <a href="https://github.com/bungee-audio-stretch/bungee">Bungee</a>, una libreria open source fatta apposta.</p>
+
+  <h2>Passo per passo con Downstep</h2>
+  <div class="panel surface"><ol class="rows">
+    <li class="row"><span class="tile">1</span><div><b>Scarica e apri Downstep</b><p>È gratis, per <a href="{{ @url:mac }}">Mac</a> e <a href="{{ @url:windows }}">Windows</a>.</p></div></li>
+    <li class="row"><span class="tile">2</span><div><b>Importa il brano</b><p>Un file MP3, M4A, WAV o FLAC, oppure un link di YouTube (solo per contenuti di cui hai i diritti). Il brano viene salvato sul tuo computer.</p></div></li>
+    <li class="row"><span class="tile">3</span><div><b>Abbassa la velocità</b><p>Sposta lo slider Velocità, oppure usa i pulsanti per scendere del 5% alla volta. Puoi andare dal 25% al 200%.</p></div></li>
+    <li class="row"><span class="tile">4</span><div><b>Lascia l'intonazione a 0</b><p>La tonalità non cambia. Se vuoi cambiare anche quella, sposta lo slider Intonazione: le due impostazioni sono indipendenti.</p></div></li>
+  </ol></div>
+  <p>Downstep ricorda la velocità di ogni brano, così la volta dopo lo ritrovi come l'avevi lasciato.</p>
+
+  <h2>Quanto rallentare?</h2>
+  <p>Abbastanza da suonare la parte senza errori. Poi sali del 5% alla volta, fino al 100%. Meglio suonarla pulita al 60% che con errori al 90%: a piena velocità gli errori si sentono solo di meno.</p>
+  <p>A velocità molto basse ogni time-stretching suona meno naturale: la batteria perde un po' di attacco, e le note lunghe possono sembrare un po' "acquose". Per imparare le note, di solito non è un problema.</p>
+
+  <h2>Studia solo il passaggio difficile</h2>
+  <p>Rallentare funziona meglio insieme a un loop: ripeti solo il passaggio difficile, non tutto il brano. <a href="{{ @url:loop }}">Ecco come imparare una parte a orecchio con il loop A-B</a>.</p>
+  <p>Se vuoi esercitarti lontano dal computer, puoi esportare il brano in MP3 con velocità e tonalità già applicate.</p>'''
+
+[key]
+title = 'Come cambiare tonalità a una canzone (trasporre un brano) | Downstep'
+description = "Sposta un brano in su o in giù di qualche semitono senza cambiarne la velocità: per cantarlo nella tua estensione, o suonarlo con la tua accordatura. Passo per passo con Downstep, gratis per Mac e Windows."
+nav = ''
+cta = '<a class="btn btn-primary btn-small head-cta" href="{{ @url:home }}#download">Scarica</a>'
+h1 = 'Come cambiare tonalità a una canzone'
+answer = "Per cambiare la tonalità di una registrazione ti serve il <b>pitch shifting</b>: sposta tutte le note in su o in giù e lascia la velocità com'è. In Downstep sposti lo slider Intonazione di un semitono alla volta, fino a 12 sopra o sotto. La velocità non cambia, e l'impostazione resta salvata con il brano."
+body = '''
+<h2>I semitoni in due righe</h2>
+  <p>Un semitono è il passo più piccolo tra due note sul pianoforte o sulla chitarra: da un tasto al successivo. Dodici semitoni fanno un'ottava. Quindi "−2" vuol dire che tutto il brano scende di due tasti, e gli accordi con lui: un brano in Mi diventa un brano in Re.</p>
+
+  <h2>Quando serve</h2>
+  <div class="panel surface"><ul class="list">
+    <li><span><b>Per cantare nella tua estensione.</b> Se il brano è troppo alto o troppo basso, spostalo di un semitono alla volta finché non ti sta comodo in voce.</span></li>
+    <li><span><b>Per suonare con l'accordatura standard.</b> Molti dischi sono accordati mezzo tono sotto. Alza il brano di un semitono e puoi suonarci sopra senza riaccordare.</span></li>
+    <li><span><b>Per studiare la versione della tua band.</b> Se la band suona un brano due semitoni sotto per chi canta, a casa tutti possono studiare quella versione.</span></li>
+    <li><span><b>Per unire due brani.</b> In un medley, porta il secondo brano nella tonalità del primo, e prova il passaggio.</span></li>
+  </ul></div>
+
+  <h2>Passo per passo con Downstep</h2>
+  <div class="panel surface"><ol class="rows">
+    <li class="row"><span class="tile">1</span><div><b>Importa il brano</b><p>Un file MP3, M4A, WAV o FLAC, oppure un link di YouTube (solo per contenuti di cui hai i diritti).</p></div></li>
+    <li class="row"><span class="tile">2</span><div><b>Cambia l'intonazione</b><p>Sposta lo slider Intonazione, oppure usa i pulsanti per muoverti di un semitono alla volta, fino a 12 sopra o sotto.</p></div></li>
+    <li class="row"><span class="tile">3</span><div><b>Lascia la velocità al 100%, o cambia anche quella</b><p>Le due impostazioni sono indipendenti.</p></div></li>
+    <li class="row"><span class="tile">4</span><div><b>Salvala</b><p>Downstep salva l'intonazione di ogni brano. Puoi anche salvare un preset con un nome, come “Brano intero −2”, e mandare un backup alla band, così tutti hanno la stessa versione.</p></div></li>
+  </ol></div>
+
+  <h2>Cosa aspettarsi dal suono</h2>
+  <p>Uno o due semitoni di solito suonano naturali. Con spostamenti più grandi le voci cominciano a cambiare: verso l'alto diventano sottili, verso il basso scure. La maggior parte delle app di questo tipo funziona allo stesso modo. Per esercitarsi, di solito va bene.</p>
+  <p>Vuoi anche rallentarlo? <a href="{{ @url:slow }}">Ecco come rallentare un brano senza cambiare tonalità</a>.</p>'''
+
+[loop]
+title = 'Come imparare un brano a orecchio con il loop A-B | Downstep'
+description = "Ripeti il passaggio difficile di un brano finché non riesci a suonarlo: imposta un loop A-B, rallentalo, poi riaccelera un po' alla volta. Con Downstep, gratis per Mac e Windows."
+nav = ''
+cta = '<a class="btn btn-primary btn-small head-cta" href="{{ @url:home }}#download">Scarica</a>'
+h1 = 'Come imparare un brano a orecchio con il loop A-B'
+answer = "Imposta un <b>loop A-B</b> intorno al passaggio difficile, così l'app ripete solo quello. Rallentalo finché non riesci a suonarlo senza errori, poi riaccelera un po' alla volta. In Downstep premi <kbd>A</kbd> e <kbd>B</kbd> mentre il brano suona, e <kbd>L</kbd> accende e spegne il loop."
+body = '''
+<h2>Perché il loop aiuta</h2>
+  <p>Quando impari un brano a orecchio, il passaggio difficile dura spesso pochi secondi: un lick veloce, una linea di voce, un fill di batteria. Se riascolti tutto il brano ogni volta, senti quel passaggio una volta ogni qualche minuto. Con il loop lo risenti ogni pochi secondi, e puoi suonarci sopra finché le mani non se lo ricordano.</p>
+
+  <h2>Passo per passo con Downstep</h2>
+  <div class="panel surface"><ol class="rows">
+    <li class="row"><span class="tile">1</span><div><b>Importa il brano</b><p>Un file MP3, M4A, WAV o FLAC, oppure un link di YouTube (solo per contenuti di cui hai i diritti).</p></div></li>
+    <li class="row"><span class="tile">2</span><div><b>Imposta A e B</b><p>Premi <kbd>A</kbd> dove inizia il passaggio difficile e <kbd>B</kbd> dove finisce, oppure trascina i marker sulla timeline. <kbd>←</kbd> e <kbd>→</kbd> saltano di 5 secondi, o di 1 secondo con Shift.</p></div></li>
+    <li class="row"><span class="tile">3</span><div><b>Rallentalo</b><p>Abbassa la velocità finché non riesci a suonare la parte senza errori. La tonalità resta la stessa.</p></div></li>
+    <li class="row"><span class="tile">4</span><div><b>Riaccelera un po' alla volta</b><p>Sali del 5% alla volta. Quando è pulito al 100%, hai finito.</p></div></li>
+  </ol></div>
+
+  <h2>Consigli</h2>
+  <div class="panel surface"><ul class="list">
+    <li><span><b>Parti da un loop corto.</b> Basta una frase. Poi usa ×2 per allungare il loop, o ½ per accorciarlo.</span></li>
+    <li><span><b>Attraversa il brano un pezzo alla volta.</b> I pulsanti ◀ e ▶ spostano il loop indietro o avanti.</span></li>
+    <li><span><b>Lascia un attimo prima di A.</b> Un secondo prima del passaggio difficile ti aiuta a entrare a tempo.</span></li>
+    <li><span><b>Spegnere il loop non lo cancella.</b> Premi <kbd>L</kbd> per ascoltare tutto il brano, e di nuovo per tornare al loop.</span></li>
+    <li><span><b>Lo ritrovi come l'avevi lasciato.</b> Ogni brano tiene la sua velocità, intonazione e il suo loop.</span></li>
+  </ul></div>
+  <p>Per saperne di più sulle due impostazioni: <a href="{{ @url:slow }}">rallentare senza cambiare tonalità</a> e <a href="{{ @url:key }}">cambiare tonalità</a>.</p>'''
