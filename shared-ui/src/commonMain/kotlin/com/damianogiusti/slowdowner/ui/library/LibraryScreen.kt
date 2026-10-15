@@ -78,6 +78,8 @@ class LibraryNavigation(
     val onRestoreBackup: () -> Unit,
     val onExportTrackBackup: (LibraryTrack) -> Unit,
     val onExportLibraryBackup: () -> Unit,
+    /** Null hides the Donate item (see ActivityActions.onDonate). */
+    val onDonate: (() -> Unit)?,
 )
 
 @Composable
@@ -109,6 +111,7 @@ fun LibraryScreen(
             onPlaylistClick = navigation.onPlaylistClick,
             onNewPlaylist = { showNewPlaylist = true },
             onImport = { showImport = true },
+            onDonate = navigation.onDonate,
         ),
     )
 
@@ -191,6 +194,7 @@ class LibraryContentActions(
     val onPlaylistClick: (Playlist) -> Unit,
     val onNewPlaylist: () -> Unit,
     val onImport: () -> Unit,
+    val onDonate: (() -> Unit)? = null,
 )
 
 @Composable
@@ -222,6 +226,7 @@ fun LibraryContent(state: LibraryUiState, tab: LibraryTab, actions: LibraryConte
                 },
                 onQueryChanged = actions.onQueryChanged,
                 onLibraryBackup = actions.onExportLibraryBackup,
+                onDonate = actions.onDonate,
             )
             LibraryTabs(tab, actions.onTabSelected)
             when (tab) {
@@ -239,6 +244,7 @@ private fun LibraryHeader(
     onSearchToggled: () -> Unit,
     onQueryChanged: (String) -> Unit,
     onLibraryBackup: () -> Unit,
+    onDonate: (() -> Unit)?,
 ) {
     Column(modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp, bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -267,7 +273,7 @@ private fun LibraryHeader(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (!isSearching) LibraryMenu(onLibraryBackup)
+            if (!isSearching) LibraryMenu(onLibraryBackup, onDonate)
         }
         if (!isSearching) {
             Text(
@@ -428,7 +434,7 @@ private fun TrackMenu(onAddToPlaylist: () -> Unit, onExportBackup: () -> Unit, o
 }
 
 @Composable
-private fun LibraryMenu(onLibraryBackup: () -> Unit) {
+private fun LibraryMenu(onLibraryBackup: () -> Unit, onDonate: (() -> Unit)?) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
@@ -447,6 +453,16 @@ private fun LibraryMenu(onLibraryBackup: () -> Unit) {
                     onLibraryBackup()
                 },
             )
+            onDonate?.let { donate ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.support_donate)) },
+                    leadingIcon = { Icon(painterResource(Res.drawable.ic_favorite), null) },
+                    onClick = {
+                        expanded = false
+                        donate()
+                    },
+                )
+            }
         }
     }
 }

@@ -29,6 +29,7 @@ class DesktopActions(
         onPickBackup = { pickFile(setOf(BACKUP_EXTENSION, "zip"))?.let { viewModels.backup.onRestorePicked(it.path) } },
         onShareBackup = { reveal(File(it.path)) },
         onSaveBackup = { file -> saveAs(file.name)?.let { viewModels.backup.onSaveTargetPicked(it.path) } },
+        onDonate = { openDonation(DonateSource.LIBRARY_MENU, logger) },
     )
 
     private fun pickFile(extensions: Set<String>): File? {

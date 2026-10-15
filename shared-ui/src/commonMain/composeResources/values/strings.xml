@@ -223,6 +223,7 @@
     <string name="menu_window">Window</string>
     <string name="menu_close_window">Close Window</string>
     <string name="menu_minimize">Minimize</string>
+    <string name="menu_help">Help</string>
 
     <!-- Support prompt (desktop) -->
     <string name="support_title">Downstep is free</string>

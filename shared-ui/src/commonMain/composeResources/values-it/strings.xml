@@ -221,6 +221,7 @@
     <string name="menu_window">Finestra</string>
     <string name="menu_close_window">Chiudi finestra</string>
     <string name="menu_minimize">Contrai</string>
+    <string name="menu_help">Aiuto</string>
 
     <!-- Support prompt (desktop) -->
     <string name="support_title">Downstep è gratis</string>

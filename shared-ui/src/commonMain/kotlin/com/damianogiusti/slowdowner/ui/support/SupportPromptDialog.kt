@@ -41,8 +41,6 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
-private const val DONATE_URL = "https://www.paypal.me/damianogiusti"
-
 /** Shows the prompt when it is due. Place it once, over the whole app. */
 @Composable
 fun SupportPromptHost(viewModel: SupportPromptViewModel = koinViewModel()) {

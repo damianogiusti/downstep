@@ -44,8 +44,10 @@ import com.damianogiusti.slowdowner.ui.resources.error_engine_unavailable
 import com.damianogiusti.slowdowner.ui.resources.error_no_audio_output
 import com.damianogiusti.slowdowner.ui.resources.menu_close_window
 import com.damianogiusti.slowdowner.ui.resources.menu_file
+import com.damianogiusti.slowdowner.ui.resources.menu_help
 import com.damianogiusti.slowdowner.ui.resources.menu_minimize
 import com.damianogiusti.slowdowner.ui.resources.menu_window
+import com.damianogiusti.slowdowner.ui.resources.support_donate
 import com.damianogiusti.slowdowner.ui.support.SupportPromptHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import kotlinx.coroutines.MainScope
@@ -101,6 +103,10 @@ fun main() {
                 }
                 Menu(stringResource(Res.string.menu_window)) {
                     Item(stringResource(Res.string.menu_minimize), shortcut = KeyShortcut(Key.M, meta = true)) { windowState.isMinimized = true }
+                }
+                // Where Mac users look for things about the app itself. Windows has the library menu only.
+                Menu(stringResource(Res.string.menu_help)) {
+                    Item(stringResource(Res.string.support_donate)) { openDonation(DonateSource.MAC_MENU, logger) }
                 }
             }
             SlowDownerTheme {
