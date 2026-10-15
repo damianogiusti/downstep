@@ -39,7 +39,11 @@ PAGES = {
     "windows": {"en": "download/windows/", "it": "it/scarica/windows/", "template": "download"},
     "why": {"en": "why-free/", "it": "it/perche-gratis/"},
     "more": {"en": "why-free/more/", "it": "it/perche-gratis/dettagli/"},
+    "slow": {"en": "guides/slow-down-a-song-without-changing-pitch/", "it": "it/guide/rallentare-un-brano-senza-cambiare-tonalita/", "template": "guide"},
+    "key": {"en": "guides/change-the-key-of-a-song/", "it": "it/guide/cambiare-tonalita-a-una-canzone/", "template": "guide"},
+    "loop": {"en": "guides/learn-a-song-by-ear-with-a-loop/", "it": "it/guide/imparare-un-brano-a-orecchio-con-il-loop/", "template": "guide"},
 }
+GUIDES = ["slow", "key", "loop"]
 
 RELEASES = "https://github.com/damianogiusti/downstep/releases/latest/download/"
 FILES = {"mac": RELEASES + "Downstep-mac.dmg", "windows": RELEASES + "Downstep-windows-x64.zip"}
@@ -70,7 +74,7 @@ def relative(from_dir, to_dir):
 
 
 def jsonld(page, lang, texts):
-    """The app as a SoftwareApplication on the home page. Texts come from i18n."""
+    """The app as a SoftwareApplication on the home page, the guides as articles. Texts come from i18n."""
     url = BASE_URL + PAGES[page][lang]
     if page == "home":
         data = [
@@ -96,6 +100,17 @@ def jsonld(page, lang, texts):
                 "sameAs": ["https://github.com/damianogiusti/downstep"],
             },
         ]
+    elif page in GUIDES:
+        data = {
+            "@context": "https://schema.org",
+            "@type": "Article",
+            "headline": texts[f"{page}.h1"],
+            "description": texts[f"{page}.description"],
+            "inLanguage": lang,
+            "url": url,
+            "author": AUTHOR,
+            "about": {"@type": "SoftwareApplication", "name": "Downstep", "url": BASE_URL + PAGES["home"][lang]},
+        }
     else:
         return ""
     # "</" would close the script element early.

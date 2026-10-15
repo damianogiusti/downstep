@@ -258,7 +258,7 @@ section.block { padding: 88px 0 8px; }
 /* Footer */
 .site-foot { padding: 40px 0 48px; font-size: 14px; color: var(--muted); }
 .site-foot .surface { padding: 28px; }
-.foot-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 28px; }
+.foot-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 28px; }
 .site-foot b { color: var(--text); font-weight: 600; display: block; margin-bottom: 8px; }
 .site-foot a { color: var(--muted); }
 .site-foot a:hover { color: var(--text); }

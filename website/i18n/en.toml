@@ -20,6 +20,7 @@ footer_built = 'Built with'
 trademarks = 'Mac and macOS are trademarks of Apple Inc., Windows of Microsoft Corporation, YouTube of Google LLC.'
 top = 'Back to top'
 og_locale = 'en_US'
+footer_guides = 'Guides'
 
 [home]
 title = 'Downstep: slow down music without changing the pitch. Free for Mac and Windows'
@@ -313,3 +314,105 @@ features = [
   'MP3 export with speed and pitch applied',
   'Backup and restore across Mac and Windows',
 ]
+
+[guides]
+cta_title = 'Try it with Downstep'
+cta_text = 'Free, for Mac and Windows. No account, and your songs stay on your computer.'
+more_title = 'Guides'
+list = '''
+<li><span><a href="{{ @url:slow }}"><b>How to slow down a song without changing the pitch</b></a><br>Time-stretching explained, and how slow to go.</span></li>
+      <li><span><a href="{{ @url:key }}"><b>How to change the key of a song</b></a><br>To sing in your range, or to play along in standard tuning.</span></li>
+      <li><span><a href="{{ @url:loop }}"><b>How to learn a song by ear with an A-B loop</b></a><br>Repeat the hard part, slow it down, then speed it up.</span></li>'''
+footer = '''
+<li><a href="{{ @url:slow }}">Slow down a song</a></li>
+            <li><a href="{{ @url:key }}">Change the key</a></li>
+            <li><a href="{{ @url:loop }}">Learn with a loop</a></li>'''
+
+[slow]
+title = 'How to slow down a song without changing the pitch | Downstep'
+description = 'Slow down a song to learn it, and keep it in the same key. How time-stretching works, and how to do it step by step with Downstep, free for Mac and Windows.'
+nav = ''
+cta = '<a class="btn btn-primary btn-small head-cta" href="{{ @url:home }}#download">Download</a>'
+h1 = 'How to slow down a song without changing the pitch'
+answer = "You need an app that does <b>time-stretching</b>: it changes the speed of the audio and keeps the pitch where it is. With Downstep you import the song, move the Speed slider, for example to 70%, and the key stays the same. It's free, for Mac and Windows."
+body = '''
+<h2>Why a slower song usually sounds lower</h2>
+  <p>If you play a record or a tape slower, the pitch goes down with the speed. At half speed, a song sounds one octave lower. That's not useful when you want to learn a part: you hear the right rhythm, but the wrong notes.</p>
+  <p>Time-stretching keeps the two things apart. The audio is split into very short pieces, which are spread out in time (or packed closer), so the song gets slower or faster but the notes stay the same. Downstep uses <a href="https://github.com/bungee-audio-stretch/bungee">Bungee</a>, an open source library made for this.</p>
+
+  <h2>Step by step with Downstep</h2>
+  <div class="panel surface"><ol class="rows">
+    <li class="row"><span class="tile">1</span><div><b>Download and open Downstep</b><p>It's free, for <a href="{{ @url:mac }}">Mac</a> and <a href="{{ @url:windows }}">Windows</a>.</p></div></li>
+    <li class="row"><span class="tile">2</span><div><b>Import the song</b><p>An MP3, M4A, WAV or FLAC file, or a YouTube link (only for content you have the rights to). The song is saved on your computer.</p></div></li>
+    <li class="row"><span class="tile">3</span><div><b>Lower the speed</b><p>Move the Speed slider, or use the buttons to go down 5% at a time. You can go from 25% to 200%.</p></div></li>
+    <li class="row"><span class="tile">4</span><div><b>Leave the pitch at 0</b><p>The key doesn't change. If you want a different key too, move the Pitch slider: the two settings are independent.</p></div></li>
+  </ol></div>
+  <p>Downstep remembers the speed of each song, so next time you find it as you left it.</p>
+
+  <h2>How slow should you go?</h2>
+  <p>Slow enough to play the part without mistakes. Then go up 5% at a time, until you reach 100%. It's better to play it clean at 60% than with mistakes at 90%: at full speed the mistakes are only harder to hear.</p>
+  <p>At very low speeds every time-stretch sounds less natural: drums lose some attack, and long notes can sound a bit "watery". To learn the notes, it's usually not a problem.</p>
+
+  <h2>Practice the hard part only</h2>
+  <p>Slowing down works best together with a loop: you repeat only the hard passage, not the whole song. <a href="{{ @url:loop }}">Here is how to learn a part by ear with an A-B loop</a>.</p>
+  <p>If you want to practice away from the computer, you can export the song to MP3 with your speed and pitch applied.</p>'''
+
+[key]
+title = 'How to change the key of a song (transpose audio) | Downstep'
+description = 'Move a song up or down by semitones without changing its speed: to sing in your range, or to play along in your tuning. Step by step with Downstep, free for Mac and Windows.'
+nav = ''
+cta = '<a class="btn btn-primary btn-small head-cta" href="{{ @url:home }}#download">Download</a>'
+h1 = 'How to change the key of a song'
+answer = "To change the key of a recording you need <b>pitch shifting</b>: it moves all the notes up or down and keeps the speed. In Downstep you move the Pitch slider one semitone at a time, up to 12 up or down. The speed doesn't change, and the setting is saved with the song."
+body = '''
+<h2>Semitones in two lines</h2>
+  <p>A semitone is the smallest step between two notes on a piano or a guitar: from one fret to the next. Twelve semitones make an octave. So "−2" means the whole song moves two frets lower, and the chords move with it: a song in E becomes a song in D.</p>
+
+  <h2>When it's useful</h2>
+  <div class="panel surface"><ul class="list">
+    <li><span><b>To sing in your range.</b> If the song is too high or too low, move it one semitone at a time until it sits well in your voice.</span></li>
+    <li><span><b>To play along in standard tuning.</b> Many records are tuned a half step down. Raise the song by one semitone and you can play along without retuning.</span></li>
+    <li><span><b>To practice the version your band plays.</b> If the band plays a song two semitones lower for the singer, everyone can practice that version at home.</span></li>
+    <li><span><b>To join two songs.</b> In a medley, move the second song to the key of the first, and practice the change.</span></li>
+  </ul></div>
+
+  <h2>Step by step with Downstep</h2>
+  <div class="panel surface"><ol class="rows">
+    <li class="row"><span class="tile">1</span><div><b>Import the song</b><p>An MP3, M4A, WAV or FLAC file, or a YouTube link (only for content you have the rights to).</p></div></li>
+    <li class="row"><span class="tile">2</span><div><b>Change the pitch</b><p>Move the Pitch slider, or use the buttons to go one semitone at a time, up to 12 up or down.</p></div></li>
+    <li class="row"><span class="tile">3</span><div><b>Leave the speed at 100%, or change it too</b><p>The two settings are independent.</p></div></li>
+    <li class="row"><span class="tile">4</span><div><b>Keep it</b><p>Downstep saves the pitch of each song. You can also save a preset with a name, like “Whole song −2”, and send a backup to your band, so everyone has the same version.</p></div></li>
+  </ol></div>
+
+  <h2>What to expect from the sound</h2>
+  <p>One or two semitones usually sound natural. With bigger changes, voices start to sound different: higher ones get thin, lower ones get dark. Most apps of this kind work the same way. For practicing, it's usually fine.</p>
+  <p>Do you want to slow it down too? <a href="{{ @url:slow }}">Here is how to slow down a song without changing the pitch</a>.</p>'''
+
+[loop]
+title = 'How to learn a song by ear with an A-B loop | Downstep'
+description = 'Repeat the hard part of a song until you can play it: set an A-B loop, slow it down, then speed it up step by step. With Downstep, free for Mac and Windows.'
+nav = ''
+cta = '<a class="btn btn-primary btn-small head-cta" href="{{ @url:home }}#download">Download</a>'
+h1 = 'How to learn a song by ear with an A-B loop'
+answer = 'Set an <b>A-B loop</b> around the hard part, so the app repeats only that. Slow it down until you can play it without mistakes, then speed it up a bit at a time. In Downstep you press <kbd>A</kbd> and <kbd>B</kbd> while the song plays, and <kbd>L</kbd> turns the loop on and off.'
+body = '''
+<h2>Why a loop helps</h2>
+  <p>When you learn a song by ear, the hard part is often a few seconds long: a fast lick, a vocal line, a drum fill. If you play the whole song every time, you hear that part once every few minutes. With a loop you hear it again every few seconds, and you can play along until your hands remember it.</p>
+
+  <h2>Step by step with Downstep</h2>
+  <div class="panel surface"><ol class="rows">
+    <li class="row"><span class="tile">1</span><div><b>Import the song</b><p>An MP3, M4A, WAV or FLAC file, or a YouTube link (only for content you have the rights to).</p></div></li>
+    <li class="row"><span class="tile">2</span><div><b>Set A and B</b><p>Press <kbd>A</kbd> where the hard part starts and <kbd>B</kbd> where it ends, or drag the markers on the timeline. <kbd>←</kbd> and <kbd>→</kbd> jump 5 seconds, or 1 second with Shift.</p></div></li>
+    <li class="row"><span class="tile">3</span><div><b>Slow it down</b><p>Lower the speed until you can play the part without mistakes. The key stays the same.</p></div></li>
+    <li class="row"><span class="tile">4</span><div><b>Speed it up step by step</b><p>Go up 5% at a time. When it's clean at 100%, you're done.</p></div></li>
+  </ol></div>
+
+  <h2>Tips</h2>
+  <div class="panel surface"><ul class="list">
+    <li><span><b>Start with a short loop.</b> One phrase is enough. Then use ×2 to make the loop longer, or ½ to make it shorter.</span></li>
+    <li><span><b>Go through the song piece by piece.</b> The ◀ and ▶ buttons move the loop back or forward.</span></li>
+    <li><span><b>Leave a moment before A.</b> A second before the hard part helps you come in on time.</span></li>
+    <li><span><b>Turning the loop off doesn't delete it.</b> Press <kbd>L</kbd> to listen to the whole song, and again to go back to the loop.</span></li>
+    <li><span><b>Find it as you left it.</b> Each song keeps its own speed, pitch and loop.</span></li>
+  </ul></div>
+  <p>More on the two settings: <a href="{{ @url:slow }}">slowing down without changing the pitch</a> and <a href="{{ @url:key }}">changing the key</a>.</p>'''
