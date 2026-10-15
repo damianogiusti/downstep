@@ -22,8 +22,8 @@ top = 'Torna su'
 og_locale = 'it_IT'
 
 [home]
-title = 'Downstep, rallenta i brani e ripetili in loop per impararli. Per Mac e Windows'
-description = "Downstep è un'app gratuita per Mac e Windows per esercitarsi con la musica. Rallenta un brano senza cambiarne la tonalità e ripete in loop il pezzo che stai imparando."
+title = 'Downstep: rallenta la musica senza cambiare tonalità. Gratis per Mac e Windows'
+description = "App gratuita per Mac e Windows per imparare i brani a orecchio. Rallenta la musica senza cambiare tonalità, cambia tonalità e ripeti in loop il passaggio difficile. Open source, funziona offline."
 nav = '''
 <nav class="index" aria-label="Sezioni">
       <a href="#what">Cosa fa</a>

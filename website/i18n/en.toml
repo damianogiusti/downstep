@@ -22,8 +22,8 @@ top = 'Back to top'
 og_locale = 'en_US'
 
 [home]
-title = 'Downstep, slow down and loop songs to learn them. For Mac and Windows'
-description = 'Downstep is a free app for Mac and Windows to practice music. It slows a song down without changing its key, and loops the part you are learning.'
+title = 'Downstep: slow down music without changing the pitch. Free for Mac and Windows'
+description = 'Free app for Mac and Windows to learn songs by ear. Slow down music without changing the pitch, change the key, and loop the hard part. Open source, works offline.'
 nav = '''
 <nav class="index" aria-label="Sections">
       <a href="#what">What it does</a>
