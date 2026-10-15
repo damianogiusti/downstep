@@ -19,6 +19,7 @@ footer_why = 'Perché è gratis'
 footer_built = 'Fatta con'
 trademarks = 'Mac e macOS sono marchi di Apple Inc., Windows di Microsoft Corporation, YouTube di Google LLC.'
 top = 'Torna su'
+og_locale = 'it_IT'
 
 [home]
 title = 'Downstep, rallenta i brani e ripetili in loop per impararli. Per Mac e Windows'
@@ -296,3 +297,19 @@ table_rows = '''
 abroad_outro = "La Spagna è pesante quasi quanto l'Italia, quindi non siamo i soli. Non credo che qualcuno l'abbia pensata contro i piccoli sviluppatori. Le regole sono scritte per negozi e professionisti, e un hobby con poche vendite finisce nella stessa casella."
 disclaimer = "Non sono un commercialista, e regole e importi cambiano. Se vuoi vendere un'app, prima senti un commercialista. Le opinioni sono mie."
 sources_title = 'Fonti'
+
+[schema]
+# Per motori di ricerca e assistenti AI (JSON-LD in build.py): testo semplice, niente HTML.
+app_description = "App gratuita e open source per Mac e Windows per esercitarsi con la musica. Rallenta un brano senza cambiarne la tonalità, cambia la tonalità senza cambiare la velocità e ripete in loop il pezzo che stai imparando."
+category = 'Studio della musica'
+features = [
+  'Velocità dal 25% al 200% senza cambiare la tonalità',
+  'Tonalità fino a 12 semitoni sopra o sotto senza cambiare la velocità',
+  'Loop A-B con scorciatoie da tastiera',
+  'Importa file MP3, M4A, WAV e FLAC, o link di YouTube',
+  'Libreria offline con playlist',
+  'Velocità, tonalità e loop salvati per ogni brano, e preset con un nome',
+  'Equalizzatore a 7 bande, preamplificatore e bilanciamento',
+  'Esportazione in MP3 con velocità e tonalità applicate',
+  'Backup e ripristino tra Mac e Windows',
+]

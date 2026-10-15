@@ -19,6 +19,7 @@ footer_why = "Why it's free"
 footer_built = 'Built with'
 trademarks = 'Mac and macOS are trademarks of Apple Inc., Windows of Microsoft Corporation, YouTube of Google LLC.'
 top = 'Back to top'
+og_locale = 'en_US'
 
 [home]
 title = 'Downstep, slow down and loop songs to learn them. For Mac and Windows'
@@ -296,3 +297,19 @@ table_rows = '''
 abroad_outro = "Spain is about as heavy as Italy, so it's not only us. I don't think anyone designed this against small developers. The rules were written for shops and professionals, and a hobby with a few sales ends up in the same box."
 disclaimer = "I'm not an accountant, and rules and amounts change. If you want to sell an app, talk to a commercialista first. Views are my own."
 sources_title = 'Sources'
+
+[schema]
+# For search engines and AI assistants (JSON-LD in build.py): plain text, no HTML.
+app_description = 'Free and open source app for Mac and Windows to practice music. It slows a song down without changing the pitch, changes its key without changing the speed, and loops the part you are learning.'
+category = 'Music practice'
+features = [
+  'Speed from 25% to 200% without changing the pitch',
+  'Pitch shift up to 12 semitones up or down without changing the speed',
+  'A-B loop with keyboard shortcuts',
+  'Import MP3, M4A, WAV and FLAC files, or YouTube links',
+  'Offline library with playlists',
+  'Speed, pitch and loop saved for each song, and named presets',
+  '7-band equalizer, preamp and balance',
+  'MP3 export with speed and pitch applied',
+  'Backup and restore across Mac and Windows',
+]

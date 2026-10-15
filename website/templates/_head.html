@@ -8,9 +8,16 @@
 <link rel="canonical" href="{{ @canonical }}">
 {{ @hreflang }}
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="Downstep">
+<meta property="og:locale" content="{{ common.og_locale }}">
+<meta property="og:url" content="{{ @canonical }}">
 <meta property="og:title" content="{{ page.title }}">
 <meta property="og:description" content="{{ page.description }}">
-<meta property="og:image" content="{{ @root }}assets/og-card.png">
+<meta property="og:image" content="{{ @base }}assets/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+{{ @jsonld }}
 <meta name="theme-color" content="#0F1114" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#FAF6F0" media="(prefers-color-scheme: light)">
 <link rel="icon" href="{{ @root }}assets/icon.svg" type="image/svg+xml">

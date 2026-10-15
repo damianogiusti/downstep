@@ -13,11 +13,14 @@ Templates in templates/ hold the markup; texts live in i18n/<lang>.toml. A templ
     {{ @url:why }}       relative link to another page, in the same language
     {{ @alt }}           relative link to this page in the other language
     {{ @altlang }}       the other language code
+    {{ @base }}          absolute site URL (BASE_URL), for links that must not be relative (og:image)
+    {{ @jsonld }}        schema.org data for search engines and AI assistants (see jsonld())
 
 A missing text or page stops the build, so the two languages cannot drift apart silently.
 Python standard library only: python3 build.py, then serve public/.
 """
 
+import json
 import re
 import shutil
 import sys
@@ -45,6 +48,8 @@ FILES = {"mac": RELEASES + "Downstep-mac.dmg", "windows": RELEASES + "Downstep-w
 # page paths have none at the start.
 BASE_URL = "https://downstep.app/"
 
+AUTHOR = {"@type": "Person", "name": "Damiano Giusti", "url": "https://www.damianogiusti.com"}
+
 TAG = re.compile(r"\{\{\s*(>?)\s*([@\w.:-]+)\s*\}\}")
 
 
@@ -62,6 +67,40 @@ def flatten(table, prefix=""):
 def relative(from_dir, to_dir):
     depth = from_dir.count("/")
     return "../" * depth + to_dir or "./"
+
+
+def jsonld(page, lang, texts):
+    """The app as a SoftwareApplication on the home page. Texts come from i18n."""
+    url = BASE_URL + PAGES[page][lang]
+    if page == "home":
+        data = [
+            {"@context": "https://schema.org", "@type": "WebSite", "name": "Downstep", "url": url, "inLanguage": lang},
+            {
+                "@context": "https://schema.org",
+                "@type": "SoftwareApplication",
+                "name": "Downstep",
+                "url": url,
+                "description": texts["schema.app_description"],
+                "applicationCategory": "MultimediaApplication",
+                "applicationSubCategory": texts["schema.category"],
+                "operatingSystem": "macOS 11+, Windows 10, Windows 11",
+                "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
+                "isAccessibleForFree": True,
+                "downloadUrl": list(FILES.values()),
+                "image": BASE_URL + "assets/icon.png",
+                "screenshot": BASE_URL + "assets/screens/practice-light.webp",
+                "featureList": texts["schema.features"],
+                "inLanguage": LANGS,
+                "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+                "author": AUTHOR,
+                "sameAs": ["https://github.com/damianogiusti/downstep"],
+            },
+        ]
+    else:
+        return ""
+    # "</" would close the script element early.
+    body = json.dumps(data, ensure_ascii=False, indent=1).replace("</", "<\\/")
+    return f'<script type="application/ld+json">\n{body}\n</script>'
 
 
 def render(text, lang, page, texts, other):
@@ -90,10 +129,16 @@ def render(text, lang, page, texts, other):
             return relative(here, PAGES[target][lang])
         if name == "@canonical":
             return BASE_URL + here if BASE_URL else "./"
+        if name == "@base":
+            return BASE_URL or "../" * here.count("/")
+        if name == "@jsonld":
+            return jsonld(page, lang, texts) if BASE_URL else ""
         if name == "@hreflang":
+            # x-default: visitors in other languages get English.
+            alternates = [(code, code) for code in LANGS] + [("x-default", "en")]
             return "\n".join(
-                f'<link rel="alternate" hreflang="{code}" href="{BASE_URL + PAGES[page][code] if BASE_URL else relative(here, PAGES[page][code])}">'
-                for code in LANGS
+                f'<link rel="alternate" hreflang="{code}" href="{BASE_URL + PAGES[page][target] if BASE_URL else relative(here, PAGES[page][target])}">'
+                for code, target in alternates
             )
         if name.startswith("page."):
             name = page + name[4:]
@@ -132,6 +177,8 @@ def main():
         (OUT / "sitemap.xml").write_text(
             f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{urls}</urlset>\n'
         )
+        # Every crawler is welcome, search engines and AI assistants alike: being found is the point.
+        (OUT / "robots.txt").write_text(f"User-agent: *\nAllow: /\n\nSitemap: {BASE_URL}sitemap.xml\n")
 
 
 if __name__ == "__main__":
