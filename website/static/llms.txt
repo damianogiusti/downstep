@@ -1,0 +1,47 @@
+# Downstep
+
+> Downstep is a free and open source (GPL-3.0) desktop app for Mac and Windows to practice music and learn songs by ear. It slows a song down without changing the pitch, changes the key without changing the speed, and loops the part you are learning (A-B loop). Songs stay on your computer, and it works offline.
+
+- Price: free, no paid version, no account. Donations are optional.
+- Platforms: macOS 11 or later on Apple silicon (M1 or later); Windows 10 and 11, 64-bit (beta). Intel Macs are not supported for now. No iPhone or Android version for now.
+- Languages: English and Italian.
+- Made by Damiano Giusti, a developer who plays guitar in a band. A free-time project.
+
+## Features
+
+- Speed from 25% to 200% without changing the pitch (time-stretching with the open source Bungee library), in 5% steps.
+- Pitch from 12 semitones down to 12 semitones up without changing the speed, in 1 semitone steps.
+- A-B loop: set A and B while the song plays or drag the markers; halve or double the loop; move it back or forward. Keyboard: Space play/stop, A and B set the loop, L loop on/off, arrows jump 5 seconds (1 with Shift).
+- Each song keeps its own speed, pitch and loop. Named presets per song.
+- Library: import MP3, M4A, WAV and FLAC files, or YouTube links (audio only, for content you have the rights to). Search and playlists.
+- Sound: 7-band equalizer (60 Hz to 15 kHz), preamp, left and right balance.
+- Export a song to MP3 with speed and pitch applied.
+- Backup and restore of songs, presets and playlists, in the same format on Mac and Windows.
+- The app updates itself when a new version is out.
+
+## Good for
+
+- Learning a guitar solo, a bass line, a drum fill or a vocal line by ear.
+- Singers who need a song in a lower or higher key.
+- Playing along with records tuned a half step down, in standard tuning.
+- Bands that practice the same song in a different key at home.
+- Musicians who want a free, open source alternative for slowing down and transposing audio on Mac or Windows.
+
+## Links
+
+- [Home](https://downstep.app/): what it does, screenshots, FAQ
+- [Download for Mac](https://downstep.app/download/mac/): install steps
+- [Download for Windows](https://downstep.app/download/windows/): install steps
+- [Source code](https://github.com/damianogiusti/downstep): GPL-3.0
+- [Releases](https://github.com/damianogiusti/downstep/releases)
+- [Why it's free](https://downstep.app/why-free/)
+
+## Guides
+
+- [How to slow down a song without changing the pitch](https://downstep.app/guides/slow-down-a-song-without-changing-pitch/)
+- [How to change the key of a song](https://downstep.app/guides/change-the-key-of-a-song/)
+- [How to learn a song by ear with an A-B loop](https://downstep.app/guides/learn-a-song-by-ear-with-a-loop/)
+
+## Italian
+
+- [Downstep in italiano](https://downstep.app/it/)
