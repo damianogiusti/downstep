@@ -114,9 +114,21 @@ class CrashReportingTest {
         assertTrue(""""did":"$installation"""" in all)
         assertFalse(home in all)
         assertFalse("server_name" in all)
+        // Logs and events both say the platform, so dashboards can split macOS from Windows.
+        val os = osFamily(System.getProperty("os.name"))
+        assertTrue(""""os.name":{"type":"string","value":"$os"}""" in all)
+        assertTrue(""""os":{"name":"$os""" in all)
         assertTrue("Native crash: SIGSEGV (0xb) in C  [libsdengine.dylib+0x1a2b]  render+0x40" in all)
         assertTrue("downstep@1.0.1" in all)
         assertTrue("hs_err-excerpt.txt" in all)
         assertFalse(File(directories.logs, "running.txt").exists())
+    }
+
+    @Test
+    fun `the OS name is the one Sentry knows`() {
+        assertEquals("macOS", osFamily("Mac OS X"))
+        assertEquals("Windows", osFamily("Windows 11"))
+        assertEquals("Linux", osFamily("Linux"))
+        assertEquals("unknown", osFamily(null))
     }
 }
