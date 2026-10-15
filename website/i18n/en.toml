@@ -204,7 +204,7 @@ steps = '''
 <li class="row"><span class="tile">1</span><div><b>Open the .dmg</b><p>and drag Downstep into Applications.</p></div></li>
       <li class="row"><span class="tile">2</span><div><b>Open Downstep</b><p>The first time, macOS blocks it because it doesn't come from the App Store. Close the message.</p></div></li>
       <li class="row"><span class="tile">3</span><div><b>Go to System Settings, Privacy and Security</b><p>Scroll down and click “Open Anyway” next to Downstep. macOS asks for your password or Touch ID.</p></div></li>
-      <li class="row"><span class="tile">4</span><div><b>That's it</b><p>From now on it opens normally.</p></div></li>'''
+      <li class="row"><span class="tile">4</span><div><b>That's it</b><p>From now on it opens normally. When a new version comes out, Downstep offers it and updates itself: you don't need to repeat these steps.</p></div></li>'''
 extra = '''
 <details class="terminal">
       <summary>If you prefer the Terminal</summary>
@@ -227,7 +227,8 @@ button = 'Download'
 steps = '''
 <li class="row"><span class="tile">1</span><div><b>Extract the .zip</b><p>Right-click it, then “Extract All”.</p></div></li>
       <li class="row"><span class="tile">2</span><div><b>Open Downstep.exe</b><p>It's in the Downstep folder.</p></div></li>
-      <li class="row"><span class="tile">3</span><div><b>If you see “Windows protected your PC”</b><p>click “More info” and then “Run anyway”.</p></div></li>'''
+      <li class="row"><span class="tile">3</span><div><b>If you see “Windows protected your PC”</b><p>click “More info” and then “Run anyway”.</p></div></li>
+      <li class="row"><span class="tile">4</span><div><b>That's it</b><p>When a new version comes out, Downstep offers it and updates itself.</p></div></li>'''
 extra = '''
 <div class="callout teal" style="margin:10px 0 0">I don't have a Windows PC, so this version is tested automatically and by a few friends. If something doesn't work, <a href="https://github.com/damianogiusti/downstep/issues">let me know</a>.</div>'''
 

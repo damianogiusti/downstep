@@ -233,4 +233,22 @@
     <string name="support_close">Close</string>
     <string name="support_close_countdown">Close (%1$d)</string>
     <string name="support_why_free_url">https://downstep.app/why-free/</string>
+
+    <!-- Update from the app (desktop) -->
+    <string name="update_title">A new version is available</string>
+    <string name="update_message">Downstep %1$s is ready. You have %2$s.</string>
+    <string name="update_message_install">Downstep downloads it, closes and opens again. Your library stays as it is.</string>
+    <string name="update_message_manual">Download it from the website and put it in place of the app you have. Your library stays as it is.</string>
+    <string name="update_install">Update and restart</string>
+    <string name="update_download">Download</string>
+    <string name="update_later">Later</string>
+    <string name="update_cancel">Cancel</string>
+    <string name="update_retry">Try again</string>
+    <string name="update_downloading">Downloading… %1$d%%</string>
+    <string name="update_preparing">Installing…</string>
+    <string name="update_restarting">Restarting…</string>
+    <string name="update_network_error">The download did not finish. Check the connection and try again.</string>
+    <string name="update_failed">The update did not work. You can download it from the website.</string>
+    <string name="update_banner">Downstep %1$s is available</string>
+    <string name="update_banner_action">Update</string>
 </resources>

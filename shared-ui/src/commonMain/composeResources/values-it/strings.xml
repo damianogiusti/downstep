@@ -231,4 +231,22 @@
     <string name="support_close">Chiudi</string>
     <string name="support_close_countdown">Chiudi (%1$d)</string>
     <string name="support_why_free_url">https://downstep.app/it/perche-gratis/</string>
+
+    <!-- Aggiornamento dall'app (desktop) -->
+    <string name="update_title">È disponibile una nuova versione</string>
+    <string name="update_message">Downstep %1$s è pronta. Tu hai la %2$s.</string>
+    <string name="update_message_install">Downstep la scarica, si chiude e si riapre. La tua libreria resta com'è.</string>
+    <string name="update_message_manual">Scaricala dal sito e mettila al posto dell'app che hai. La tua libreria resta com'è.</string>
+    <string name="update_install">Aggiorna e riavvia</string>
+    <string name="update_download">Scarica</string>
+    <string name="update_later">Più tardi</string>
+    <string name="update_cancel">Annulla</string>
+    <string name="update_retry">Riprova</string>
+    <string name="update_downloading">Scaricamento… %1$d%%</string>
+    <string name="update_preparing">Installazione…</string>
+    <string name="update_restarting">Riavvio…</string>
+    <string name="update_network_error">Il download non è finito. Controlla la connessione e riprova.</string>
+    <string name="update_failed">L'aggiornamento non è riuscito. Puoi scaricarlo dal sito.</string>
+    <string name="update_banner">È disponibile Downstep %1$s</string>
+    <string name="update_banner_action">Aggiorna</string>
 </resources>

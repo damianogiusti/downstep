@@ -28,6 +28,9 @@ jobs:
 
       # The shared modules also have an Android target, so Gradle needs the SDK to configure.
       - uses: android-actions/setup-android@v3
+        with:
+          # The default list of some v3 versions still has "tools", which new SDKs no longer have.
+          packages: platform-tools
 
       - uses: gradle/actions/setup-gradle@v4
 

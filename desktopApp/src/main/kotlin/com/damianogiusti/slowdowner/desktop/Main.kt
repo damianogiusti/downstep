@@ -29,6 +29,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
+import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
 import com.damianogiusti.slowdowner.di.uiModule
 import com.damianogiusti.slowdowner.di.useCasesModule
 import com.damianogiusti.slowdowner.logging.Logger
@@ -49,6 +50,8 @@ import com.damianogiusti.slowdowner.ui.resources.menu_minimize
 import com.damianogiusti.slowdowner.ui.resources.menu_window
 import com.damianogiusti.slowdowner.ui.resources.support_donate
 import com.damianogiusti.slowdowner.ui.support.SupportPromptHost
+import com.damianogiusti.slowdowner.ui.update.UpdateBanner
+import com.damianogiusti.slowdowner.ui.update.UpdateHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import kotlinx.coroutines.MainScope
 import org.jetbrains.compose.resources.stringResource
@@ -65,6 +68,7 @@ fun main() {
     CrashReporting.start(appVersion, directories)
     val logger = CrashReporting.logger()
     val (engine, hasAudioOutput) = startEngine(logger)
+    val updates = UpdateSettings.current(appVersion)
     // One line per run: how many people use which OS, and whether the engine started there.
     logger.i(
         "App started",
@@ -75,7 +79,7 @@ fun main() {
         ),
     )
     if (engine != null) {
-        val koin = startKoin { modules(desktopModule(directories, engine, logger = logger), useCasesModule, uiModule) }.koin
+        val koin = startKoin { modules(desktopModule(directories, engine, logger = logger, updates = updates), useCasesModule, uiModule) }.koin
         // Main (Swing) thread, as on Android: engine settings are applied from the UI thread.
         startAppWork(koin, MainScope())
     }
@@ -113,7 +117,13 @@ fun main() {
                 Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(top = titleBarHeight)) {
                     if (engine != null && !hasAudioOutput) NoAudioOutputBanner()
                     Box(modifier = Modifier.weight(1f)) {
-                        if (engine == null) EngineUnavailable() else DesktopApp(window, logger) { shortcuts = it }
+                        if (engine == null) {
+                            EngineUnavailable()
+                        } else {
+                            DesktopApp(window, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking) {
+                                shortcuts = it
+                            }
+                        }
                     }
                 }
             }
@@ -162,8 +172,15 @@ private fun NoAudioOutputBanner() {
     }
 }
 
+/** [onRestart] quits the app for an update: the new version opens by itself. */
 @Composable
-private fun DesktopApp(window: java.awt.Frame, logger: Logger, onShortcutsReady: (PracticeShortcuts) -> Unit) {
+private fun DesktopApp(
+    window: java.awt.Frame,
+    logger: Logger,
+    onRestart: () -> Unit,
+    installWithoutAsking: Boolean,
+    onShortcutsReady: (PracticeShortcuts) -> Unit,
+) {
     // One store for the window, as the activity is on Android: pickers report into these ViewModels.
     val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
     val textInput = remember { TextInputFocus() }
@@ -175,8 +192,13 @@ private fun DesktopApp(window: java.awt.Frame, logger: Logger, onShortcutsReady:
         )
         val actions = remember(viewModels) { DesktopActions(window, viewModels, logger).toActivityActions() }
         LaunchedEffect(viewModels.player) { onShortcutsReady(PracticeShortcuts(viewModels.player, textInput)) }
-        SlowDownerApp(viewModels = viewModels, activity = actions)
+        Column(modifier = Modifier.fillMaxSize()) {
+            UpdateBanner()
+            Box(modifier = Modifier.weight(1f)) { SlowDownerApp(viewModels = viewModels, activity = actions) }
+        }
         SupportPromptHost()
+        // After the support prompt: its dialog waits until that one is closed.
+        UpdateHost(onRestart = onRestart, installWithoutAsking = installWithoutAsking)
     }
 }
 

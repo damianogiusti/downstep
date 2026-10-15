@@ -204,7 +204,7 @@ steps = '''
 <li class="row"><span class="tile">1</span><div><b>Apri il .dmg</b><p>e trascina Downstep in Applicazioni.</p></div></li>
       <li class="row"><span class="tile">2</span><div><b>Apri Downstep</b><p>La prima volta macOS la blocca, perché non arriva dall'App Store. Chiudi il messaggio.</p></div></li>
       <li class="row"><span class="tile">3</span><div><b>Vai in Impostazioni di Sistema, Privacy e sicurezza</b><p>Scorri in basso e fai clic su “Apri comunque” accanto a Downstep. macOS ti chiede la password o Touch ID.</p></div></li>
-      <li class="row"><span class="tile">4</span><div><b>Fatto</b><p>Da adesso si apre normalmente.</p></div></li>'''
+      <li class="row"><span class="tile">4</span><div><b>Fatto</b><p>Da adesso si apre normalmente. Quando esce una nuova versione, Downstep te la propone e si aggiorna da sola: non devi rifare questi passi.</p></div></li>'''
 extra = '''
 <details class="terminal">
       <summary>Se preferisci il Terminale</summary>
@@ -227,7 +227,8 @@ button = 'Scarica'
 steps = '''
 <li class="row"><span class="tile">1</span><div><b>Estrai lo .zip</b><p>Tasto destro, poi “Estrai tutto”.</p></div></li>
       <li class="row"><span class="tile">2</span><div><b>Apri Downstep.exe</b><p>Lo trovi nella cartella Downstep.</p></div></li>
-      <li class="row"><span class="tile">3</span><div><b>Se vedi “PC protetto da Windows”</b><p>fai clic su “Ulteriori informazioni” e poi su “Esegui comunque”.</p></div></li>'''
+      <li class="row"><span class="tile">3</span><div><b>Se vedi “PC protetto da Windows”</b><p>fai clic su “Ulteriori informazioni” e poi su “Esegui comunque”.</p></div></li>
+      <li class="row"><span class="tile">4</span><div><b>Fatto</b><p>Quando esce una nuova versione, Downstep te la propone e si aggiorna da sola.</p></div></li>'''
 extra = '''
 <div class="callout teal" style="margin:10px 0 0">Non ho un PC Windows, quindi questa versione la provano dei test automatici e qualche amico. Se qualcosa non va, <a href="https://github.com/damianogiusti/downstep/issues">fammelo sapere</a>.</div>'''
 

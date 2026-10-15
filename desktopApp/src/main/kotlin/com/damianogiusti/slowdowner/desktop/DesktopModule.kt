@@ -34,6 +34,12 @@ import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
 import com.damianogiusti.slowdowner.data.support.DefaultSupportPromptRepository
 import com.damianogiusti.slowdowner.data.support.PreferencesSupportPromptStore
 import com.damianogiusti.slowdowner.data.support.SupportPromptStore
+import com.damianogiusti.slowdowner.data.update.DefaultUpdateRepository
+import com.damianogiusti.slowdowner.data.update.GitHubReleaseDataSource
+import com.damianogiusti.slowdowner.data.update.ReleaseDataSource
+import com.damianogiusti.slowdowner.data.update.UpdateInstaller
+import com.damianogiusti.slowdowner.desktop.update.DesktopUpdateInstaller
+import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
 import com.damianogiusti.slowdowner.domain.backup.BackupRepository
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
 import com.damianogiusti.slowdowner.domain.effects.EffectsSettingsRepository
@@ -50,9 +56,15 @@ import com.damianogiusti.slowdowner.domain.support.RecordAppLaunchUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportSupportPromptShownUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportWhyFreeOpenedUseCase
 import com.damianogiusti.slowdowner.domain.support.SupportPromptRepository
+import com.damianogiusti.slowdowner.domain.update.CheckForUpdateUseCase
+import com.damianogiusti.slowdowner.domain.update.InstallUpdateUseCase
+import com.damianogiusti.slowdowner.domain.update.ObserveAvailableUpdateUseCase
+import com.damianogiusti.slowdowner.domain.update.ReportUpdatePromptShownUseCase
+import com.damianogiusti.slowdowner.domain.update.UpdateRepository
 import com.damianogiusti.slowdowner.logging.ConsoleLogger
 import com.damianogiusti.slowdowner.logging.Logger
 import com.damianogiusti.slowdowner.ui.support.SupportPromptViewModel
+import com.damianogiusti.slowdowner.ui.update.UpdateViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -77,6 +89,7 @@ fun desktopModule(
     effectsStore: EffectsSettingsStore = PreferencesEffectsSettingsStore(),
     supportPromptStore: SupportPromptStore = PreferencesSupportPromptStore(),
     logger: Logger = ConsoleLogger(),
+    updates: UpdateSettings = UpdateSettings(),
 ) = module {
     single { directories }
     single { logger }
@@ -145,4 +158,23 @@ fun desktopModule(
     factoryOf(::ReportSupportPromptShownUseCase)
     factoryOf(::ReportWhyFreeOpenedUseCase)
     viewModelOf(::SupportPromptViewModel)
+
+    // Updates from the public releases: desktop only, like the prompt above.
+    single<ReleaseDataSource> { GitHubReleaseDataSource(get(), updates.releasesUrl) }
+    single<UpdateInstaller> { DesktopUpdateInstaller(updates.installation, File(directories.cache, "updates/install"), logger) }
+    single<UpdateRepository> {
+        DefaultUpdateRepository(
+            dataSource = get(),
+            installer = get(),
+            installedVersion = updates.installedVersion,
+            downloadDir = File(directories.cache, "updates/download"),
+            dispatcher = Dispatchers.IO,
+            logger = logger,
+        )
+    }
+    factoryOf(::CheckForUpdateUseCase)
+    factoryOf(::ObserveAvailableUpdateUseCase)
+    factoryOf(::InstallUpdateUseCase)
+    factoryOf(::ReportUpdatePromptShownUseCase)
+    viewModelOf(::UpdateViewModel)
 }
