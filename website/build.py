@@ -41,8 +41,9 @@ PAGES = {
 RELEASES = "https://github.com/damianogiusti/downstep/releases/latest/download/"
 FILES = {"mac": RELEASES + "Downstep-mac.dmg", "windows": RELEASES + "Downstep-windows-x64.zip"}
 
-# Set it once the domain is known: canonical and hreflang links become absolute, and sitemap.xml is written.
-BASE_URL = ""
+# Canonical and hreflang links are absolute, and sitemap.xml is written. With the trailing slash:
+# page paths have none at the start.
+BASE_URL = "https://downstep.app/"
 
 TAG = re.compile(r"\{\{\s*(>?)\s*([@\w.:-]+)\s*\}\}")
 
