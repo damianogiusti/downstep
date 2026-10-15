@@ -6,7 +6,10 @@ import com.damianogiusti.slowdowner.domain.playback.PlaybackEvent
 import com.damianogiusti.slowdowner.domain.source.AudioSource
 import com.damianogiusti.slowdowner.logging.ConsoleLogger
 import com.damianogiusti.slowdowner.logging.Logger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -25,6 +28,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
 
 /** Through the real C++ engine in manual mode: the test pulls the audio, nothing plays. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -37,6 +41,18 @@ class DesktopPlaybackEngineTest {
     fun tearDown() {
         native.close()
         file.delete()
+    }
+
+    @Test
+    fun `when closed while polling then the freed engine is never read`() {
+        // Without the lock, close() could free the engine during a poll: SIGSEGV in take_events, seen in CI.
+        val scope = CoroutineScope(Dispatchers.Default)
+        repeat(300) { round ->
+            val engine = DesktopPlaybackEngine(NativeEngine.manual(RATE), scope, pollInterval = 1.milliseconds)
+            Thread.sleep((round % 4).toLong())
+            engine.close()
+        }
+        scope.cancel()
     }
 
     @Test

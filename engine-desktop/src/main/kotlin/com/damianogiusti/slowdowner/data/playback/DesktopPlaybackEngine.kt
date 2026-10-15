@@ -76,17 +76,25 @@ class DesktopPlaybackEngine(
     override var quality = ProcessingQuality.HIGH
         private set
 
+    // A poll can be halfway through a native call on another thread when close() runs: freeing the
+    // engine then would crash the process (it did, when the app quit). The lock makes them take turns.
+    private val closeLock = Any()
+    private var isClosed = false
+
     private val polling: Job = scope.launch {
         while (isActive) {
             delay(pollInterval)
-            poll()
+            synchronized(closeLock) { if (!isClosed) poll() }
         }
     }
 
-    /** Stops polling, then frees the native engine. */
+    /** Stops polling, waits for a poll in progress, then frees the native engine. */
     override fun close() {
         polling.cancel()
-        engine.close()
+        synchronized(closeLock) {
+            isClosed = true
+            engine.close()
+        }
     }
 
     /**
