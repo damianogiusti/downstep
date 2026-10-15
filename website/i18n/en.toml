@@ -33,7 +33,7 @@ nav = '''
       <a href="#faq">Questions</a>
     </nav>'''
 cta = '<a class="btn btn-primary btn-small head-cta" href="#download">Download</a>'
-chips = '<span class="chip on">Version 1.0</span><span class="chip">Free</span><span class="chip">macOS 11 or later</span><span class="chip">Windows 10 and 11</span>'
+chips = '<span class="chip">Free</span><span class="chip">macOS 11 or later</span><span class="chip">Windows 10 and 11</span>'
 h1 = "The song you're learning, at your <em>speed</em> and in your <em>key</em>."
 lede = "With Downstep you slow a song down, change its key, or do both, independently. Then you repeat the hard part as many times as you need. It's free, for Mac and Windows."
 

@@ -33,7 +33,7 @@ nav = '''
       <a href="#faq">Domande</a>
     </nav>'''
 cta = '<a class="btn btn-primary btn-small head-cta" href="#download">Scarica</a>'
-chips = '<span class="chip on">Versione 1.0</span><span class="chip">Gratis</span><span class="chip">macOS 11 o successivo</span><span class="chip">Windows 10 e 11</span>'
+chips = '<span class="chip">Gratis</span><span class="chip">macOS 11 o successivo</span><span class="chip">Windows 10 e 11</span>'
 h1 = 'Il pezzo che stai studiando, alla tua <em>velocità</em> e nella tua <em>tonalità</em>.'
 lede = "Con Downstep rallenti un brano, cambi tonalità, o fai entrambe le cose in modo indipendente. Poi ripeti il passaggio difficile tutte le volte che serve. È gratis, per Mac e Windows."
 
