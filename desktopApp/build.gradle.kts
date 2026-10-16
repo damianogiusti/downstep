@@ -1,4 +1,5 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.compose.desktop.application.tasks.AbstractJLinkTask
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
@@ -108,6 +109,39 @@ compose.desktop {
                 // Built with icons/make-icns.sh too.
                 iconFile.set(project.file("icons/SlowDowner.ico"))
             }
+        }
+    }
+}
+
+// Class-data sharing (CDS), for a faster cold start: the JDK's classes come mapped from an archive
+// instead of being parsed and verified at every launch. A small gain, measured on Windows to the
+// first composition: 1.51 s instead of 1.54 s with a warm disk cache, 1.54 s instead of 1.76 s in a
+// colder series. jlink leaves the JDK's default archive out of the bundled runtime unless asked, and
+// this Compose plugin has no CDS option.
+//
+// The app's own classes are not archived. -XX:+AutoCreateSharedArchive (archive at the first exit,
+// map it after) made that first start take ~14 s instead of 1.5 and needs a writable app folder; the
+// macOS bundle is signed and read-only. That would need an archive made at build time by a training
+// run of the app.
+//
+// jlink's own --generate-cds-archive runs the image's java launcher, which Compose strips
+// (--strip-native-commands). Same dump by hand: borrow the launcher of the JDK the image comes from,
+// which loads the image's own JVM and modules, then remove it again.
+tasks.withType<AbstractJLinkTask>().configureEach {
+    val jdk = javaHome
+    val runtime = destinationDir
+    doLast {
+        val launcherName = if (isWindows) "java.exe" else "java"
+        val borrowed = runtime.get().asFile.resolve("bin/$launcherName")
+        File(jdk.get(), "bin/$launcherName").copyTo(borrowed, overwrite = true)
+        try {
+            val dump = ProcessBuilder(borrowed.path, "-Xshare:dump").redirectErrorStream(true).start()
+            val output = dump.inputStream.bufferedReader().readText()
+            // Only a slower start without it: worth a warning, not a failed release.
+            if (dump.waitFor() != 0) logger.warn("No CDS archive in the bundled runtime: $output")
+        } finally {
+            borrowed.delete()
+            borrowed.parentFile.delete() // only if the image had no bin folder of its own
         }
     }
 }
