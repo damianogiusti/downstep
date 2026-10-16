@@ -31,6 +31,7 @@ import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
 import com.damianogiusti.slowdowner.ui.common.ConfirmDialog
 import com.damianogiusti.slowdowner.ui.common.TextInputDialog
 import com.damianogiusti.slowdowner.ui.common.TextInputDialogTexts
+import com.damianogiusti.slowdowner.ui.common.clearsFocusOnPress
 import com.damianogiusti.slowdowner.ui.common.formatPitch
 import com.damianogiusti.slowdowner.ui.common.formatSpeed
 import com.damianogiusti.slowdowner.ui.effects.EffectsSheet
@@ -97,7 +98,8 @@ fun PlayerScreen(
     val position = remember(positionState) { positionState.reader() }
     val layout by viewModel.layout.collectAsStateWithLifecycle()
 
-    Box(modifier = Modifier.fillMaxSize().background(SlowDownerTheme.colors.bg)) {
+    // A click outside Notes (or the drawer's search) ends typing: the shortcuts work again.
+    Box(modifier = Modifier.fillMaxSize().background(SlowDownerTheme.colors.bg).clearsFocusOnPress()) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             if (layout.isFocusMode) {
                 FocusHeaderHost(viewModel, actions.onExitFocus)

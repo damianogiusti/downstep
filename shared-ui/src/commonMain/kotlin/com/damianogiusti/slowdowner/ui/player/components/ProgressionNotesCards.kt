@@ -56,6 +56,7 @@ import com.damianogiusti.slowdowner.ui.common.DISABLED_ALPHA
 import com.damianogiusti.slowdowner.ui.common.SettingsCard
 import com.damianogiusti.slowdowner.ui.common.Tooltip
 import com.damianogiusti.slowdowner.ui.common.fillRemainingHeight
+import com.damianogiusti.slowdowner.ui.common.leavesOnEscape
 import com.damianogiusti.slowdowner.ui.common.formatSpeed
 import com.damianogiusti.slowdowner.ui.common.reportsTextInputFocus
 import com.damianogiusti.slowdowner.ui.player.NotesActions
@@ -178,6 +179,7 @@ fun NotesCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillRemainingHeight(min = NOTES_MIN_HEIGHT)
+                .leavesOnEscape()
                 .reportsTextInputFocus(),
             decorationBox = { innerTextField ->
                 Box(
