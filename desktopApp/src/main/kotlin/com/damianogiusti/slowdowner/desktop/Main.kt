@@ -212,11 +212,11 @@ private fun DesktopApp(
 ) {
     val textInput = remember { TextInputFocus() }
     CompositionLocalProvider(LocalTextInputFocus provides textInput) {
-        val viewModels = ActivityViewModels(
-            player = koinViewModel<PlayerViewModel>(),
-            imports = koinViewModel<ImportViewModel>(),
-            backup = koinViewModel<BackupViewModel>(),
-        )
+        val player = koinViewModel<PlayerViewModel>()
+        val imports = koinViewModel<ImportViewModel>()
+        val backup = koinViewModel<BackupViewModel>()
+        // One instance for the window's life, so SlowDownerApp's arguments stay equal between recompositions.
+        val viewModels = remember(player, imports, backup) { ActivityViewModels(player, imports, backup) }
         val actions = remember(viewModels) { DesktopActions(window, viewModels, logger).toActivityActions() }
         LaunchedEffect(viewModels.player) { onShortcutsReady(PracticeShortcuts(viewModels.player, textInput)) }
         Column(modifier = Modifier.fillMaxSize()) {
