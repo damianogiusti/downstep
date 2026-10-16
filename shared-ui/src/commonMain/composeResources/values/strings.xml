@@ -363,5 +363,9 @@
     <!-- Group H additions (component agents append here only) -->
     <!-- Group W additions -->
     <!-- Group C additions -->
+    <string name="progression_from_value">starting speed</string>
+    <string name="progression_to_value">target speed</string>
+    <string name="progression_step_value">speed step</string>
+    <string name="progression_every_value">passes per step</string>
     <!-- Group D additions -->
 </resources>
