@@ -6,12 +6,16 @@ import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEvent
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class FakeEngine : PlaybackEngine, EffectsEngine {
     override val events = MutableSharedFlow<PlaybackEvent>(extraBufferCapacity = 64)
     override var isOpen = true
     override var isPlaying = false
-    override var position = 0.5f
+    override val positionFlow = MutableStateFlow(0.5f)
+    override var position
+        get() = positionFlow.value
+        set(value) { positionFlow.value = value }
     override var durationSeconds = 100f
     var speed = 100f
     override val speedPercent get() = speed

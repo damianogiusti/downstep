@@ -109,6 +109,54 @@ class DesktopPlaybackEngineTest {
     }
 
     @Test
+    fun `the poll publishes the position as a state, not as events`() = runTest {
+        val engine = openEngine()
+        val events = mutableListOf<PlaybackEvent>()
+        backgroundScope.launch { engine.events.toList(events) }
+        runCurrent()
+        engine.togglePlayStop()
+        runCurrent()
+        events.clear()
+
+        playFor(2.0)
+        advanceTimeBy(60)
+        runCurrent()
+
+        assertEquals(0.2f, engine.positionFlow.value, 0.01f)
+        assertTrue(events.isEmpty(), "events: $events")
+    }
+
+    @Test
+    fun `a seek moves the position state at once`() = runTest {
+        val engine = openEngine()
+
+        engine.seekTo(0.6f)
+
+        assertEquals(0.6f, engine.positionFlow.value, 0.001f)
+    }
+
+    @Test
+    fun `a pitch step that snaps to the same semitone changes nothing`() = runTest {
+        val engine = openEngine()
+        val events = mutableListOf<PlaybackEvent>()
+        backgroundScope.launch { engine.events.toList(events) }
+        runCurrent()
+        engine.setPitchSemitones(2f)
+        engine.setSpeedPercent(80f)
+        runCurrent()
+        events.clear()
+
+        engine.setPitchSemitones(2f)
+        engine.setSpeedPercent(80f)
+        // A drag inside the same semitone: the slider snaps to where it already is.
+        engine.setPitchFromSlider(engine.pitchSliderPosition + 1)
+        runCurrent()
+
+        assertTrue(events.isEmpty(), "events: $events")
+        assertEquals(2f, engine.pitchSemitones)
+    }
+
+    @Test
     fun `a closed engine stops polling and refuses calls`() = runTest {
         val engine = openEngine()
         engine.close()
