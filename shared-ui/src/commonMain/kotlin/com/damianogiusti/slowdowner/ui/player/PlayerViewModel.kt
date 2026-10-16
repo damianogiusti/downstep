@@ -73,6 +73,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
 
 /**
  * The open track, its loops and its practice controls. Scoped to the window: it outlives the drawer,
@@ -441,12 +442,14 @@ class PlayerViewModel(
         editLoops { track, trackLoops ->
             val duration = engine.durationSeconds
             val bounds = LoopMath.newLoopAt(playhead, duration, trackLoops.snapGrid(duration), trackLoops.beatGrid(duration))
+            lastTick = null
             loops.create(track.id, bounds)?.let { created -> awaitLoops { it.activeLoopId == created.id } }
         }
     }
 
     /** A click on a chip: it becomes active, looping, and the playhead jumps to its start. */
     fun onLoopSelected(loopId: Long) = editLoops { track, _ ->
+        lastTick = null
         loops.setActive(track.id, loopId)
         awaitLoops { it.activeLoopId == loopId }
     }
@@ -582,6 +585,7 @@ class PlayerViewModel(
         val suggestion = analysisState.value.suggestions.firstOrNull { it.id == suggestionId } ?: return
         onSuggestionDismissed(suggestionId)
         editLoops { track, _ ->
+            lastTick = null
             loops.create(track.id, LoopBounds(suggestion.start, suggestion.end), suggestion.name)
                 ?.let { created -> awaitLoops { it.activeLoopId == created.id } }
         }
@@ -755,6 +759,7 @@ class PlayerViewModel(
             index < 0 -> if (step > 0) all.first() else all.last()
             else -> all[(index + step).mod(all.size)]
         }
+        lastTick = null
         loops.setActive(track.id, next.id)
         awaitLoops { it.activeLoopId == next.id }
     }
@@ -782,6 +787,9 @@ class PlayerViewModel(
         if (previous == null || position >= previous) return
         val active = trackLoops.value?.activeLoop ?: return
         if (!engine.isPlaying || !engine.isLoopOn) return
+        // A switch in flight: the engine already loops the new region (and jumped to its start), the
+        // loops flow still shows the old one. That jump back is not a wrap of the old loop.
+        if (abs(engine.loopStart - active.start) > REGION_EPSILON || abs(engine.loopEnd - active.end) > REGION_EPSILON) return
         // From the second half of the loop back into the first: the engine wrapped from B to A.
         val middle = active.start + active.length / 2
         if (previous >= middle && position <= middle) {
@@ -808,11 +816,17 @@ class PlayerViewModel(
         return pendingNotes.also { pendingNotes = null }
     }
 
-    // Called once per rendered chunk on the IO thread: only publish whole-percent steps.
+    // Called once per rendered chunk on the IO thread: only publish whole-percent steps. One atomic
+    // update: a plain read-then-write could put Running back over a cancel (Idle) made in between,
+    // and a stuck Running freezes every control.
     private fun onExportProgress(fraction: Float) {
-        val running = exportState.value as? ExportUiState.Running ?: return
-        if ((fraction * 100).toInt() == (running.fraction * 100).toInt()) return
-        exportState.value = ExportUiState.Running(fraction)
+        exportState.update { state ->
+            if (state is ExportUiState.Running && (fraction * 100).toInt() != (state.fraction * 100).toInt()) {
+                ExportUiState.Running(fraction)
+            } else {
+                state
+            }
+        }
     }
 
     private suspend fun exportFailed(message: UiMessage) {
@@ -867,6 +881,8 @@ class PlayerViewModel(
         const val OVERVIEW_BUCKETS = 2048
         const val ZOOM_BUCKETS = 1024
         private const val LOOP_SYNC_TIMEOUT_MS = 2_000L
+        /** The engine's region and the active loop's bounds agree within this (both 0..1). */
+        private const val REGION_EPSILON = 1e-4f
 
         /** Loop colours cycle by id: loop 1 is amber, 2 teal, 3 coral, 4 olive (README §1). */
         fun colorIndex(loopId: Long): Int = (loopId - 1).mod(4L).toInt()

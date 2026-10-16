@@ -14,6 +14,7 @@ import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.loops.CreateLoopUseCase
 import com.damianogiusti.slowdowner.domain.loops.DeleteLoopUseCase
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
+import com.damianogiusti.slowdowner.domain.loops.LoopRepository
 import com.damianogiusti.slowdowner.domain.loops.ObserveLoopsUseCase
 import com.damianogiusti.slowdowner.domain.loops.Progression
 import com.damianogiusti.slowdowner.domain.loops.RecordLoopPassUseCase
@@ -22,6 +23,7 @@ import com.damianogiusti.slowdowner.domain.loops.ResetLoopPassesUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetActiveLoopUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetSnapToBeatUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetTrackBpmUseCase
+import com.damianogiusti.slowdowner.domain.loops.TrackLoops
 import com.damianogiusti.slowdowner.domain.loops.UpdateLoopNotesUseCase
 import com.damianogiusti.slowdowner.domain.loops.UpdateLoopProgressionUseCase
 import com.damianogiusti.slowdowner.domain.loops.UpdateLoopRegionUseCase
@@ -42,8 +44,14 @@ import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
 import com.damianogiusti.slowdowner.fake.FakeLoopRepository
 import com.damianogiusti.slowdowner.fake.FakePracticeRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
@@ -69,6 +77,8 @@ class PlayerViewModelTest {
     private val engine = EventfulEngine()
     private val nowPlaying = InMemoryNowPlayingRepository()
     private val loopRepository = FakeLoopRepository(existingTrackIds = setOf(TRACK.id, OTHER.id))
+    /** What the ViewModel observes: [HeldLoops.hold] delays Room's re-emission, as a slow write does. */
+    private val observedLoops = HeldLoops(loopRepository)
     private val practiceRepository = FakePracticeRepository()
     /** The decode runs here: nothing advances it until a test does. */
     private val decodeScheduler = TestCoroutineScheduler()
@@ -106,6 +116,32 @@ class PlayerViewModelTest {
         tick(0.39f, 0.21f)
 
         assertEquals(0, loopRepository.loops.value.single().passes)
+    }
+
+    @Test
+    fun `switching to an earlier loop mid-pass is not a wrap of the loop being left`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val solo = loopRepository.loops.value.single()
+        val intro = assertNotNull(loopRepository.create(TRACK.id, "Intro", LoopBounds(0.05f, 0.15f)))
+        runCurrent()
+        engine.isPlaying = true
+        tick(0.27f, 0.35f)
+
+        // The write of the active id takes a while, and playback goes on meanwhile. Then the engine
+        // jumps to Intro's start before the loops flow shows Intro as active.
+        observedLoops.hold()
+        val written = observedLoops.slowActiveWrite()
+        viewModel.onLoopSelected(intro.id)
+        runCurrent()
+        tick(0.36f)
+        written.complete(Unit)
+        runCurrent()
+        assertEquals(0.05f, engine.position)
+        observedLoops.release()
+        runCurrent()
+
+        assertEquals(0, loopRepository.loops.value.first { it.id == solo.id }.passes)
+        assertEquals(intro.id, viewModel.loopChips.value.chips.firstOrNull { it.isActive }?.id)
     }
 
     @Test
@@ -262,6 +298,26 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `progress reported after a cancel never brings the export back`() = runTest(main) {
+        val exports = ParkedExports()
+        val viewModel = openWithLoop(exports = exports)
+
+        viewModel.onExportClicked()
+        runCurrent()
+        val onProgress = assertNotNull(exports.onProgress)
+        onProgress(0.1f)
+        assertEquals(ExportUiState.Running(0.1f), viewModel.export.value)
+
+        viewModel.onExportCancelClicked()
+        // The render thread's next chunk, already past its own check.
+        onProgress(0.2f)
+        runCurrent()
+
+        assertEquals(ExportUiState.Idle, viewModel.export.value)
+        assertTrue(viewModel.header.value.canExport)
+    }
+
+    @Test
     fun `without the seams Analyze, Metronome and Count-in do nothing`() = runTest(main) {
         val viewModel = openWithLoop()
 
@@ -319,11 +375,15 @@ class PlayerViewModelTest {
     }
 
     /** Opens [TRACK] with one loop 0.2..0.4, active and looping. */
-    private suspend fun TestScope.openWithLoop(passes: Int = 0, progression: Progression = Progression()): PlayerViewModel {
+    private suspend fun TestScope.openWithLoop(
+        passes: Int = 0,
+        progression: Progression = Progression(),
+        exports: ExportRepository = NoExports(),
+    ): PlayerViewModel {
         val loop = assertNotNull(loopRepository.create(TRACK.id, "Solo", LoopBounds(0.2f, 0.4f)))
         repeat(passes) { loopRepository.addPass(loop.id) }
         loopRepository.updateProgression(loop.id, progression)
-        val viewModel = viewModel()
+        val viewModel = viewModel(exports)
         runCurrent()
         viewModel.onTrackSelected(TRACK)
         runCurrent()
@@ -340,9 +400,8 @@ class PlayerViewModelTest {
         runCurrent()
     }
 
-    private fun viewModel(): PlayerViewModel {
+    private fun viewModel(exports: ExportRepository = NoExports()): PlayerViewModel {
         val decode = StandardTestDispatcher(decodeScheduler)
-        val exports = NoExports()
         return PlayerViewModel(
             engine = engine,
             openTrack = OpenTrackForPracticeUseCase(
@@ -361,9 +420,9 @@ class PlayerViewModelTest {
                 DeletePresetUseCase(practiceRepository),
             ),
             loops = LoopUseCases(
-                observe = ObserveLoopsUseCase(loopRepository),
-                create = CreateLoopUseCase(loopRepository, engine, nowPlaying, SetActiveLoopUseCase(loopRepository, engine, nowPlaying)),
-                setActive = SetActiveLoopUseCase(loopRepository, engine, nowPlaying),
+                observe = ObserveLoopsUseCase(observedLoops),
+                create = CreateLoopUseCase(loopRepository, engine, nowPlaying, SetActiveLoopUseCase(observedLoops, engine, nowPlaying)),
+                setActive = SetActiveLoopUseCase(observedLoops, engine, nowPlaying),
                 rename = RenameLoopUseCase(loopRepository),
                 updateNotes = UpdateLoopNotesUseCase(loopRepository),
                 updateRegion = UpdateLoopRegionUseCase(loopRepository, engine, nowPlaying),
@@ -414,6 +473,40 @@ class PlayerViewModelTest {
 
     private class NoExports : ExportRepository {
         override suspend fun exportOpenTrack(fileName: String, onProgress: (Float) -> Unit) = ExportResult.Failure(UnsupportedOperationException())
+        override suspend fun saveTo(file: ExportedFile, contentUri: String) = false
+    }
+
+    /** Passes [observe] through, except that [hold] freezes it at what it showed last until [release]. */
+    private class HeldLoops(private val live: FakeLoopRepository) : LoopRepository by live {
+        private val held = MutableStateFlow<TrackLoops?>(null)
+        private var last: TrackLoops? = null
+
+        private var activeWrite: CompletableDeferred<Unit>? = null
+
+        fun hold() { held.value = last }
+        fun release() { held.value = null }
+
+        /** The next [setActiveLoop] waits until the returned deferred completes. */
+        fun slowActiveWrite() = CompletableDeferred<Unit>().also { activeWrite = it }
+
+        override suspend fun setActiveLoop(trackId: String, loopId: Long?) {
+            activeWrite?.await()
+            activeWrite = null
+            live.setActiveLoop(trackId, loopId)
+        }
+
+        override fun observe(trackId: String): Flow<TrackLoops> =
+            combine(live.observe(trackId), held) { current, frozen -> frozen ?: current }
+                .onEach { last = it }
+    }
+
+    /** Keeps the render's progress callback and never finishes on its own. */
+    private class ParkedExports : ExportRepository {
+        var onProgress: ((Float) -> Unit)? = null
+        override suspend fun exportOpenTrack(fileName: String, onProgress: (Float) -> Unit): ExportResult {
+            this.onProgress = onProgress
+            awaitCancellation()
+        }
         override suspend fun saveTo(file: ExportedFile, contentUri: String) = false
     }
 
