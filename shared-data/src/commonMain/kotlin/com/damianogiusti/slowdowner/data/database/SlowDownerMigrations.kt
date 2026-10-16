@@ -54,5 +54,12 @@ object SlowDownerMigrations {
 
     val ALL = arrayOf(MIGRATION_1_2)
 
+    /** In SQL what [hasRegion] says in Kotlin: keep the two in step. */
     private const val HAS_REGION = "`loop_end` > `loop_start` AND (`loop_start` > 0 OR `loop_end` < 1)"
+
+    /**
+     * A region worth a loop of its own: not the whole file. The 1→2 migration turns such a region into
+     * "Loop 1", and so does the restore of a backup from before loops.
+     */
+    fun hasRegion(start: Float, end: Float): Boolean = end > start && (start > 0f || end < 1f)
 }

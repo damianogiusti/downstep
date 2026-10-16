@@ -75,6 +75,10 @@ interface BackupDao {
     @Query("UPDATE track_practice_state SET active_loop_id = :loopId WHERE track_id = :trackId")
     suspend fun setActiveLoop(trackId: String, loopId: Long)
 
+    /** The whole file, looping off: for a state whose region has no loop to mirror. */
+    @Query("UPDATE track_practice_state SET loop_start = 0, loop_end = 1, is_loop_on = 0 WHERE track_id = :trackId")
+    suspend fun clearRegion(trackId: String)
+
     /** Returns -1 when the id exists: the existing row wins. */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTrackIfAbsent(track: TrackEntity): Long

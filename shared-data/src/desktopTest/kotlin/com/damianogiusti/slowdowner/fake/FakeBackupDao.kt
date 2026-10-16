@@ -87,6 +87,12 @@ class FakeBackupDao : BackupDao {
         states.replaceAll { if (it.trackId == trackId) it.copy(activeLoopId = loopId) else it }
     }
 
+    override suspend fun clearRegion(trackId: String) {
+        states.replaceAll {
+            if (it.trackId == trackId) it.copy(settings = it.settings.copy(loopStart = 0f, loopEnd = 1f, isLoopOn = false)) else it
+        }
+    }
+
     override suspend fun insertTrackIfAbsent(track: TrackEntity): Long {
         if (trackExists(track.id)) return -1
         tracks += track

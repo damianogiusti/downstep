@@ -223,7 +223,7 @@ class DefaultBackupRepositoryTest {
     }
 
     @Test
-    fun `when a backup from before loops is restored then the track has none`() = runTest {
+    fun `when a backup from before loops is restored then its region becomes the active Loop 1`() = runTest {
         val manifest = BackupManifestDto(
             format = BackupManifestDto.FORMAT,
             version = 1,
@@ -237,11 +237,62 @@ class DefaultBackupRepositoryTest {
         val result = target.repository.restore(zipOf(manifest, "audio/t.mp3" to byteArrayOf(5)).path, Copy) {}
 
         assertEquals(RestoreResult.Success(tracksAdded = 1, tracksSkipped = 0, playlistsRestored = 0), result)
-        assertEquals(emptyList<LoopEntity>(), target.dao.loopsOf("t"))
+        // As the 1→2 migration does: the region is never left looping with no loop to show it.
+        val loop = target.dao.loopsOf("t").single()
+        assertEquals("Loop 1", loop.name)
+        assertEquals(0.2f to 0.4f, loop.start to loop.end)
+        assertEquals(0, loop.passes)
+        assertFalse(loop.progression.enabled)
         val state = target.dao.findState("t")!!
         assertEquals(slow, state.settings)
-        assertNull(state.activeLoopId)
+        assertEquals(loop.id, state.activeLoopId)
         assertNull(state.bpm)
+    }
+
+    @Test
+    fun `when a backup from before loops has no region then no loop is made`() = runTest {
+        val manifest = BackupManifestDto(
+            format = BackupManifestDto.FORMAT,
+            version = 1,
+            createdAt = 1,
+            kind = BackupKindDto.Track,
+            tracks = listOf(
+                BackupTrackDto(id = "t", title = "Old", addedAt = 0, audio = "audio/t.mp3", practiceState = BackupManifestMapper.toDto(fast)),
+            ),
+        )
+
+        target.repository.restore(zipOf(manifest, "audio/t.mp3" to byteArrayOf(5)).path, Copy) {}
+
+        assertEquals(emptyList<LoopEntity>(), target.dao.loopsOf("t"))
+        assertNull(target.dao.findState("t")!!.activeLoopId)
+    }
+
+    @Test
+    fun `when the active loop of a backup is dropped as invalid then nothing loops`() = runTest {
+        val manifest = BackupManifestDto(
+            format = BackupManifestDto.FORMAT,
+            version = BackupManifestDto.VERSION,
+            createdAt = 1,
+            kind = BackupKindDto.Track,
+            tracks = listOf(
+                BackupTrackDto(
+                    id = "t",
+                    title = "New",
+                    addedAt = 0,
+                    audio = "audio/t.mp3",
+                    practiceState = BackupManifestMapper.toDto(slow),
+                    loops = listOf(BackupLoopDto("Verse", 0.6f, 0.7f), BackupLoopDto("Broken", 0.4f, 0.2f)),
+                    activeLoop = 1,
+                ),
+            ),
+        )
+
+        target.repository.restore(zipOf(manifest, "audio/t.mp3" to byteArrayOf(5)).path, Copy) {}
+
+        assertEquals(listOf("Verse"), target.dao.loopsOf("t").map { it.name })
+        val state = target.dao.findState("t")!!
+        assertNull(state.activeLoopId)
+        assertEquals(slow.copy(loopStart = 0f, loopEnd = 1f, isLoopOn = false), state.settings)
     }
 
     @Test

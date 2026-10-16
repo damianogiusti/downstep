@@ -1,9 +1,12 @@
 package com.damianogiusti.slowdowner.data.backup
 
 import com.damianogiusti.slowdowner.data.database.DatabaseTransactionRunner
+import com.damianogiusti.slowdowner.data.database.SlowDownerMigrations
 import com.damianogiusti.slowdowner.data.library.DocumentDataSource
 import com.damianogiusti.slowdowner.data.logging.failure
 import com.damianogiusti.slowdowner.data.library.LibraryStore
+import com.damianogiusti.slowdowner.data.loops.LoopEntity
+import com.damianogiusti.slowdowner.data.loops.LoopMapper
 import com.damianogiusti.slowdowner.data.playlists.PlaylistEntity
 import com.damianogiusti.slowdowner.data.playlists.PlaylistTrackEntity
 import com.damianogiusti.slowdowner.data.practice.PracticePresetEntity
@@ -15,6 +18,7 @@ import com.damianogiusti.slowdowner.domain.backup.BackupScope
 import com.damianogiusti.slowdowner.domain.backup.PlaylistConflictChoice
 import com.damianogiusti.slowdowner.domain.backup.RestoreResult
 import com.damianogiusti.slowdowner.domain.backup.RestoreRules
+import com.damianogiusti.slowdowner.domain.loops.Progression
 import com.damianogiusti.slowdowner.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -308,14 +312,39 @@ class DefaultBackupRepository(
      * A track that already has loops keeps them: merging two sets would duplicate every loop on a
      * second restore. The active loop comes from the backup only with its state row, whose region
      * mirrors it.
+     *
+     * A restored state always ends up mirroring a loop, or nothing: a region with no loop behind it
+     * would loop a part of the track no chip shows. A backup from before loops (version 1) has a region
+     * only: like the 1→2 migration, it becomes "Loop 1", active. Any other region without its loop
+     * (the active one was dropped as invalid, or the track kept its own loops) is cleared.
      */
     private suspend fun restoreLoops(track: BackupTrackDto, stateRestored: Boolean, time: Long) {
-        if (track.loops.isEmpty() || dao.hasLoops(track.id)) return
-        val ids = track.loops.mapIndexed { position, loop ->
+        val hadLoops = dao.hasLoops(track.id)
+        val ids = if (hadLoops) emptyList() else track.loops.mapIndexed { position, loop ->
             BackupManifestMapper.toLoopEntity(loop, track.id, position, time)?.let { dao.insertLoop(it) }
         }
-        val activeId = track.activeLoop?.let(ids::getOrNull) ?: return
-        if (stateRestored) dao.setActiveLoop(track.id, activeId)
+        if (!stateRestored) return
+        val activeId = track.activeLoop?.let(ids::getOrNull)
+        if (activeId != null) {
+            dao.setActiveLoop(track.id, activeId)
+            return
+        }
+        val region = track.practiceState?.let(BackupManifestMapper::toColumns) ?: return
+        if (!hadLoops && track.loops.isEmpty() && SlowDownerMigrations.hasRegion(region.loopStart, region.loopEnd)) {
+            val loop = LoopEntity(
+                trackId = track.id,
+                name = FIRST_LOOP_NAME,
+                start = region.loopStart,
+                end = region.loopEnd,
+                passes = 0,
+                notes = "",
+                progression = LoopMapper.toColumns(Progression.DEFAULT),
+                createdAt = time,
+            )
+            dao.setActiveLoop(track.id, dao.insertLoop(loop))
+        } else {
+            dao.clearRegion(track.id)
+        }
     }
 
     private fun deleteFiles(tracks: List<IncomingTrack>) {
@@ -337,5 +366,7 @@ class DefaultBackupRepository(
     private companion object {
         const val PARTIAL_SUFFIX = ".part"
         const val NOT_INSERTED = -1L
+        /** As the 1→2 migration names a track's only region. */
+        const val FIRST_LOOP_NAME = "Loop 1"
     }
 }
