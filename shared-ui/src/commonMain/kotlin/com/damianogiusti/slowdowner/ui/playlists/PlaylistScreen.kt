@@ -2,6 +2,7 @@ package com.damianogiusti.slowdowner.ui.playlists
 
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -88,21 +96,37 @@ fun PlaylistScreen(
     var showDelete by rememberSaveable { mutableStateOf(false) }
     var showAddTracks by rememberSaveable { mutableStateOf(false) }
 
-    PlaylistContent(
-        state = state,
-        actions = PlaylistContentActions(
-            onBack = navigation.onBack,
-            onTrackClick = navigation.onTrackClick,
-            onPractice = { state.tracks.firstOrNull()?.let { navigation.onTrackClick(it.track) } },
-            onAddTracks = { showAddTracks = true },
-            onRename = { showRename = true },
-            onExportBackup = { state.playlist?.let(navigation.onExportBackup) },
-            onDelete = { showDelete = true },
-            onExportTrackBackup = navigation.onExportTrackBackup,
-            onRemoveTrack = viewModel::onRemoveTrack,
-            onReorder = viewModel::onReorder,
-        ),
-    )
+    // Esc goes back to the player. The window's shortcuts leave it to this screen, and key events
+    // reach only the focused element's ancestors: the screen takes the focus when it opens.
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .focusRequester(focus)
+            .focusable()
+            .onPreviewKeyEvent { event ->
+                if (event.key != Key.Escape || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                navigation.onBack()
+                true
+            },
+    ) {
+        PlaylistContent(
+            state = state,
+            actions = PlaylistContentActions(
+                onBack = navigation.onBack,
+                onTrackClick = navigation.onTrackClick,
+                onPractice = { state.tracks.firstOrNull()?.let { navigation.onTrackClick(it.track) } },
+                onAddTracks = { showAddTracks = true },
+                onRename = { showRename = true },
+                onExportBackup = { state.playlist?.let(navigation.onExportBackup) },
+                onDelete = { showDelete = true },
+                onExportTrackBackup = navigation.onExportTrackBackup,
+                onRemoveTrack = viewModel::onRemoveTrack,
+                onReorder = viewModel::onReorder,
+            ),
+        )
+    }
 
     val playlist = state.playlist ?: return
     if (showRename) {

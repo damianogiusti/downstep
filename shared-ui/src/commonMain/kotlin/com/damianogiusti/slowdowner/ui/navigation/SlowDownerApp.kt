@@ -24,9 +24,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.damianogiusti.slowdowner.domain.backup.BackupFile
 import com.damianogiusti.slowdowner.domain.export.ExportedFile
@@ -93,6 +95,11 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
     val importViewModel = viewModels.imports
     val backupViewModel = viewModels.backup
     val navController = rememberNavController()
+    val currentEntry by navController.currentBackStackEntryAsState()
+    // The window's practice keys edit the player: only while it is the screen shown.
+    LaunchedEffect(currentEntry, playerViewModel) {
+        playerViewModel.onShownChanged(currentEntry?.destination?.hasRoute<PlayerRoute>() ?: true)
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     var trackForPlaylist by remember { mutableStateOf<LibraryTrack?>(null) }
 

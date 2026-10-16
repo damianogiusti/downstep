@@ -7,6 +7,7 @@ import com.damianogiusti.slowdowner.di.useCasesModule
 import com.damianogiusti.slowdowner.domain.backup.BackupExportResult
 import com.damianogiusti.slowdowner.domain.backup.ExportLibraryBackupUseCase
 import com.damianogiusti.slowdowner.domain.backup.PlaylistConflictChoice
+import com.damianogiusti.slowdowner.domain.loops.LoopRepository
 import com.damianogiusti.slowdowner.domain.library.ImportDocumentUseCase
 import com.damianogiusti.slowdowner.domain.playlists.AddTrackToPlaylistUseCase
 import com.damianogiusti.slowdowner.domain.playlists.CreatePlaylistUseCase
@@ -201,6 +202,43 @@ class DesktopFlowTest {
             assertFalse(shortcuts.handle(keyDown(Key.F, ctrl = true)))
             assertFalse(player.layout.value.isFocusMode)
         }
+    }
+
+    @Test
+    fun `while a playlist covers the player its loop and layout keys do nothing`() = runBlocking<Unit> {
+        val source = toneFile()
+        val imported = koin.get<ImportDocumentUseCase>()(source.path)
+        assertIs<ImportResult.Success>(imported)
+        val player = koin.get<PlayerViewModel>()
+        val engine = koin.get<PlaybackEngine>()
+        val loops = koin.get<LoopRepository>()
+        SwingUtilities.invokeAndWait { player.onTrackSelected(imported.track) }
+        waitUntil { engine.isOpen }
+        val shortcuts = PracticeShortcuts(player, TextInputFocus())
+
+        SwingUtilities.invokeAndWait {
+            player.onShownChanged(false)
+            assertFalse(shortcuts.handle(Key.L), "L would add a loop out of sight")
+            assertFalse(shortcuts.handle(Key.A))
+            assertFalse(shortcuts.handle(Key.B))
+            assertFalse(shortcuts.handle(Key.RightBracket))
+            assertFalse(shortcuts.handle(Key.F))
+            assertFalse(player.layout.value.isFocusMode)
+            // Left to the playlist screen, which goes back.
+            assertFalse(shortcuts.handle(Key.Escape))
+        }
+        // Give a loop edit, had one started, the time to land.
+        Thread.sleep(300)
+        assertTrue(loops.trackLoops(imported.track.id).loops.isEmpty())
+        assertFalse(engine.isLoopOn)
+
+        // Back on the player: the same keys work again.
+        SwingUtilities.invokeAndWait {
+            player.onShownChanged(true)
+            assertTrue(shortcuts.handle(Key.L))
+        }
+        waitUntil { player.loopChips.value.chips.size == 1 }
+        source.delete()
     }
 
     @Test

@@ -623,6 +623,17 @@ class PlayerViewModel(
 
     fun onDrawerClosed() = layoutState.update { it.copy(isDrawerOpen = false) }
 
+    /**
+     * False while another screen (a playlist) covers the player: the window's practice keys must not
+     * edit loops or toggle focus mode out of sight. Transport keys still work.
+     */
+    var isShown: Boolean = true
+        private set
+
+    fun onShownChanged(shown: Boolean) {
+        isShown = shown
+    }
+
     /** Esc: closes the drawer, else leaves focus mode. False when there was nothing to close. */
     fun onEscape(): Boolean {
         val layout = layoutState.value

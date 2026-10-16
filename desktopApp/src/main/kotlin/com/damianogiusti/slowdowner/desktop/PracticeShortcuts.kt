@@ -17,7 +17,8 @@ import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
  * Keys for practising with the hands on the instrument (README §3, "Keyboard"):
  * Space play/pause · L new loop at the playhead · ⇧L loop on/off · A / B active loop start / end at
  * the playhead · [ / ] previous / next loop · ←/→ 5 s back/forward (with ⇧ 1 s) · F focus mode ·
- * Esc close the drawer, then leave focus.
+ * Esc close the drawer, then leave focus. While a playlist covers the player only Space and the
+ * arrows act on it.
  *
  * Handled before the focused element, so Space never re-clicks the last button and the arrows never
  * move a slider. Only a focused text field (notes, search, BPM) keeps its keys ([TextInputFocus]).
@@ -47,6 +48,9 @@ class PracticeShortcuts(private val player: PlayerViewModel, private val textInp
             return true
         }
         if (key !in ONCE) return false
+        // A playlist covers the player: Space stays (transport), the rest would edit it unseen, and Esc
+        // goes on to the playlist screen, which goes back.
+        if (!player.isShown && key != Key.Spacebar) return false
         if (!held.add(key)) return true
         when (key) {
             Key.Spacebar -> player.onPlayStopClicked()
