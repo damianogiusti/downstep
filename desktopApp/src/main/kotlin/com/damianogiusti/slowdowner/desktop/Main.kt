@@ -62,6 +62,8 @@ import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
 import org.koin.mp.KoinPlatform
 import java.awt.Dimension
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 import java.nio.file.Path
 import kotlin.system.exitProcess
 
@@ -95,12 +97,21 @@ fun main() {
             onCloseRequest = ::exitApplication,
             // Shown on Windows: tells which build the band is trying. Hidden on macOS (WindowChrome).
             title = "Downstep $appVersion",
+            // From the first frame, so the coffee cup never shows; sharper sizes follow below.
+            icon = remember { runCatching { appIconPainter() }.getOrNull() },
             state = windowState,
             onPreviewKeyEvent = { event -> shortcuts?.handle(event) ?: false },
         ) {
             LaunchedEffect(Unit) {
                 window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT)
                 window.useTransparentTitleBar()
+                window.useAppIcon()
+                // A key held while switching away is released in the other app: forget it.
+                window.addWindowFocusListener(object : WindowAdapter() {
+                    override fun windowLostFocus(e: WindowEvent) {
+                        shortcuts?.onFocusLost()
+                    }
+                })
                 // The cold start as the user sees it: what class-data sharing and a lazy start shorten.
                 sinceLaunchMillis()?.let { println("Window composed $it ms after launch") }
             }
@@ -155,7 +166,8 @@ private fun sinceLaunchMillis(): Long? = ProcessHandle.current().info().startIns
 /** Set by Gradle (-PappVersion, see desktopApp/build.gradle.kts). */
 private val appVersion: String = System.getProperty("slowdowner.version") ?: "dev"
 
-// In points, like Compose's dp on macOS. The player's card rows need this much (README §6: nothing\n// narrower is designed).
+// In points, like Compose's dp on macOS. The player's card rows need this much (README §6: nothing
+// narrower is designed).
 private const val MIN_WIDTH = 1000
 private const val MIN_HEIGHT = 600
 
