@@ -1,0 +1,77 @@
+{
+  "dark": {
+    "bg": "#0F1114",
+    "bgDeep": "#0B0D10",
+    "surface1": "#1A1E24",
+    "surface2": "#20252C",
+    "surface3": "#2C323B",
+    "surface4": "#3B424C",
+    "fg": "#ECE8E2",
+    "fg2": "#A4AAB4",
+    "amber": "#F2A541",
+    "amberHover": "#FFB85A",
+    "onAmber": "#2A1800",
+    "teal": "#62B6B0",
+    "onTeal": "#00201E",
+    "errBg": "#93000A",
+    "errFg": "#FFDAD6",
+    "loopOnBg": "#5B3B0B",
+    "loopOnFg": "#FFDDB0",
+    "barMuted": "#2E343D",
+    "barPlayed": "#A4AAB4",
+    "loopColors": [
+      "#F2A541",
+      "#62B6B0",
+      "#E07A5F",
+      "#B8C46A"
+    ]
+  },
+  "light": {
+    "bg": "#FAF6F0",
+    "bgDeep": "#F4EEE5",
+    "surface1": "#EEE7DC",
+    "surface2": "#E6DED1",
+    "surface3": "#DDD4C6",
+    "surface4": "#D3CABD",
+    "fg": "#1C1B19",
+    "fg2": "#5E5A54",
+    "amber": "#A86400",
+    "amberHover": "#8f5500",
+    "onAmber": "#FFFFFF",
+    "teal": "#2D7C77",
+    "onTeal": "#FFFFFF",
+    "errBg": "#FFDAD6",
+    "errFg": "#BA1A1A",
+    "loopOnBg": "#FFE1B8",
+    "loopOnFg": "#3A2300",
+    "barMuted": "#D3CABD",
+    "barPlayed": "#5E5A54",
+    "loopColors": [
+      "#A86400",
+      "#2D7C77",
+      "#B0533A",
+      "#3F7A5A"
+    ]
+  },
+  "type": {
+    "display": "Space Grotesk 700 / 500",
+    "body": "Inter 400 / 500 / 600",
+    "numerals": "tabular (tnum)"
+  },
+  "radii": {
+    "pill": 999,
+    "card": 20,
+    "control": 10,
+    "chipBadge": 999
+  },
+  "sizes": {
+    "headerControl": 40,
+    "chip": 34,
+    "waveform": 200,
+    "waveformFocus": 260,
+    "zoomStrip": 96,
+    "playButton": 68,
+    "transportButton": 44,
+    "loopTool": 30
+  }
+}
