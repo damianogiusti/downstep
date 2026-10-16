@@ -8,7 +8,8 @@ import java.io.File
 
 /**
  * Local files only: Spotify playback is out of use on every platform. [open] decodes the whole file
- * and blocks, like the Android repository: callers run it on an IO dispatcher.
+ * and blocks for as long as that takes, like the Android repository. OpenTrackUseCase is the only
+ * caller and moves it to its decode (IO) dispatcher; nothing else here leaves the caller's thread.
  */
 class DesktopAudioSourceRepository(
     private val engine: DesktopPlaybackEngine,

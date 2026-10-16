@@ -54,7 +54,8 @@ val useCasesModule = module {
     factoryOf(::FindImportableUrlUseCase)
     factoryOf(::ImportTrackFromUrlUseCase)
     factoryOf(::ImportDocumentUseCase)
-    factoryOf(::OpenTrackUseCase)
+    // Explicit lambda: the decode dispatcher keeps its default (IO).
+    factory { OpenTrackUseCase(get(), get()) }
     factoryOf(::CloseTrackUseCase)
     factoryOf(::ObserveNowPlayingUseCase)
     factoryOf(::HandleEndOfTrackUseCase)
