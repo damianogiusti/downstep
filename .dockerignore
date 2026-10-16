@@ -1,0 +1,3 @@
+# The image needs only docker/: the sources are mounted when a container runs.
+*
+!docker/

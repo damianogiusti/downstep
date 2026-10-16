@@ -37,6 +37,7 @@ dependencies {
 
 val osName: String = System.getProperty("os.name")
 val isWindows = osName.startsWith("Windows")
+val isLinux = osName.startsWith("Linux")
 val engineBuildDir = rootProject.layout.projectDirectory.dir("engine-desktop/build/native")
 
 tasks.test {
@@ -48,17 +49,21 @@ tasks.test {
     // The real app swap (scripts, disk images, Trash) runs only in CI, on machines that are thrown away:
     // ./gradlew :desktopApp:test -PupdateSwapTests=true. Never on a developer's computer.
     systemProperty("slowdowner.updateSwapTests", providers.gradleProperty("updateSwapTests").getOrElse("false"))
-    enabled = osName.startsWith("Mac") || isWindows
+    enabled = osName.startsWith("Mac") || isWindows || isLinux
 }
 
 // The C engine travels inside the app, in Compose's per-OS resources folder. On Windows LAME is
-// a DLL of its own (LGPL), next to the engine.
+// a DLL of its own (LGPL), next to the engine. Compose names the Linux folder after the CPU.
 val appResources = layout.buildDirectory.dir("appResources")
 val syncEngineLibrary = tasks.register<Sync>("syncEngineLibrary") {
     dependsOn(":engine-desktop:buildNativeEngine")
     if (isWindows) {
         from(engineBuildDir.file("sdengine.dll"), engineBuildDir.file("mp3lame.dll"))
         into(appResources.map { it.dir("windows-x64") })
+    } else if (isLinux) {
+        val arch = if (System.getProperty("os.arch") == "aarch64") "arm64" else "x64"
+        from(engineBuildDir.file("libsdengine.so"))
+        into(appResources.map { it.dir("linux-$arch") })
     } else {
         from(engineBuildDir.file("libsdengine.dylib"))
         into(appResources.map { it.dir("macos-arm64") })
@@ -91,7 +96,8 @@ compose.desktop {
         }
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg)
+            // Each OS packages only its own formats: no .deb on macOS, no DMG on Linux.
+            targetFormats(TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "Downstep"
             packageVersion = appVersion
             description = "Slow down and loop audio to practise"
@@ -108,6 +114,13 @@ compose.desktop {
             windows {
                 // Built with icons/make-icns.sh too.
                 iconFile.set(project.file("icons/SlowDowner.ico"))
+            }
+            linux {
+                // downstep_<version>_<arch>.deb, installed in /opt/downstep.
+                packageName = "downstep"
+                menuGroup = "AudioVideo"
+                appCategory = "AudioVideo"
+                iconFile.set(project.file("icons/SlowDowner.png"))
             }
         }
     }
@@ -171,6 +184,6 @@ tasks.matching { it.name.startsWith("generateSentryBundleId") || it.name.startsW
     .configureEach { dependsOn("compileKotlin") }
 // The plugin uploads the sources on assemble, which the release does not run: it packages directly.
 if (sentryAuthToken != null) {
-    tasks.matching { it.name == "createDistributable" || it.name == "packageDmg" }
+    tasks.matching { it.name == "createDistributable" || it.name == "packageDmg" || it.name == "packageDeb" }
         .configureEach { dependsOn("sentryUploadSourceBundleJava") }
 }
