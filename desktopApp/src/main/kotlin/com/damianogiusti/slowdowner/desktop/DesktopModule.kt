@@ -75,7 +75,6 @@ import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
-import org.schabi.newpipe.extractor.NewPipe
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -97,8 +96,6 @@ fun desktopModule(
     single { OkHttpClient.Builder().readTimeout(30, TimeUnit.SECONDS).build() }
     single<SlowDownerDatabase> { desktopDatabase(directories.database) }
     single<DatabaseTransactionRunner> { RoomTransactionRunner(get()) }
-    // Must be initialised once before any YouTube import.
-    single(createdAtStart = true) { NewPipeDownloaderAdapter(get()).also(NewPipe::init) }
 
     // Playback: the C engine (Bungee) on the default output device.
     single { engine }
@@ -113,7 +110,8 @@ fun desktopModule(
     single<LibraryStore> {
         RoomLibraryStore(get(), LegacyJsonLibraryIndex(directories.library, logger), directories.library, logger)
     }
-    singleOf(::NewPipeYouTubeStreamDataSource) { bind<YouTubeStreamDataSource>() }
+    // NewPipe is initialised by the first YouTube import, off the startup path.
+    single<YouTubeStreamDataSource> { NewPipeYouTubeStreamDataSource { NewPipeDownloaderAdapter(get()) } }
     singleOf(::OkHttpFileDataSource) { bind<HttpFileDataSource>() }
     single<DocumentDataSource> { FileDocumentDataSource() }
     single<MediaContainerDataSource> { PassthroughContainerDataSource() }
