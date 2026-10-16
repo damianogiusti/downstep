@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
 import com.damianogiusti.slowdowner.domain.effects.EffectsSettings
+import com.damianogiusti.slowdowner.domain.effects.IsolationBands
 import com.damianogiusti.slowdowner.domain.effects.ObserveEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.effects.ProcessingQuality
+import com.damianogiusti.slowdowner.domain.effects.SetBandIsolationUseCase
 import com.damianogiusti.slowdowner.domain.effects.UpdateEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine.Companion.SLIDER_MAX
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,20 +26,25 @@ class EffectsViewModel(
     private val engine: EffectsEngine,
     observeSettings: ObserveEffectsSettingsUseCase,
     private val updateSettings: UpdateEffectsSettingsUseCase,
+    private val setBandIsolation: SetBandIsolationUseCase,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<EffectsUiState?>(null)
     val state: StateFlow<EffectsUiState?> = _state.asStateFlow()
 
+    private val _isolation = MutableStateFlow(IsolationBands.FULL_MIX)
+    /** Isolate (Low / Mid / High solo): for this session only, never saved with the EQ. */
+    val isolation: StateFlow<IsolationBands> = _isolation.asStateFlow()
+
     init {
         viewModelScope.launch {
             _state.value = EffectsUiState(observeSettings().first(), 0, 0).withMix()
-            // StateFlow conflates bursts of slider moves; each value is applied in order.
-            _state.filterNotNull()
-                .map { it.settings }
-                .distinctUntilChanged()
-                .drop(1)
-                .collect { updateSettings(it) }
+            // StateFlow conflates bursts of slider moves; each value reaches the engine at once and is
+            // saved once they settle, the last one even if this ViewModel is cleared first.
+            updateSettings(
+                settings = _state.filterNotNull().map { it.settings }.distinctUntilChanged().drop(1),
+                isolation = { _isolation.value },
+            )
         }
     }
 
@@ -59,6 +66,18 @@ class EffectsViewModel(
     fun onEqReset() = edit { it.copy(preampDb = 0f, bandGainsDb = EffectsSettings().bandGainsDb) }
 
     fun onQualitySelected(quality: ProcessingQuality) = edit { it.copy(quality = quality) }
+
+    fun onIsolationChanged(isolation: IsolationBands) {
+        val settings = _state.value?.settings ?: return
+        _isolation.value = isolation
+        setBandIsolation(settings, isolation)
+    }
+
+    // Nothing could turn Isolate off any more: give the user's own EQ back.
+    override fun onCleared() {
+        val settings = _state.value?.settings ?: return
+        if (!_isolation.value.isFullMix) setBandIsolation(settings, IsolationBands.FULL_MIX)
+    }
 
     private fun edit(transform: (EffectsSettings) -> EffectsSettings) {
         _state.update { it?.copy(settings = transform(it.settings)) }
