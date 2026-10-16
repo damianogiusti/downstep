@@ -7,7 +7,6 @@ import com.damianogiusti.slowdowner.data.library.LibraryStore
 import com.damianogiusti.slowdowner.data.playlists.PlaylistEntity
 import com.damianogiusti.slowdowner.data.playlists.PlaylistTrackEntity
 import com.damianogiusti.slowdowner.data.practice.PracticePresetEntity
-import com.damianogiusti.slowdowner.data.practice.PracticeStateEntity
 import com.damianogiusti.slowdowner.domain.backup.BackupExportResult
 import com.damianogiusti.slowdowner.domain.backup.BackupFile
 import com.damianogiusti.slowdowner.domain.backup.BackupProgress
@@ -195,7 +194,10 @@ class DefaultBackupRepository(
             val file = File(track.filePath)
             val entry = BackupEntryNames.audioEntry(track.id, BackupEntryNames.safeExtension(file.extension))
             audioFiles[entry] = file
-            BackupManifestMapper.toDto(TrackBackupRows(track, dao.findState(track.id), dao.presetsOf(track.id)), entry)
+            BackupManifestMapper.toDto(
+                TrackBackupRows(track, dao.findState(track.id), dao.presetsOf(track.id), dao.loopsOf(track.id)),
+                entry,
+            )
         }
         val includedIds = included.mapTo(HashSet()) { it.id }
         val playlistDtos = playlists.map { playlist ->
@@ -245,9 +247,10 @@ class DefaultBackupRepository(
             }
             // Deleted since the restore started: its state and presets have nowhere to go.
             if (!dao.trackExists(track.id)) return@forEach
-            track.practiceState?.let { state ->
-                dao.insertStateIfAbsent(PracticeStateEntity(track.id, BackupManifestMapper.toColumns(state), time))
-            }
+            val stateRestored = track.practiceState?.let { state ->
+                dao.insertStateIfAbsent(BackupManifestMapper.toStateEntity(track, state, time)) != NOT_INSERTED
+            } ?: false
+            restoreLoops(track, stateRestored, time)
             track.presets.forEach { preset ->
                 val name = RestoreRules.presetName(preset.name) ?: return@forEach
                 dao.insertPresetIfNameFree(
@@ -299,6 +302,20 @@ class DefaultBackupRepository(
             tracksSkipped = manifest.tracks.size - added,
             playlistsRestored = playlistsRestored,
         )
+    }
+
+    /**
+     * A track that already has loops keeps them: merging two sets would duplicate every loop on a
+     * second restore. The active loop comes from the backup only with its state row, whose region
+     * mirrors it.
+     */
+    private suspend fun restoreLoops(track: BackupTrackDto, stateRestored: Boolean, time: Long) {
+        if (track.loops.isEmpty() || dao.hasLoops(track.id)) return
+        val ids = track.loops.mapIndexed { position, loop ->
+            BackupManifestMapper.toLoopEntity(loop, track.id, position, time)?.let { dao.insertLoop(it) }
+        }
+        val activeId = track.activeLoop?.let(ids::getOrNull) ?: return
+        if (stateRestored) dao.setActiveLoop(track.id, activeId)
     }
 
     private fun deleteFiles(tracks: List<IncomingTrack>) {
