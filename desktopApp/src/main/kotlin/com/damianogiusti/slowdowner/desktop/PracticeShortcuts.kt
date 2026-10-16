@@ -27,18 +27,14 @@ class PracticeShortcuts(private val player: PlayerViewModel, private val textInp
     /** Keys held down: auto-repeat must not add a loop per repeat, or toggle focus back and forth. */
     private val held = mutableSetOf<Key>()
 
+    /** Physical keys that typed [ or ] on a layout without bracket keys, to match their release. */
+    private val bracketsByChar = mutableMapOf<Key, Key>()
+
     fun handle(event: KeyEvent): Boolean {
-        if (textInput.isTyping) return false
-        // Leave ⌘ and ⌃ / ⌥ combinations to the system and the menus. Both ⌃ and ⌥ is AltGr on Windows,
-        // which some layouts (Italian) need for [ and ].
-        if (event.isMetaPressed || event.isCtrlPressed != event.isAltPressed) return false
+        if (event.type == KeyEventType.KeyUp) return onKeyUp(event)
+        if (event.type != KeyEventType.KeyDown || !isPracticeChord(event)) return false
         val key = event.practiceKey() ?: return false
-        when (event.type) {
-            KeyEventType.KeyDown -> return handle(key, shift = event.isShiftPressed)
-            KeyEventType.KeyUp -> held -= key
-        }
-        // KeyUp too: a focused button would otherwise click on it. Esc's is left to dialogs.
-        return key != Key.Escape
+        return handle(key, shift = event.isShiftPressed)
     }
 
     /** Acts on [key]; [shift] = ⇧ held. Returns false if it is not a practice key or did nothing. */
@@ -74,12 +70,35 @@ class PracticeShortcuts(private val player: PlayerViewModel, private val textInp
         held -= Key.Spacebar
     }
 
+    /** The window lost focus: the releases of the keys held now go to another app. */
+    fun onFocusLost() {
+        held.clear()
+        bracketsByChar.clear()
+    }
+
+    private fun onKeyUp(event: KeyEvent): Boolean {
+        // Always released, typing or not, ⌃ or not: a key left "held" would stop working for good.
+        val key = bracketsByChar.remove(event.key) ?: event.key
+        held -= key
+        // A focused button would click on the release of Space. Esc's is left to dialogs.
+        return !textInput.isTyping && isPracticeChord(event) && key != Key.Escape && (key in ONCE || key in REPEATING)
+    }
+
+    // Leave ⌘ and ⌃ / ⌥ combinations to the system and the menus. Both ⌃ and ⌥ is AltGr on Windows,
+    // which some layouts (Italian) need for [ and ].
+    private fun isPracticeChord(event: KeyEvent): Boolean =
+        !textInput.isTyping && !event.isMetaPressed && event.isCtrlPressed == event.isAltPressed
+
     // Brackets by character as well: on many layouts they are not on the US bracket keys.
-    private fun KeyEvent.practiceKey(): Key? = when {
-        key in REPEATING || key in ONCE -> key
-        utf16CodePoint == '['.code -> Key.LeftBracket
-        utf16CodePoint == ']'.code -> Key.RightBracket
-        else -> null
+    private fun KeyEvent.practiceKey(): Key? {
+        if (key in REPEATING || key in ONCE) return key
+        val bracket = when (utf16CodePoint) {
+            '['.code -> Key.LeftBracket
+            ']'.code -> Key.RightBracket
+            else -> return null
+        }
+        bracketsByChar[key] = bracket
+        return bracket
     }
 
     private companion object {

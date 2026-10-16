@@ -22,6 +22,9 @@ import com.damianogiusti.slowdowner.domain.library.ObserveLibraryUseCase
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.practice.OpenTrackForPracticeUseCase
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.InternalComposeUiApi
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 import com.damianogiusti.slowdowner.data.effects.EffectsSettingsDto
@@ -157,8 +160,76 @@ class DesktopFlowTest {
         SwingUtilities.invokeAndWait { shortcuts.handle(Key.L, shift = true) }
         waitUntil { !engine.isLoopOn }
         SwingUtilities.invokeAndWait { assertFalse(shortcuts.handle(Key.Q), "not a practice key") }
+        // L adds a second loop near the start, and makes it the active one.
+        SwingUtilities.invokeAndWait {
+            player.onSeek(0.05f)
+            // ⇧L is still held otherwise.
+            shortcuts.handle(keyUp(Key.L))
+            shortcuts.handle(Key.L)
+        }
+        waitUntil { abs(engine.loopStart - 0.05f) < 0.02f }
+        // [ typed with AltGr on another key (Italian layout): previous loop, round to the last. Released,
+        // then again: the first one, so the release was matched to the key that typed it.
+        SwingUtilities.invokeAndWait { assertTrue(shortcuts.handle(altGr(Key.Grave, '['))) }
+        waitUntil { abs(engine.loopStart - 0.2f) < 0.02f }
+        SwingUtilities.invokeAndWait { shortcuts.handle(keyUp(Key.Grave)) }
+        SwingUtilities.invokeAndWait { shortcuts.handle(altGr(Key.Grave, '[')) }
+        waitUntil { abs(engine.loopStart - 0.05f) < 0.02f }
         source.delete()
     }
+
+    @Test
+    fun `F toggles focus once per press, Esc closes the drawer, then focus`() {
+        val player = koin.get<PlayerViewModel>()
+        val shortcuts = PracticeShortcuts(player, TextInputFocus())
+        SwingUtilities.invokeAndWait {
+            assertTrue(shortcuts.handle(keyDown(Key.F)))
+            // Auto-repeat while held must not toggle it back.
+            shortcuts.handle(keyDown(Key.F))
+            assertTrue(player.layout.value.isFocusMode)
+            shortcuts.handle(keyUp(Key.F))
+
+            player.onDrawerOpened()
+            assertTrue(shortcuts.handle(keyDown(Key.Escape)))
+            assertFalse(player.layout.value.isDrawerOpen, "Esc closes the drawer first")
+            assertTrue(player.layout.value.isFocusMode)
+            assertTrue(shortcuts.handle(keyDown(Key.Escape)))
+            assertFalse(player.layout.value.isFocusMode)
+            assertFalse(shortcuts.handle(keyDown(Key.Escape)), "nothing to close: Esc goes on to dialogs")
+
+            // ⌃F belongs to the system and the menus.
+            assertFalse(shortcuts.handle(keyDown(Key.F, ctrl = true)))
+            assertFalse(player.layout.value.isFocusMode)
+        }
+    }
+
+    @Test
+    fun `a key released with a modifier held still works on the next press`() {
+        val player = koin.get<PlayerViewModel>()
+        val shortcuts = PracticeShortcuts(player, TextInputFocus())
+        SwingUtilities.invokeAndWait {
+            shortcuts.handle(keyDown(Key.F))
+            shortcuts.handle(keyUp(Key.F, ctrl = true))
+            shortcuts.handle(keyDown(Key.F))
+            assertFalse(player.layout.value.isFocusMode, "F was stuck as held")
+            // Held while the window lost focus: the release went to another app.
+            shortcuts.onFocusLost()
+            shortcuts.handle(keyDown(Key.F))
+            assertTrue(player.layout.value.isFocusMode)
+        }
+    }
+
+    private fun keyDown(key: Key, ctrl: Boolean = false) = keyEvent(key, KeyEventType.KeyDown, ctrl = ctrl)
+
+    private fun keyUp(key: Key, ctrl: Boolean = false) = keyEvent(key, KeyEventType.KeyUp, ctrl = ctrl)
+
+    /** ⌃⌥ + [key] typing [char]: AltGr on Windows. */
+    private fun altGr(key: Key, char: Char) = keyEvent(key, KeyEventType.KeyDown, char, ctrl = true, alt = true)
+
+    // The test-only constructor: what the window passes is built from AWT events internally.
+    @OptIn(InternalComposeUiApi::class)
+    private fun keyEvent(key: Key, type: KeyEventType, char: Char? = null, ctrl: Boolean = false, alt: Boolean = false) =
+        KeyEvent(key, type, codePoint = char?.code ?: 0, isCtrlPressed = ctrl, isAltPressed = alt)
 
     @Test
     fun `restoring a playlist that changed since the backup asks, then overwrites it`() = runBlocking<Unit> {
