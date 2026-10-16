@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.damianogiusti.slowdowner.domain.backup.BackupFile
 import com.damianogiusti.slowdowner.domain.backup.PlaylistConflictChoice
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
+import com.damianogiusti.slowdowner.domain.theme.ThemeMode
 
 /** Progress of a running export or restore, above the mini player. Hidden otherwise. */
 @Composable
@@ -135,7 +136,7 @@ fun PlaylistConflictDialog(names: List<String>, onChoice: (PlaylistConflictChoic
 @Preview
 @Composable
 private fun PlaylistConflictDialogPreview() {
-    SlowDownerTheme(darkTheme = true) {
+    SlowDownerTheme(ThemeMode.Dark) {
         PlaylistConflictDialog(names = listOf("The Dunnos"), onChoice = {}, onDismiss = {})
     }
 }
@@ -143,7 +144,7 @@ private fun PlaylistConflictDialogPreview() {
 @Preview
 @Composable
 private fun BackupBannerPreview() {
-    SlowDownerTheme(darkTheme = true) {
+    SlowDownerTheme(ThemeMode.Dark) {
         BackupBanner(BackupUiState.Exporting(done = 3, total = 12), onCancelExport = {})
     }
 }

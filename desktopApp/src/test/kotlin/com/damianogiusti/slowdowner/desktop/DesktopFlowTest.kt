@@ -145,11 +145,17 @@ class DesktopFlowTest {
         assertTrue(engine.isPlaying, "auto-repeat paused playback")
         SwingUtilities.invokeAndWait { shortcuts.onSpaceReleased() }
         native.render(44_100 * 2)
+        // No loop yet: A starts a new one at the playhead, and it loops.
         SwingUtilities.invokeAndWait { shortcuts.handle(Key.A) }
+        waitUntil { engine.isLoopOn }
+        assertEquals(0.2f, engine.loopStart, 0.02f)
         native.render(44_100 * 2)
         SwingUtilities.invokeAndWait { shortcuts.handle(Key.B) }
-        assertTrue(engine.isLoopOn, "B closes the loop")
-        assertTrue(abs(engine.loopEnd - engine.loopStart - 0.2f) < 0.02f, "loop ${engine.loopStart}..${engine.loopEnd}")
+        waitUntil { abs(engine.loopEnd - engine.loopStart - 0.2f) < 0.02f }
+        assertTrue(engine.isLoopOn, "B keeps looping")
+        // Shift+L turns looping off, the loop stays.
+        SwingUtilities.invokeAndWait { shortcuts.handle(Key.L, shift = true) }
+        waitUntil { !engine.isLoopOn }
         SwingUtilities.invokeAndWait { assertFalse(shortcuts.handle(Key.Q), "not a practice key") }
         source.delete()
     }

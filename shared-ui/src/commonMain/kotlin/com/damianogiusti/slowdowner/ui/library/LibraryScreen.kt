@@ -65,6 +65,7 @@ import com.damianogiusti.slowdowner.ui.common.TextInputDialog
 import com.damianogiusti.slowdowner.ui.common.TextInputDialogTexts
 import com.damianogiusti.slowdowner.ui.common.TrackRow
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
+import com.damianogiusti.slowdowner.domain.theme.ThemeMode
 import org.koin.compose.viewmodel.koinViewModel
 
 /** Callbacks that leave the library screen or need the activity. */
@@ -564,7 +565,7 @@ private val FAB_CLEARANCE = 96.dp
 @Preview(heightDp = 915)
 @Composable
 private fun LibraryContentPreview() {
-    SlowDownerTheme(darkTheme = true) {
+    SlowDownerTheme(ThemeMode.Dark) {
         LibraryContent(
             state = LibraryUiState(
                 tracks = listOf(

@@ -1,25 +1,30 @@
 package com.damianogiusti.slowdowner.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.remember
+import com.damianogiusti.slowdowner.domain.theme.ThemeMode
 
 /**
- * Custom studio theme, dark first. No dynamic color: the practice colors
- * (loop region, A/B markers) must keep their meaning on every wallpaper.
+ * Downstep 2.0: dark by default, light on the header toggle (persisted, see ThemeViewModel). No dynamic
+ * color: the practice colors (loops, A/B, accents) must keep their meaning everywhere. The palette is
+ * also mapped onto Material's roles, so Material components and the older screens follow it.
  */
 @Composable
 fun SlowDownerTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: ThemeMode = ThemeMode.DEFAULT,
     content: @Composable () -> Unit,
 ) {
+    val tokens = if (themeMode == ThemeMode.Light) LightTokens else DarkTokens
+    val colorScheme = remember(tokens) { tokens.toMaterial() }
     CompositionLocalProvider(
-        LocalSlowDownerColors provides if (darkTheme) DarkExtendedColors else LightExtendedColors,
+        LocalDownstepColors provides tokens,
+        LocalDownstepType provides rememberDownstepType(),
     ) {
         MaterialTheme(
-            colorScheme = if (darkTheme) DarkColors else LightColors,
+            colorScheme = colorScheme,
             typography = slowDownerTypography(),
             shapes = SlowDownerShapes,
             content = content,
@@ -28,8 +33,13 @@ fun SlowDownerTheme(
 }
 
 object SlowDownerTheme {
-    val colors: SlowDownerColors
+    val colors: DownstepColors
         @Composable
         @ReadOnlyComposable
-        get() = LocalSlowDownerColors.current
+        get() = LocalDownstepColors.current
+
+    val type: DownstepType
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalDownstepType.current
 }

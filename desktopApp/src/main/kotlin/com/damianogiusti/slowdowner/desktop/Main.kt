@@ -53,6 +53,9 @@ import com.damianogiusti.slowdowner.ui.support.SupportPromptHost
 import com.damianogiusti.slowdowner.ui.update.UpdateBanner
 import com.damianogiusti.slowdowner.ui.update.UpdateHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
+import com.damianogiusti.slowdowner.ui.theme.ThemeViewModel
+import com.damianogiusti.slowdowner.domain.theme.ThemeMode
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.MainScope
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -86,7 +89,7 @@ fun main() {
     // Set once the ViewModels exist; read by the window's key handler.
     var shortcuts: PracticeShortcuts? = null
     application(exitProcessOnExit = false) {
-        // Wide enough for the library and the player side by side (see SlowDownerApp).
+        // The size the Downstep 2.0 design is drawn at.
         val windowState = rememberWindowState(size = DpSize(1280.dp, 820.dp), position = WindowPosition(Alignment.Center))
         Window(
             onCloseRequest = ::exitApplication,
@@ -115,15 +118,22 @@ fun main() {
                     Item(stringResource(Res.string.support_donate)) { openDonation(DonateSource.MAC_MENU, logger) }
                 }
             }
-            SlowDownerTheme {
-                Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(top = titleBarHeight)) {
-                    if (engine != null && !hasAudioOutput) NoAudioOutputBanner()
-                    Box(modifier = Modifier.weight(1f)) {
-                        if (engine == null) {
-                            EngineUnavailable()
-                        } else {
-                            DesktopApp(window, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking) {
-                                shortcuts = it
+            // One store for the window, as the activity is on Android: pickers report into these ViewModels,
+            // and the player, its effects and the theme live as long as the window.
+            val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
+            CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
+                // Without an engine there is no Koin: the error screen gets the default theme.
+                val themeMode = if (engine != null) koinViewModel<ThemeViewModel>().mode.collectAsStateWithLifecycle().value else ThemeMode.DEFAULT
+                SlowDownerTheme(themeMode) {
+                    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(top = titleBarHeight)) {
+                        if (engine != null && !hasAudioOutput) NoAudioOutputBanner()
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (engine == null) {
+                                EngineUnavailable()
+                            } else {
+                                DesktopApp(window, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking) {
+                                    shortcuts = it
+                                }
                             }
                         }
                     }
@@ -145,8 +155,8 @@ private fun sinceLaunchMillis(): Long? = ProcessHandle.current().info().startIns
 /** Set by Gradle (-PappVersion, see desktopApp/build.gradle.kts). */
 private val appVersion: String = System.getProperty("slowdowner.version") ?: "dev"
 
-// In points, like Compose's dp on macOS. Narrower than this the two panes get cramped.
-private const val MIN_WIDTH = 900
+// In points, like Compose's dp on macOS. The player's card rows need this much (README §6: nothing\n// narrower is designed).
+private const val MIN_WIDTH = 1000
 private const val MIN_HEIGHT = 600
 
 /** A null engine shows the error screen: no library, or a library that does not load. */
@@ -188,10 +198,8 @@ private fun DesktopApp(
     installWithoutAsking: Boolean,
     onShortcutsReady: (PracticeShortcuts) -> Unit,
 ) {
-    // One store for the window, as the activity is on Android: pickers report into these ViewModels.
-    val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
     val textInput = remember { TextInputFocus() }
-    CompositionLocalProvider(LocalViewModelStoreOwner provides owner, LocalTextInputFocus provides textInput) {
+    CompositionLocalProvider(LocalTextInputFocus provides textInput) {
         val viewModels = ActivityViewModels(
             player = koinViewModel<PlayerViewModel>(),
             imports = koinViewModel<ImportViewModel>(),
