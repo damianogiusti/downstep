@@ -30,10 +30,15 @@ class FakePracticeDao(private val existingTrackIds: Set<String>) : PracticeDao {
         now: Long,
     ) {
         if (trackId !in existingTrackIds) return
+        // Like the query: the loop columns of the previous row survive the replace.
+        val previous = findState(trackId)
         val row = PracticeStateEntity(
             trackId,
             PracticeSettingsColumns(speedPercent, pitchSemitones, loopStart, loopEnd, isLoopOn),
             now,
+            activeLoopId = previous?.activeLoopId,
+            bpm = previous?.bpm,
+            snapToBeat = previous?.snapToBeat ?: true,
         )
         states.update { current -> current.filterNot { it.trackId == trackId } + row }
     }
