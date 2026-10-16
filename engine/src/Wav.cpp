@@ -26,7 +26,11 @@ FILE *openFileUtf8(const std::string &path, const char *mode) {
 }
 
 bool writeWavFloat(const std::string &path, const PcmBuffer &pcm, std::string &error) {
-    std::unique_ptr<FILE, decltype(&std::fclose)> f(openFileUtf8(path, "wb"), &std::fclose);
+    // A deleter type rather than decltype(&fclose): glibc's fclose carries attributes GCC warns about.
+    struct FileCloser {
+        void operator()(FILE *file) const { std::fclose(file); }
+    };
+    std::unique_ptr<FILE, FileCloser> f(openFileUtf8(path, "wb"));
     if (!f) {
         error = "cannot write " + path;
         return false;

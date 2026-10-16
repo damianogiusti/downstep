@@ -2,16 +2,68 @@
  * Engine tests through the C API in manual mode: no device, the test pulls the audio.
  * Plain asserts with a summary, so they run with `ctest` and need no framework.
  */
+#include "Denormals.h"
 #include "Equalizer.h"
 #include "Pcm.h"
+#include "Player.h"
 #include "sdengine.h"
 
+#include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <functional>
+#include <new>
 #include <string>
 #include <vector>
+
+// Allocation counter for the render path. operator new is replaced for the whole binary; with GNU
+// ld malloc is wrapped too (see CMakeLists.txt), since Bungee's Eigen arrays use malloc.
+namespace {
+std::atomic<bool> countAllocations{false};
+std::atomic<long> news{0}, mallocs{0}; // a new also counts as a malloc where malloc is wrapped
+void noteAllocation(std::atomic<long> &counter) {
+    if (countAllocations.load(std::memory_order_relaxed)) counter.fetch_add(1, std::memory_order_relaxed);
+}
+} // namespace
+
+// GCC sees free() behind a delete and warns, not knowing this new is malloc too.
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+void *operator new(std::size_t size) {
+    noteAllocation(news);
+    if (void *p = std::malloc(size ? size : 1)) return p;
+    throw std::bad_alloc();
+}
+void *operator new[](std::size_t size) { return operator new(size); }
+void operator delete(void *p) noexcept { std::free(p); }
+void operator delete[](void *p) noexcept { std::free(p); }
+void operator delete(void *p, std::size_t) noexcept { std::free(p); }
+void operator delete[](void *p, std::size_t) noexcept { std::free(p); }
+
+#ifdef SDENGINE_TESTS_WRAP_MALLOC
+extern "C" {
+void *__real_malloc(std::size_t size);
+void *__real_calloc(std::size_t count, std::size_t size);
+void *__real_realloc(void *p, std::size_t size);
+void *__wrap_malloc(std::size_t size) {
+    noteAllocation(mallocs);
+    return __real_malloc(size);
+}
+void *__wrap_calloc(std::size_t count, std::size_t size) {
+    noteAllocation(mallocs);
+    return __real_calloc(count, size);
+}
+void *__wrap_realloc(void *p, std::size_t size) {
+    noteAllocation(mallocs);
+    return __real_realloc(p, size);
+}
+}
+#endif
+
+// Defined in CApi.cpp.
+Player *sdEnginePlayer(SdEngine *engine);
 
 namespace {
 
@@ -241,6 +293,193 @@ void preampOnlyWithEqOn(const std::string &path) {
     CHECK(std::fabs(20 * std::log10(on / off) + 6) < 0.3, "preamp gave %f dB", 20 * std::log10(on / off));
 }
 
+std::string tempPath(const char *name) { return (std::filesystem::temp_directory_path() / name).string(); }
+
+/** `seconds` of a distinct ramp per channel: any lost, doubled or swapped block shows. */
+PcmBuffer rampBuffer(int channels, double seconds) {
+    PcmBuffer pcm;
+    pcm.sampleRate = kRate;
+    pcm.channels = channels;
+    pcm.frames = int64_t(seconds * kRate);
+    pcm.data.assign(size_t(channels), std::vector<float>(size_t(pcm.frames)));
+    for (int c = 0; c < channels; ++c)
+        for (int64_t i = 0; i < pcm.frames; ++i)
+            pcm.data[size_t(c)][size_t(i)] = float((c ? -1 : 1) * double(i % 50000) / 50000.0);
+    return pcm;
+}
+
+void decoderKeepsEveryFrame() {
+    // Odd lengths, so the last block is partial; stereo and mono.
+    for (const auto &[channels, seconds] : {std::pair{2, 73.3}, std::pair{1, 7.77}}) {
+        const PcmBuffer written = rampBuffer(channels, seconds);
+        const auto path = tempPath("sdengine-ramp.wav");
+        std::string error;
+        CHECK(writeWavFloat(path, written, error), "cannot write: %s", error.c_str());
+        PcmBuffer decoded;
+        CHECK(decodeFile(path, decoded, error), "cannot decode: %s", error.c_str());
+        std::filesystem::remove(path);
+        CHECK(decoded.channels == channels, "%d channels", decoded.channels);
+        CHECK(decoded.frames == written.frames, "%lld frames, wrote %lld", (long long)decoded.frames,
+              (long long)written.frames);
+        if (decoded.channels != channels || decoded.frames != written.frames) continue;
+        for (int c = 0; c < channels; ++c) {
+            CHECK(int64_t(decoded.data[size_t(c)].size()) == decoded.frames, "channel %d size", c);
+            CHECK(decoded.data[size_t(c)] == written.data[size_t(c)], "channel %d differs", c);
+        }
+    }
+}
+
+void unreadableFileFailsCleanly() {
+    // Not audio at all (on Linux an M4A ends up here too: no AAC decoder).
+    const auto path = tempPath("sdengine-not-audio.m4a");
+    if (FILE *f = openFileUtf8(path, "wb")) {
+        std::fputs("this is not an audio file, just some text that no decoder should accept", f);
+        std::fclose(f);
+    }
+    PcmBuffer decoded;
+    std::string error;
+    CHECK(!decodeFile(path, decoded, error), "decoded a text file");
+    CHECK(!error.empty(), "no error message");
+    SdEngine *e = sd_engine_create(0, kRate);
+    CHECK(sd_engine_open(e, path.c_str()) == 0 && !sd_engine_is_open(e), "opened a text file");
+    sd_engine_destroy(e);
+    std::filesystem::remove(path);
+}
+
+void monoIsKeptAsOneChannelAndPlaysOnBothSides() {
+    PcmBuffer pcm;
+    pcm.sampleRate = kRate;
+    pcm.channels = 1;
+    pcm.frames = 5 * kRate;
+    pcm.data.assign(1, std::vector<float>(size_t(pcm.frames)));
+    for (int64_t i = 0; i < pcm.frames; ++i) pcm.data[0][size_t(i)] = float(0.5 * std::sin(2 * M_PI * 441 * double(i) / kRate));
+    const auto path = tempPath("sdengine-mono.wav");
+    std::string error;
+    CHECK(writeWavFloat(path, pcm, error), "cannot write: %s", error.c_str());
+    const double tone = 0.5 / std::sqrt(2.0);
+    for (const double mix : {0.0, 0.5, 1.0}) {
+        SdEngine *e = openEngine(path);
+        CHECK(sdEnginePlayer(e)->source()->channels == 1, "mono copied into %d channels",
+              sdEnginePlayer(e)->source()->channels);
+        sd_engine_set_mix(e, mix);
+        sd_engine_set_pitch(e, 2); // through the resampler too
+        sd_engine_set_playing(e, 1);
+        const Rendered r = render(e, 1.0);
+        sd_engine_destroy(e);
+        CHECK(r.left == r.right, "mix %.1f: the sides differ", mix);
+        CHECK(std::fabs(rms(r.left, kRate / 2) - tone) < 0.03, "mix %.1f: level %f", mix, rms(r.left, kRate / 2));
+    }
+    std::filesystem::remove(path);
+}
+
+void exportSharesTheDecodedAudio(const std::string &path) {
+    // Open a copy, then delete it: the export can only succeed from the audio already in memory.
+    const auto copy = tempPath("sdengine-export-source.wav");
+    std::filesystem::copy_file(path, copy, std::filesystem::copy_options::overwrite_existing);
+    SdEngine *e = openEngine(copy);
+    std::filesystem::remove(copy);
+    const auto shared = sdEnginePlayer(e)->source();
+    const long ownersBefore = shared.use_count();
+
+    const auto output = tempPath("sdengine-export-shared.mp3");
+    SdExport *exporter = sd_export_begin(e, output.c_str(), 128);
+    CHECK(exporter != nullptr, "cannot start export from memory");
+    if (!exporter) {
+        sd_engine_destroy(e);
+        return;
+    }
+    CHECK(shared.use_count() == ownersBefore + 1, "export did not share the buffer (%ld owners)", shared.use_count());
+    sd_engine_close(e); // the export keeps the audio alive
+    while (sd_export_next(exporter) >= 0) {
+    }
+    CHECK(sd_export_end(exporter) == 1, "export incomplete");
+    PcmBuffer decoded;
+    std::string error;
+    CHECK(decodeFile(output, decoded, error), "cannot read the MP3: %s", error.c_str());
+    CHECK(std::fabs(decoded.seconds() - 10.0) < 0.3, "MP3 lasts %f s", decoded.seconds());
+    CHECK(rms(decoded.data[0], size_t(kRate)) > 0.2, "MP3 is silent");
+    std::filesystem::remove(output);
+    sd_engine_destroy(e);
+
+    // Same sound from a shared buffer as from a fresh decode, sample for sample.
+    const auto renderAll = [](Player &player) {
+        std::vector<float> l(4096), r(4096), all;
+        float *planar[2] = {l.data(), r.data()};
+        player.setSpeed(0.7);
+        player.setPitch(-3);
+        player.setPlaying(true);
+        for (int block = 0; block < 100; ++block) {
+            player.render(planar, 4096);
+            all.insert(all.end(), l.begin(), l.end());
+            all.insert(all.end(), r.begin(), r.end());
+        }
+        return all;
+    };
+    Player fresh(kRate, 4096), reused(kRate, 4096);
+    CHECK(fresh.open(path), "cannot open");
+    CHECK(reused.open(fresh.source(), path), "cannot open the shared buffer");
+    CHECK(renderAll(fresh) == renderAll(reused), "shared buffer sounds different");
+}
+
+void flushesDenormalsInScope() {
+#if defined(__x86_64__) || defined(__SSE__) || defined(__aarch64__)
+    volatile float tiny = 1e-38f, scale = 1e-3f; // the product is a denormal
+    {
+        const ScopedFlushDenormals flush;
+        CHECK(tiny * scale == 0.f, "denormal kept inside the scope");
+    }
+    CHECK(tiny * scale != 0.f, "flush mode leaked out of the scope");
+#endif
+}
+
+void renderingDoesNotAllocate(const std::string &path) {
+    // The hooks must see a new and, where wrapped, Bungee's own mallocs (opening a file builds its
+    // Eigen arrays), or the zero below would prove nothing. Through a volatile pointer: the
+    // compiler may otherwise drop an unused new/delete pair.
+    countAllocations.store(true);
+    int *volatile number = new int(1);
+    delete number;
+    {
+        Player probe(kRate, 512);
+        auto pcm = std::make_shared<PcmBuffer>(rampBuffer(2, 1.0));
+        probe.open(std::move(pcm), "probe");
+    }
+    countAllocations.store(false);
+    const long probeNews = news.exchange(0), probeMallocs = mallocs.exchange(0);
+    CHECK(probeNews >= 1, "operator new hook saw nothing");
+#ifdef SDENGINE_TESTS_WRAP_MALLOC
+    // Every new is a malloc too: more mallocs means direct ones (Eigen's) were seen.
+    CHECK(probeMallocs > probeNews, "malloc hook saw %ld for %ld new", probeMallocs, probeNews);
+#else
+    (void)probeMallocs;
+#endif
+
+    // Device rates equal to and different from the file's: the second always resamples.
+    for (const int rate : {kRate, 48000}) {
+        SdEngine *e = sd_engine_create(0, rate);
+        sd_engine_open(e, path.c_str());
+        sd_engine_set_eq_enabled(e, 1);
+        sd_engine_set_playing(e, 1);
+        std::vector<float> block(512 * 2);
+        for (int i = 0; i < 40; ++i) sd_engine_render(e, block.data(), 512);
+        // Like slider drags: new values every 512-frame block, plus a seek and a loop.
+        countAllocations.store(true);
+        for (int i = 0; i < 400; ++i) {
+            const double t = i / 400.0;
+            sd_engine_set_speed(e, 0.05 + 3.95 * t); // the stretcher's whole range
+            sd_engine_set_pitch(e, -12 + 24 * t); // not snapped: the grain sizes move as much as they can
+            sd_engine_set_eq_band(e, i % 7, (i % 25) - 12);
+            if (i == 200) sd_engine_set_loop_and_seek(e, 0.3, 0.5, 1, 0.3);
+            sd_engine_render(e, block.data(), 512);
+        }
+        countAllocations.store(false);
+        const long newCount = news.exchange(0), mallocCount = mallocs.exchange(0);
+        CHECK(newCount == 0 && mallocCount == 0, "%d Hz: %ld new, %ld malloc while rendering with moving controls",
+              rate, newCount, mallocCount);
+        sd_engine_destroy(e);
+    }
+}
+
 } // namespace
 
 int main() {
@@ -257,6 +496,12 @@ int main() {
         {"mix fades the far side", [&] { mixFadesTheFarSide(path); }},
         {"EQ boosts its band and flat is transparent", [] { eqBoostsItsBandAndFlatIsTransparent(); }},
         {"preamp only with the EQ on", [&] { preampOnlyWithEqOn(path); }},
+        {"decoder keeps every frame", [] { decoderKeepsEveryFrame(); }},
+        {"an unreadable file fails cleanly", [] { unreadableFileFailsCleanly(); }},
+        {"mono is kept as one channel and plays on both sides", [] { monoIsKeptAsOneChannelAndPlaysOnBothSides(); }},
+        {"export shares the decoded audio", [&] { exportSharesTheDecodedAudio(path); }},
+        {"flushes denormals in scope", [] { flushesDenormalsInScope(); }},
+        {"rendering does not allocate", [&] { renderingDoesNotAllocate(path); }},
     };
     for (const auto &[name, test] : tests) {
         const int before = failures;

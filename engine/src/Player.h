@@ -32,11 +32,15 @@ public:
     explicit Player(int outputRate, int maxBlockFrames);
 
     bool open(const std::string &path);
+    /** Plays audio decoded elsewhere, shared read-only: the export reuses the player's buffer this way. */
+    bool open(std::shared_ptr<const PcmBuffer> decoded, const std::string &path);
     void close();
     bool isOpen() const { return isOpen_.load(); }
     double durationSeconds() const { return durationSeconds_.load(); }
     /** Control thread only. */
     const std::string &path() const { return path_; }
+    /** Control thread only. Null when no file is open. */
+    std::shared_ptr<const PcmBuffer> source() const { return source_; }
     int sourceSampleRate() const { return sourceSampleRate_.load(); }
     Settings settings() const;
     void applySettings(const Settings &settings);
@@ -75,7 +79,8 @@ private:
     const int maxBlockFrames_;
 
     std::mutex lock_; // structure: source and stretcher
-    PcmBuffer source_;
+    // Written only by the control thread, under the lock; the audio thread reads it under the lock.
+    std::shared_ptr<const PcmBuffer> source_;
     std::string path_;
     std::atomic<int> sourceSampleRate_{0};
     TimeStretcher stretcher_;

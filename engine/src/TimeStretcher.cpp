@@ -98,11 +98,23 @@ void TimeStretcher::produceGrain() {
     const int length = chunk.end - chunk.begin;
     float *left = grainInput_.data();
     float *right = grainInput_.data() + length;
-    for (int i = 0; i < length; ++i) {
-        const int64_t frame = int64_t(chunk.begin) + i;
-        const float l = source_->at(0, frame), rr = source_->at(1, frame);
-        left[i] = keepLeft_ * l + mixRightToLeft_ * rr;
-        right[i] = keepRight_ * rr + mixLeftToRight_ * l;
+    if (chunk.begin >= 0 && int64_t(chunk.end) <= source_->frames) {
+        // Almost every grain lies inside the file: read the channels directly (a mono file's
+        // channel 0 serves both sides).
+        const float *sourceLeft = source_->channelData(0) + chunk.begin;
+        const float *sourceRight = source_->channelData(1) + chunk.begin;
+        for (int i = 0; i < length; ++i) {
+            const float l = sourceLeft[i], rr = sourceRight[i];
+            left[i] = keepLeft_ * l + mixRightToLeft_ * rr;
+            right[i] = keepRight_ * rr + mixLeftToRight_ * l;
+        }
+    } else {
+        for (int i = 0; i < length; ++i) {
+            const int64_t frame = int64_t(chunk.begin) + i;
+            const float l = source_->at(0, frame), rr = source_->at(1, frame);
+            left[i] = keepLeft_ * l + mixRightToLeft_ * rr;
+            right[i] = keepRight_ * rr + mixLeftToRight_ * l;
+        }
     }
     const int muteHead = std::clamp(-chunk.begin, 0, length);
     const int muteTail = std::clamp(int(int64_t(chunk.end) - source_->frames), 0, length);
