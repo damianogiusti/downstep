@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.damianogiusti.slowdowner.ui.theme.DownstepDimens
 import com.damianogiusti.slowdowner.ui.theme.DownstepShapes
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
@@ -96,11 +97,11 @@ fun Pill(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .height(height)
+                .alpha(if (enabled) 1f else DISABLED_ALPHA)
                 .clip(DownstepShapes.pill)
                 .then(if (container != null) Modifier.background(container, DownstepShapes.pill) else Modifier)
                 .then(if (border != null) Modifier.pillBorder(border, dashed) else Modifier)
                 .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-                .alpha(if (enabled) 1f else DISABLED_ALPHA)
                 .padding(contentPadding),
         ) {
             CompositionLocalProvider(LocalContentColor provides contentColor) {
@@ -130,11 +131,11 @@ fun IconPill(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(size)
+                .alpha(if (enabled) 1f else DISABLED_ALPHA)
                 .clip(DownstepShapes.pill)
                 .then(if (container != null) Modifier.background(container, DownstepShapes.pill) else Modifier)
                 .then(if (border != null) Modifier.border(1.dp, border, DownstepShapes.pill) else Modifier)
                 .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-                .alpha(if (enabled) 1f else DISABLED_ALPHA)
                 .semantics { this.contentDescription = contentDescription },
         ) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(iconSize))
@@ -197,20 +198,25 @@ fun SegmentedPill(
     )
 }
 
-/** Pass count on a chip, track count on the Library pill: a small pill of digits. */
+/** Pass count on a chip: a small pill of digits, 18dp high, 10sp semibold (README §2.3). */
 @Composable
 fun CountBadge(text: String, modifier: Modifier = Modifier, container: Color = SlowDownerTheme.colors.surface3, contentColor: Color = SlowDownerTheme.colors.fg2) {
-    Text(
-        text,
-        style = SlowDownerTheme.type.tag,
-        color = contentColor,
-        textAlign = TextAlign.Center,
-        maxLines = 1,
+    Box(
+        contentAlignment = Alignment.Center,
         modifier = modifier
-            .defaultMinSize(minWidth = 20.dp)
+            .height(18.dp)
+            .defaultMinSize(minWidth = 18.dp)
             .background(container, DownstepShapes.pill)
-            .padding(horizontal = 6.dp, vertical = 1.dp),
-    )
+            .padding(horizontal = 5.dp),
+    ) {
+        Text(
+            text,
+            style = SlowDownerTheme.type.tag.copy(fontSize = 10.sp, lineHeight = 12.sp),
+            color = contentColor,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
+    }
 }
 
 /** A key cap in the keyboard hints: `A`, `[`, `F`. */
@@ -242,10 +248,10 @@ fun ControlButton(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .size(width, height)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .clip(DownstepShapes.control)
             .background(SlowDownerTheme.colors.surface3, DownstepShapes.control)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .semantics { this.contentDescription = contentDescription },
     ) {
         Text(text, style = SlowDownerTheme.type.control, color = SlowDownerTheme.colors.fg)
