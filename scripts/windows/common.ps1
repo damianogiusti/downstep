@@ -49,6 +49,17 @@ function Initialize-Toolchain {
     }
     if (-not $Engine) { return }
 
+    # CMake's FetchContent checks out Bungee and its submodules (Eigen) with git, and a deep worktree
+    # folder goes past MAX_PATH ('Filename too long'). Turn on core.longpaths for the git processes
+    # started from here, unless the user has it already, after any GIT_CONFIG_* entries already set.
+    $longPaths = if (Get-Command git.exe -ErrorAction SilentlyContinue) { & git.exe config --get core.longpaths }
+    if ($longPaths -ne 'true') {
+        $n = if ($env:GIT_CONFIG_COUNT) { [int]$env:GIT_CONFIG_COUNT } else { 0 }
+        Set-Item "env:GIT_CONFIG_KEY_$n" 'core.longpaths'
+        Set-Item "env:GIT_CONFIG_VALUE_$n" 'true'
+        $env:GIT_CONFIG_COUNT = "$($n + 1)"
+    }
+
     $msys = if ($env:MSYS2_ROOT) { $env:MSYS2_ROOT } else { 'C:\msys64' }
     $winget = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Packages'
     $wingetNinja = if (Test-Path $winget) {

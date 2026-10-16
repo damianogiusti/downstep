@@ -29,6 +29,9 @@ Android SDK (the shared modules also have an Android target, so Gradle needs it 
 - Windows: MinGW-w64 GCC and Ninja, for example from MSYS2 (`mingw-w64-ucrt-x86_64-gcc`,
   `-cmake`, `-ninja`), as in the release workflow. Bungee does not build with MSVC. The scripts find
   them on `PATH`, in `C:\msys64\ucrt64\bin` and in a few other usual places.
+  The engine's CMake build checks out Bungee and Eigen with git, which a deep folder takes past
+  Windows' path limit: the scripts turn on git's `core.longpaths` for it. Running Gradle or CMake
+  directly from a deep folder needs `git config --global core.longpaths true`.
 - Linux: GCC or Clang, and `fakeroot` and `dpkg` for the `.deb`.
 - For the Docker targets: Docker only. The image has everything else.
 
