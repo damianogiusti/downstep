@@ -36,6 +36,13 @@ data class BackupTrackDto(
     val audio: String,
     val practiceState: BackupSettingsDto? = null,
     val presets: List<BackupPresetDto> = emptyList(),
+    // Named loops came after version 1 of the format: every field is optional, so older backups
+    // restore without them and older apps skip them (unknown keys are ignored).
+    val loops: List<BackupLoopDto> = emptyList(),
+    /** Index in [loops] of the active one. */
+    val activeLoop: Int? = null,
+    val bpm: Float? = null,
+    val snapToBeat: Boolean? = null,
 )
 
 @Serializable
@@ -52,3 +59,22 @@ data class BackupPresetDto(val name: String, val settings: BackupSettingsDto)
 
 @Serializable
 data class BackupPlaylistDto(val name: String, val trackIds: List<String> = emptyList())
+
+@Serializable
+data class BackupLoopDto(
+    val name: String,
+    val start: Float,
+    val end: Float,
+    val passes: Int = 0,
+    val notes: String = "",
+    val progression: BackupProgressionDto? = null,
+)
+
+@Serializable
+data class BackupProgressionDto(
+    val enabled: Boolean,
+    val fromPercent: Float,
+    val toPercent: Float,
+    val stepPercent: Float,
+    val everyPasses: Int,
+)

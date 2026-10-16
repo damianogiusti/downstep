@@ -2,6 +2,7 @@ package com.damianogiusti.slowdowner.fake
 
 import com.damianogiusti.slowdowner.data.backup.BackupDao
 import com.damianogiusti.slowdowner.data.library.TrackEntity
+import com.damianogiusti.slowdowner.data.loops.LoopEntity
 import com.damianogiusti.slowdowner.data.playlists.PlaylistEntity
 import com.damianogiusti.slowdowner.data.playlists.PlaylistTrackEntity
 import com.damianogiusti.slowdowner.data.practice.PracticePresetEntity
@@ -13,6 +14,7 @@ class FakeBackupDao : BackupDao {
     val tracks = mutableListOf<TrackEntity>()
     val states = mutableListOf<PracticeStateEntity>()
     val presets = mutableListOf<PracticePresetEntity>()
+    val loops = mutableListOf<LoopEntity>()
     val playlists = mutableListOf<PlaylistEntity>()
     val links = mutableListOf<PlaylistTrackEntity>()
 
@@ -21,6 +23,7 @@ class FakeBackupDao : BackupDao {
 
     private var nextPresetId = 1L
     private var nextPlaylistId = 1L
+    private var nextLoopId = 1L
 
     fun addPlaylist(name: String, trackIds: List<String>): Long {
         val id = nextPlaylistId++
@@ -28,6 +31,8 @@ class FakeBackupDao : BackupDao {
         trackIds.forEachIndexed { position, trackId -> links += PlaylistTrackEntity(id, trackId, position) }
         return id
     }
+
+    fun addLoop(loop: LoopEntity): LoopEntity = loop.copy(id = nextLoopId++).also { loops += it }
 
     fun addPreset(preset: PracticePresetEntity) {
         presets += preset.copy(id = nextPresetId++)
@@ -67,6 +72,20 @@ class FakeBackupDao : BackupDao {
     override suspend fun findState(trackId: String) = states.firstOrNull { it.trackId == trackId }
 
     override suspend fun presetsOf(trackId: String) = presets.filter { it.trackId == trackId }.sortedBy { it.createdAt }
+
+    override suspend fun loopsOf(trackId: String) =
+        loops.filter { it.trackId == trackId }.sortedWith(compareBy({ it.start }, { it.id }))
+
+    override suspend fun hasLoops(trackId: String) = loops.any { it.trackId == trackId }
+
+    override suspend fun insertLoop(loop: LoopEntity): Long {
+        requireTrack(loop.trackId)
+        return addLoop(loop).id
+    }
+
+    override suspend fun setActiveLoop(trackId: String, loopId: Long) {
+        states.replaceAll { if (it.trackId == trackId) it.copy(activeLoopId = loopId) else it }
+    }
 
     override suspend fun insertTrackIfAbsent(track: TrackEntity): Long {
         if (trackExists(track.id)) return -1

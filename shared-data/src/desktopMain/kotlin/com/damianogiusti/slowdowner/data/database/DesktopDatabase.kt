@@ -10,5 +10,6 @@ import java.io.File
 fun desktopDatabase(file: File): SlowDownerDatabase =
     Room.databaseBuilder<SlowDownerDatabase>(name = file.absolutePath)
         .setDriver(BundledSQLiteDriver())
+        .addMigrations(*SlowDownerMigrations.ALL)
         .setQueryCoroutineContext(Dispatchers.IO)
         .build()
