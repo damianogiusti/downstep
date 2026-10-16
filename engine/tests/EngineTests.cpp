@@ -16,6 +16,7 @@
 #include <functional>
 #include <new>
 #include <string>
+#include <thread>
 #include <vector>
 
 // Allocation counter for the render path. operator new is replaced for the whole binary; with GNU
@@ -508,6 +509,57 @@ void peaksOutlineTheOpenFile() {
     std::filesystem::remove(path);
 }
 
+/** A container's length is a hint: a corrupt one must not reserve gigabytes, nor throw out of the decode. */
+void aCorruptLengthReservesOnlyWhatTheFileCanHold() {
+    const auto buffer = [](int sampleRate) {
+        PcmBuffer pcm;
+        pcm.sampleRate = sampleRate;
+        pcm.channels = 2;
+        pcm.data.assign(2, {});
+        return pcm;
+    };
+    // 4 billion frames announced by a 1000-byte file: 128 frames per byte at most.
+    PcmBuffer small = buffer(48000);
+    reservePcm(small, 4'000'000'000LL, 1000);
+    CHECK(small.data[0].capacity() == 128'000 && small.data[1].capacity() == 128'000, "reserved %ld frames",
+          long(small.data[0].capacity()));
+    // Size unknown: three hours at most.
+    PcmBuffer unknown = buffer(10);
+    reservePcm(unknown, 1'000'000'000'000LL, 0);
+    CHECK(unknown.data[0].capacity() == 10 * 3 * 60 * 60, "reserved %ld frames", long(unknown.data[0].capacity()));
+    // More than any machine has: the reserve fails quietly and the decode grows the vectors itself.
+    PcmBuffer huge = buffer(2'000'000'000);
+    reservePcm(huge, 4'000'000'000'000'000LL, 0);
+    CHECK(huge.data[0].capacity() == 0 && huge.data[1].capacity() == 0, "kept %ld frames", long(huge.data[0].capacity()));
+}
+
+/** The app opens files on one thread and exports on another: the export must read one file whole. */
+void exportBeginsWhileAnotherFileOpens(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    const auto output = tempPath("sdengine-export-race.mp3");
+    std::atomic<bool> done{false};
+    std::thread opener([&] {
+        for (int i = 0; i < 20; ++i) {
+            sd_engine_close(e);
+            sd_engine_open(e, path.c_str());
+        }
+        done.store(true);
+    });
+    int started = 0;
+    while (!done.load()) {
+        if (SdExport *exporter = sd_export_begin(e, output.c_str(), 128)) {
+            ++started;
+            sd_export_next(exporter);
+            sd_export_end(exporter);
+        }
+    }
+    opener.join();
+    CHECK(sd_engine_is_open(e) == 1, "the last open did not land");
+    std::printf("     %d exports started during the opens\n", started);
+    std::filesystem::remove(output);
+    sd_engine_destroy(e);
+}
+
 } // namespace
 
 int main() {
@@ -531,6 +583,8 @@ int main() {
         {"flushes denormals in scope", [] { flushesDenormalsInScope(); }},
         {"rendering does not allocate", [&] { renderingDoesNotAllocate(path); }},
         {"peaks outline the open file", [] { peaksOutlineTheOpenFile(); }},
+        {"a corrupt length reserves only what the file can hold", [] { aCorruptLengthReservesOnlyWhatTheFileCanHold(); }},
+        {"export begins while another file opens", [&] { exportBeginsWhileAnotherFileOpens(path); }},
     };
     for (const auto &[name, test] : tests) {
         const int before = failures;

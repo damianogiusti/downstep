@@ -84,7 +84,15 @@ SdEngine *sd_engine_create(int withDevice, int manualSampleRate) {
 
 void sd_engine_destroy(SdEngine *engine) { delete engine; }
 
-int sd_engine_open(SdEngine *engine, const char *utf8Path) { return engine->player->open(utf8Path) ? 1 : 0; }
+int sd_engine_open(SdEngine *engine, const char *utf8Path) {
+    // A decode can run out of memory (a long file, a corrupt header): an exception crossing into the
+    // JVM would end the whole app. A file that cannot be decoded is all it is.
+    try {
+        return engine->player->open(utf8Path) ? 1 : 0;
+    } catch (...) {
+        return 0;
+    }
+}
 
 void sd_engine_close(SdEngine *engine) { engine->player->close(); }
 

@@ -63,12 +63,19 @@ int64_t expectedFrames(IMFSourceReader *reader, UINT32 sampleRate) {
     int64_t frames = 0;
     if (SUCCEEDED(reader->GetPresentationAttribute(DWORD(MF_SOURCE_READER_MEDIASOURCE), MF_PD_DURATION, &duration)) &&
         duration.vt == VT_UI8) {
-        // 100 ns units. Capped at a day, so a corrupt header cannot ask for gigabytes up front.
+        // 100 ns units. Capped at a day only to keep the arithmetic in range: reservePcm bounds it.
         const double seconds = std::min(double(duration.uhVal.QuadPart) / 1e7, 86400.0);
         frames = int64_t(seconds * sampleRate);
     }
     PropVariantClear(&duration);
     return frames;
+}
+
+/** 0 when the size cannot be read: reservePcm then keeps only its time cap. */
+uint64_t fileBytes(const std::string &path) {
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    if (!GetFileAttributesExW(widen(path).c_str(), GetFileExInfoStandard, &data)) return 0;
+    return (uint64_t(data.nFileSizeHigh) << 32) | data.nFileSizeLow;
 }
 
 } // namespace
@@ -128,11 +135,10 @@ bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error) {
     out.data.assign(channels, {});
     // Size the channels once from the container's duration: growing them block by block copied
     // everything decoded so far each time with MinGW's exact-size reserve (minutes for a long M4A).
-    // The duration is only a hint: a missing or short one falls back to the vector's own growth.
+    // The duration is only a hint: a missing or short one falls back to the vector's own growth, and
+    // an absurd one is capped (reservePcm).
     const int64_t expected = expectedFrames(reader.Get(), sampleRate);
-    if (expected > 0) {
-        for (auto &channel : out.data) channel.reserve(size_t(expected + expected / 64 + sampleRate));
-    }
+    if (expected > 0) reservePcm(out, expected + expected / 64 + sampleRate, fileBytes(path));
 
     while (true) {
         DWORD flags = 0;

@@ -42,16 +42,18 @@ struct SdExport {
 
 extern "C" {
 
-SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps) {
+SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps) try {
     Player *source = sdEnginePlayer(engine);
-    if (!source->isOpen()) return nullptr;
+    // The open file's decoded audio, shared read-only: no second decode, no second copy in memory,
+    // and it stays alive for the export even if the player moves on to another file. Buffer, path
+    // and rate come from one locked read: a file opening on another thread cannot mix two files.
+    auto open = source->snapshot();
+    if (!open.source) return nullptr;
+    const int rate = open.source->sampleRate;
 
     auto exporter = std::make_unique<SdExport>();
-    const int rate = source->sourceSampleRate();
     exporter->player = std::make_unique<Player>(rate, kChunkFrames);
-    // The open file's decoded audio, shared read-only: no second decode, no second copy in memory,
-    // and it stays alive for the export even if the player moves on to another file.
-    if (!exporter->player->open(source->source(), source->path())) return nullptr;
+    if (!exporter->player->open(std::move(open.source), open.path)) return nullptr;
     exporter->player->applySettings(source->settings());
 
     exporter->file = openFileUtf8(utf8OutputPath, "wb");
@@ -65,6 +67,9 @@ SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitr
 
     exporter->player->setPlaying(true);
     return exporter.release();
+} catch (...) {
+    // Out of memory, most likely: nothing may cross into the JVM.
+    return nullptr;
 }
 
 double sd_export_next(SdExport *exporter) {

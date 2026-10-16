@@ -2,6 +2,8 @@
 
 #include <miniaudio.h>
 
+#include <sys/stat.h>
+
 #include <algorithm>
 #include <memory>
 
@@ -56,11 +58,14 @@ bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error) {
     out.sampleRate = int(sampleRate);
     out.channels = int(channels);
     out.data.assign(channels, {});
-    // A hint only (MP3 lengths are estimates): the vectors grow on their own past it.
+    // A hint only (MP3 lengths are estimates): the vectors grow on their own past it, and an absurd
+    // one is capped (reservePcm).
     ma_uint64 expected = 0;
     if (ma_decoder_get_length_in_pcm_frames(decoder.get(), &expected) == MA_SUCCESS && expected > 0) {
+        struct stat file {};
+        const uint64_t bytes = stat(path.c_str(), &file) == 0 ? uint64_t(file.st_size) : 0;
         expected = std::min<ma_uint64>(expected, ma_uint64(sampleRate) * 86400);
-        for (auto &channel : out.data) channel.reserve(size_t(expected));
+        reservePcm(out, int64_t(expected), bytes);
     }
 
     constexpr ma_uint64 kChunkFrames = 32768;
