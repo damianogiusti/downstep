@@ -1,5 +1,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.compose.desktop.application.tasks.AbstractJLinkTask
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
@@ -146,12 +148,23 @@ tasks.withType<AbstractJLinkTask>().configureEach {
     doLast {
         val launcherName = if (isWindows) "java.exe" else "java"
         val borrowed = runtime.get().asFile.resolve("bin/$launcherName")
-        File(jdk.get(), "bin/$launcherName").copyTo(borrowed, overwrite = true)
+        // Only a slower start without it: any failure is worth a warning, not a failed release.
         try {
+            borrowed.parentFile.mkdirs()
+            // With its attributes: File.copyTo drops the execute bit, and on Linux and macOS the
+            // launcher then cannot run (error=13).
+            Files.copy(
+                File(jdk.get(), "bin/$launcherName").toPath(),
+                borrowed.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.COPY_ATTRIBUTES,
+            )
+            borrowed.setExecutable(true)
             val dump = ProcessBuilder(borrowed.path, "-Xshare:dump").redirectErrorStream(true).start()
             val output = dump.inputStream.bufferedReader().readText()
-            // Only a slower start without it: worth a warning, not a failed release.
             if (dump.waitFor() != 0) logger.warn("No CDS archive in the bundled runtime: $output")
+        } catch (e: Exception) {
+            logger.warn("No CDS archive in the bundled runtime: ${e.message}")
         } finally {
             borrowed.delete()
             borrowed.parentFile.delete() // only if the image had no bin folder of its own
