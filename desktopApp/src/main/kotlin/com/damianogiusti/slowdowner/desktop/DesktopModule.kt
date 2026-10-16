@@ -24,6 +24,7 @@ import com.damianogiusti.slowdowner.data.library.OkHttpFileDataSource
 import com.damianogiusti.slowdowner.data.library.PassthroughContainerDataSource
 import com.damianogiusti.slowdowner.data.library.RoomLibraryStore
 import com.damianogiusti.slowdowner.data.library.YouTubeStreamDataSource
+import com.damianogiusti.slowdowner.data.loops.DefaultLoopRepository
 import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
@@ -34,6 +35,9 @@ import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
 import com.damianogiusti.slowdowner.data.support.DefaultSupportPromptRepository
 import com.damianogiusti.slowdowner.data.support.PreferencesSupportPromptStore
 import com.damianogiusti.slowdowner.data.support.SupportPromptStore
+import com.damianogiusti.slowdowner.data.theme.DefaultThemeRepository
+import com.damianogiusti.slowdowner.data.theme.PreferencesThemeStore
+import com.damianogiusti.slowdowner.data.theme.ThemeStore
 import com.damianogiusti.slowdowner.data.update.DefaultUpdateRepository
 import com.damianogiusti.slowdowner.data.update.GitHubReleaseDataSource
 import com.damianogiusti.slowdowner.data.update.ReleaseDataSource
@@ -45,6 +49,7 @@ import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
 import com.damianogiusti.slowdowner.domain.effects.EffectsSettingsRepository
 import com.damianogiusti.slowdowner.domain.export.ExportRepository
 import com.damianogiusti.slowdowner.domain.library.LibraryRepository
+import com.damianogiusti.slowdowner.domain.loops.LoopRepository
 import com.damianogiusti.slowdowner.domain.playback.NowPlayingRepository
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.playlists.PlaylistRepository
@@ -56,6 +61,7 @@ import com.damianogiusti.slowdowner.domain.support.RecordAppLaunchUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportSupportPromptShownUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportWhyFreeOpenedUseCase
 import com.damianogiusti.slowdowner.domain.support.SupportPromptRepository
+import com.damianogiusti.slowdowner.domain.theme.ThemeRepository
 import com.damianogiusti.slowdowner.domain.update.CheckForUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.InstallUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.ObserveAvailableUpdateUseCase
@@ -90,6 +96,7 @@ fun desktopModule(
     supportPromptStore: SupportPromptStore = PreferencesSupportPromptStore(),
     logger: Logger = ConsoleLogger(),
     updates: UpdateSettings = UpdateSettings(),
+    themeStore: ThemeStore = PreferencesThemeStore(),
 ) = module {
     single { directories }
     single { logger }
@@ -130,6 +137,8 @@ fun desktopModule(
     }
     single { get<SlowDownerDatabase>().practiceDao() }
     single<PracticeRepository> { DefaultPracticeRepository(get(), Dispatchers.IO) }
+    single<LoopRepository> { DefaultLoopRepository(get<SlowDownerDatabase>().loopDao(), Dispatchers.IO) }
+    single<ThemeRepository> { DefaultThemeRepository(themeStore, Dispatchers.IO) }
     single { get<SlowDownerDatabase>().playlistDao() }
     single<PlaylistRepository> { DefaultPlaylistRepository(get(), Dispatchers.IO) }
     single { get<SlowDownerDatabase>().backupDao() }
