@@ -23,6 +23,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -84,42 +87,65 @@ class DesktopPlaybackEngine(
     override var quality = ProcessingQuality.HIGH
         private set
 
-    // A poll can be halfway through a native call on another thread when close() runs: freeing the
-    // engine then would crash the process (it did, when the app quit). The lock makes them take turns.
-    private val closeLock = Any()
+    // Calls from other threads can be halfway through native code when close() runs: a poll, the
+    // waveform's peaks, a decode on the IO dispatcher. Freeing the engine then would crash the process
+    // (it did, when the app quit). They share the read side, so a long decode blocks neither the poll
+    // nor the waveform; close() takes the write side and waits for them all.
+    private val lifecycle = ReentrantReadWriteLock()
+    @Volatile
     private var isClosed = false
 
     private val polling: Job = scope.launch {
         while (isActive) {
             delay(pollInterval)
-            synchronized(closeLock) { if (!isClosed) poll() }
+            lifecycle.read { if (!isClosed) poll() }
         }
     }
 
-    /** Stops polling, waits for a poll in progress, then frees the native engine. */
+    /**
+     * Stops polling, waits for the calls in progress (a decode included), then frees the native engine.
+     * A decode that does not end within a few seconds keeps the engine alive: the process is about to
+     * exit, and a leak there is harmless where freeing it under the decode is not.
+     */
     override fun close() {
+        close(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    }
+
+    /** False when the calls in progress outlasted [timeout]: the engine is then left allocated. */
+    internal fun close(timeout: Long, unit: TimeUnit): Boolean {
         polling.cancel()
-        synchronized(closeLock) {
+        val write = lifecycle.writeLock()
+        if (!write.tryLock(timeout, unit)) {
             isClosed = true
-            engine.close()
+            return false
         }
+        try {
+            if (!isClosed) engine.close()
+            isClosed = true
+        } finally {
+            write.unlock()
+        }
+        return true
     }
 
     /**
      * Decodes the whole file: blocking, call it off the UI thread. The C engine clears the loop of the
      * previous file; speed, pitch and effects carry over until the caller applies the track's own.
+     * False once the engine is closed.
      */
-    fun openFile(path: String): Boolean {
+    fun openFile(path: String): Boolean = lifecycle.read {
+        if (isClosed) return@read false
         val opened = engine.open(path)
         if (opened) {
             applyLoop(LoopRegion.WHOLE_FILE)
             publishPosition()
             _events.tryEmit(PlaybackEvent.ControlsChanged)
         }
-        return opened
+        opened
     }
 
-    fun closeFile() {
+    fun closeFile() = lifecycle.read {
+        if (isClosed) return@read
         engine.closeFile()
         publishPosition()
         _events.tryEmit(PlaybackEvent.PlayStateChanged)
@@ -191,7 +217,7 @@ class DesktopPlaybackEngine(
     override fun shiftLoopBackward() = editLoop { LoopEditing.shiftBackward(it) }
 
     // Called off the main thread by the waveform: it must not race close() freeing the engine.
-    override fun peaks(from: Float, to: Float, buckets: Int): FloatArray = synchronized(closeLock) {
+    override fun peaks(from: Float, to: Float, buckets: Int): FloatArray = lifecycle.read {
         if (isClosed) FloatArray(0) else engine.peaks(from.toDouble(), to.toDouble(), buckets)
     }
 
@@ -253,5 +279,9 @@ class DesktopPlaybackEngine(
             _events.tryEmit(PlaybackEvent.PlayStateChanged)
             _events.tryEmit(PlaybackEvent.ReachedEnd)
         }
+    }
+
+    private companion object {
+        const val CLOSE_TIMEOUT_SECONDS = 5L
     }
 }
