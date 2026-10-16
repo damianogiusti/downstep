@@ -1,0 +1,10 @@
+# Line endings that must not depend on the checkout. Scripts for sh keep LF also in a Windows
+# checkout (the Docker image and Linux hosts run them); PowerShell and cmd scripts get CRLF.
+# Only these paths: the rest of the repository keeps Git's defaults.
+gradlew          text eol=lf
+*.sh             text eol=lf
+Makefile         text eol=lf
+justfile         text eol=lf
+docker/Dockerfile text eol=lf
+*.ps1            text eol=crlf
+*.cmd            text eol=crlf
