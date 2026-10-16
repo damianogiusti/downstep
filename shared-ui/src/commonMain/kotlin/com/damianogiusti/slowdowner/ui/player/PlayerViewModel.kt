@@ -292,6 +292,8 @@ class PlayerViewModel(
     private var exportJob: Job? = null
     private var analysisJob: Job? = null
     private var notesJob: Job? = null
+    // Also read by flushPendingNotes() on the quit path, off the main thread.
+    @Volatile
     private var pendingNotes: Pair<Long, String>? = null
     /** The previous playhead seen by the wrap detector; null right after a jump the user made. */
     private var lastTick: Float? = null
@@ -788,10 +790,22 @@ class PlayerViewModel(
     }
 
     private fun flushNotes() {
-        notesJob?.cancel()
-        val (loopId, text) = pendingNotes ?: return
-        pendingNotes = null
+        val (loopId, text) = takePendingNotes() ?: return
         viewModelScope.launch { loops.updateNotes(loopId, text) }
+    }
+
+    /**
+     * Saves the notes still waiting for their debounce, and waits for the write. Called when the app
+     * quits: the process exits before the pause ends, and before a cancelled scope could save them.
+     */
+    suspend fun flushPendingNotes() {
+        val (loopId, text) = takePendingNotes() ?: return
+        loops.updateNotes(loopId, text)
+    }
+
+    private fun takePendingNotes(): Pair<Long, String>? {
+        notesJob?.cancel()
+        return pendingNotes.also { pendingNotes = null }
     }
 
     // Called once per rendered chunk on the IO thread: only publish whole-percent steps.

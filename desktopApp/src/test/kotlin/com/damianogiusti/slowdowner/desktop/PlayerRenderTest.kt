@@ -138,7 +138,7 @@ class PlayerRenderTest {
                     LocalTextInputFocus provides TextInputFocus(),
                 ) {
                     SlowDownerTheme(theme) {
-                        val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel())
+                        val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel(), koinViewModel())
                         player = viewModels.player
                         Column(modifier = Modifier.fillMaxSize()) {
                             Box(modifier = Modifier.weight(1f)) { SlowDownerApp(viewModels, noActions()) }

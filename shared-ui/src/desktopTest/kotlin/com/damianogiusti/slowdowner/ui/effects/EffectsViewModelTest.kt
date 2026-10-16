@@ -76,6 +76,36 @@ class EffectsViewModelTest {
     }
 
     @Test
+    fun `an edit inside the debounce is saved by the quit flush`() = runTest {
+        val viewModel = viewModel()
+        runCurrent()
+        viewModel.onBandChanged(2, 5f)
+        runCurrent()
+        advanceTimeBy(100)
+        assertEquals(0, repository.saves)
+
+        // The app quits: nothing advances the debounce or clears the store any more.
+        viewModel.flushPendingSave()
+
+        assertEquals(1, repository.saves)
+        assertEquals(5f, repository.settings.value.bandGainsDb[2])
+    }
+
+    @Test
+    fun `a quit flush with nothing pending writes nothing`() = runTest {
+        val viewModel = viewModel()
+        runCurrent()
+        viewModel.onBandChanged(2, 5f)
+        runCurrent()
+        advanceTimeBy(UpdateEffectsSettingsUseCase.SAVE_DEBOUNCE_MS + 1)
+        assertEquals(1, repository.saves)
+
+        viewModel.flushPendingSave()
+
+        assertEquals(1, repository.saves)
+    }
+
+    @Test
     fun `isolate changes the engine only, and clearing gives the user's EQ back`() = runTest {
         val viewModel = viewModel()
         runCurrent()

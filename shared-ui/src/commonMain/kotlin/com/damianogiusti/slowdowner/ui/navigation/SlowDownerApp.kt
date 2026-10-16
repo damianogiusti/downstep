@@ -36,6 +36,7 @@ import com.damianogiusti.slowdowner.ui.backup.BackupReadyDialog
 import com.damianogiusti.slowdowner.ui.backup.BackupUiState
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.backup.PlaylistConflictDialog
+import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.common.CollectMessages
 import com.damianogiusti.slowdowner.ui.common.ConfirmDialog
 import com.damianogiusti.slowdowner.ui.library.ImportBanner
@@ -76,6 +77,8 @@ class ActivityViewModels(
     val player: PlayerViewModel,
     val imports: ImportViewModel,
     val backup: BackupViewModel,
+    /** The EQ and Isolate overlay: window-scoped like the player, and flushed with it on quit. */
+    val effects: EffectsViewModel,
 )
 
 /**
@@ -136,7 +139,12 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
             modifier = Modifier.padding(padding).consumeWindowInsets(padding),
         ) {
             composable<PlayerRoute> {
-                PlayerScreen(viewModel = playerViewModel, navigation = playerNavigation, snackbarHostState = snackbarHostState)
+                PlayerScreen(
+                    viewModel = playerViewModel,
+                    navigation = playerNavigation,
+                    snackbarHostState = snackbarHostState,
+                    effects = viewModels.effects,
+                )
             }
             composable<PlaylistRoute>(
                 enterTransition = { slideInHorizontally(tween(TRANSITION_MS)) { it } + fadeIn(tween(TRANSITION_MS)) },

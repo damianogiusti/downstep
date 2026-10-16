@@ -34,6 +34,7 @@ import com.damianogiusti.slowdowner.di.uiModule
 import com.damianogiusti.slowdowner.di.useCasesModule
 import com.damianogiusti.slowdowner.logging.Logger
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
+import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.common.LocalTextInputFocus
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
@@ -54,9 +55,13 @@ import com.damianogiusti.slowdowner.ui.update.UpdateBanner
 import com.damianogiusti.slowdowner.ui.update.UpdateHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import com.damianogiusti.slowdowner.ui.theme.ThemeViewModel
+import com.damianogiusti.slowdowner.domain.practice.SavePracticeStateUseCase
 import com.damianogiusti.slowdowner.domain.theme.ThemeMode
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
@@ -90,6 +95,8 @@ fun main() {
     }
     // Set once the ViewModels exist; read by the window's key handler.
     var shortcuts: PracticeShortcuts? = null
+    // Set once the ViewModels exist; run after the window is gone.
+    var flushOnQuit: (suspend () -> Unit)? = null
     application(exitProcessOnExit = false) {
         // The size the Downstep 2.0 design is drawn at.
         val windowState = rememberWindowState(size = DpSize(1280.dp, 820.dp), position = WindowPosition(Alignment.Center))
@@ -142,7 +149,13 @@ fun main() {
                             if (engine == null) {
                                 EngineUnavailable()
                             } else {
-                                DesktopApp(window, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking) {
+                                DesktopApp(
+                                    window,
+                                    logger,
+                                    onRestart = ::exitApplication,
+                                    installWithoutAsking = updates.installWithoutAsking,
+                                    onQuitFlushReady = { flushOnQuit = it },
+                                ) {
                                     shortcuts = it
                                 }
                             }
@@ -152,8 +165,17 @@ fun main() {
             }
         }
     }
-    // Only now no UI can call the engine any more: stop polling and free the native side.
-    if (engine != null) KoinPlatform.getKoin().get<DesktopPlaybackEngine>().close()
+    if (engine != null) {
+        // The edits still inside a debounce (EQ, notes, speed and loop): the process exits below,
+        // before any pause ends, and nothing cancels the ViewModels on the way out.
+        flushOnQuit?.let { flush ->
+            runCatching { runBlocking(Dispatchers.IO) { withTimeoutOrNull(QUIT_FLUSH_TIMEOUT_MS) { flush() } } }
+                .onFailure { logger.e("Cannot save the last edits on quit", it) }
+        }
+        // No UI calls the engine any more, but a decode may still run on the IO dispatcher: close()
+        // stops polling, waits for it, then frees the native side.
+        KoinPlatform.getKoin().get<DesktopPlaybackEngine>().close()
+    }
     CrashReporting.stop()
     exitProcess(0)
 }
@@ -190,6 +212,9 @@ private fun startEngine(logger: Logger): EngineStart = runCatching {
 
 private const val NO_OUTPUT_SAMPLE_RATE = 44_100
 
+/** Quitting waits this long at most for the last writes (preferences, Room). */
+private const val QUIT_FLUSH_TIMEOUT_MS = 2_000L
+
 @Composable
 private fun NoAudioOutputBanner() {
     Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
@@ -208,6 +233,7 @@ private fun DesktopApp(
     logger: Logger,
     onRestart: () -> Unit,
     installWithoutAsking: Boolean,
+    onQuitFlushReady: (suspend () -> Unit) -> Unit,
     onShortcutsReady: (PracticeShortcuts) -> Unit,
 ) {
     val textInput = remember { TextInputFocus() }
@@ -215,10 +241,20 @@ private fun DesktopApp(
         val player = koinViewModel<PlayerViewModel>()
         val imports = koinViewModel<ImportViewModel>()
         val backup = koinViewModel<BackupViewModel>()
+        val effects = koinViewModel<EffectsViewModel>()
         // One instance for the window's life, so SlowDownerApp's arguments stay equal between recompositions.
-        val viewModels = remember(player, imports, backup) { ActivityViewModels(player, imports, backup) }
+        val viewModels = remember(player, imports, backup, effects) { ActivityViewModels(player, imports, backup, effects) }
         val actions = remember(viewModels) { DesktopActions(window, viewModels, logger).toActivityActions() }
         LaunchedEffect(viewModels.player) { onShortcutsReady(PracticeShortcuts(viewModels.player, textInput)) }
+        LaunchedEffect(viewModels) {
+            val savePracticeState = KoinPlatform.getKoin().get<SavePracticeStateUseCase>()
+            onQuitFlushReady {
+                viewModels.effects.flushPendingSave()
+                viewModels.player.flushPendingNotes()
+                // Speed, pitch and loop wait for the auto-save's pause too.
+                savePracticeState()
+            }
+        }
         Column(modifier = Modifier.fillMaxSize()) {
             UpdateBanner()
             Box(modifier = Modifier.weight(1f)) { SlowDownerApp(viewModels = viewModels, activity = actions) }

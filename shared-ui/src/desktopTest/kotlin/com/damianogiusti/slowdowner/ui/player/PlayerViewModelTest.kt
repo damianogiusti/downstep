@@ -246,6 +246,22 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `notes typed right before quitting are saved by the quit flush`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val loopId = loopRepository.loops.value.single().id
+        viewModel.onNotesChanged(loopId, "Cm7")
+        advanceTimeBy(100)
+
+        // The app quits: nothing advances the debounce or cancels the scope any more.
+        viewModel.flushPendingNotes()
+
+        assertEquals("Cm7", loopRepository.loops.value.single().notes)
+        advanceTimeBy(PlayerViewModel.NOTES_SAVE_DEBOUNCE_MS * 2)
+        runCurrent()
+        assertEquals("Cm7", loopRepository.loops.value.single().notes)
+    }
+
+    @Test
     fun `without the seams Analyze, Metronome and Count-in do nothing`() = runTest(main) {
         val viewModel = openWithLoop()
 
