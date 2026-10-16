@@ -9,6 +9,7 @@ import com.damianogiusti.slowdowner.domain.backup.SaveBackupUseCase
 import com.damianogiusti.slowdowner.domain.effects.ApplyEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.effects.ObserveEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.effects.RestoreEffectsSettingsUseCase
+import com.damianogiusti.slowdowner.domain.effects.SetBandIsolationUseCase
 import com.damianogiusti.slowdowner.domain.effects.UpdateEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
@@ -63,6 +64,7 @@ val useCasesModule = module {
     factoryOf(::ObserveEffectsSettingsUseCase)
     factoryOf(::UpdateEffectsSettingsUseCase)
     factoryOf(::RestoreEffectsSettingsUseCase)
+    factoryOf(::SetBandIsolationUseCase)
     factoryOf(::ExportTrackUseCase)
     factoryOf(::SaveExportUseCase)
     factoryOf(::SavePracticeStateUseCase)
