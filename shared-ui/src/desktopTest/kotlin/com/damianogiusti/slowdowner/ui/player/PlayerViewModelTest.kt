@@ -36,6 +36,8 @@ import com.damianogiusti.slowdowner.domain.practice.ApplyPresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.DeletePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.ObservePresetsUseCase
 import com.damianogiusti.slowdowner.domain.practice.OpenTrackForPracticeUseCase
+import com.damianogiusti.slowdowner.domain.practice.PracticePreset
+import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
 import com.damianogiusti.slowdowner.domain.practice.SavePracticeStateUseCase
 import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
@@ -142,6 +144,19 @@ class PlayerViewModelTest {
 
         assertEquals(0, loopRepository.loops.value.first { it.id == solo.id }.passes)
         assertEquals(intro.id, viewModel.loopChips.value.chips.firstOrNull { it.isActive }?.id)
+    }
+
+    @Test
+    fun `a preset sets speed and pitch but the active loop keeps its bounds`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val elsewhere = PracticePreset(1, TRACK.id, "Old", PracticeSettings(70f, -1f, LoopRegion(0.6f, 0.8f, isOn = true)))
+
+        viewModel.onPresetSelected(elsewhere)
+        runCurrent()
+
+        assertEquals(70f, engine.speedPercent)
+        assertEquals(-1f, engine.pitchSemitones)
+        assertEquals(LoopRegion(0.2f, 0.4f, isOn = true), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
     }
 
     @Test
@@ -409,6 +424,7 @@ class PlayerViewModelTest {
                 SavePracticeStateUseCase(engine, nowPlaying, practiceRepository),
                 engine,
                 practiceRepository,
+                loopRepository,
             ),
             observeNowPlaying = ObserveNowPlayingUseCase(nowPlaying),
             practice = PracticeUseCases(
@@ -416,7 +432,7 @@ class PlayerViewModelTest {
                 StepPitchUseCase(engine),
                 ObservePresetsUseCase(practiceRepository),
                 SavePresetUseCase(engine, nowPlaying, practiceRepository),
-                ApplyPresetUseCase(engine),
+                ApplyPresetUseCase(engine, loopRepository, nowPlaying),
                 DeletePresetUseCase(practiceRepository),
             ),
             loops = LoopUseCases(

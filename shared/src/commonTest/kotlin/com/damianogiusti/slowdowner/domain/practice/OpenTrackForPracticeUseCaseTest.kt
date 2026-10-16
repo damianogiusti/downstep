@@ -2,6 +2,7 @@ package com.damianogiusti.slowdowner.domain.practice
 
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
+import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.NowPlayingRepository
 import com.damianogiusti.slowdowner.domain.playback.OpenTrackUseCase
@@ -9,6 +10,7 @@ import com.damianogiusti.slowdowner.domain.source.AudioSource
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
+import com.damianogiusti.slowdowner.fake.FakeLoopRepository
 import com.damianogiusti.slowdowner.fake.FakePracticeRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Runnable
@@ -20,6 +22,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** The decode leaves the caller's (main) thread; marking the track and applying its settings do not. */
@@ -28,6 +31,7 @@ class OpenTrackForPracticeUseCaseTest {
     private val log = mutableListOf<String>()
     private val engine = FakeEngine()
     private val repository = FakePracticeRepository()
+    private val loops = FakeLoopRepository()
     private val songA = LibraryTrack("a", "A", "/a.m4a", null, 0)
     private val songB = LibraryTrack("b", "B", "/b.m4a", null, 0)
     private val practised = PracticeSettings(75f, -2f, LoopRegion(0.2f, 0.4f, isOn = true))
@@ -50,6 +54,7 @@ class OpenTrackForPracticeUseCaseTest {
         nowPlaying.set(songA)
         log.clear()
         repository.saveLastState("b", practised)
+        loops.setActiveLoop("b", assertNotNull(loops.create("b", "Solo", LoopBounds(0.2f, 0.4f))).id)
         // Other work on the caller's dispatcher, at every chance it gets: what an auto-save would see.
         var sawHalfOpened = false
         val other = launch {
@@ -75,7 +80,7 @@ class OpenTrackForPracticeUseCaseTest {
         decode: CoroutineDispatcher,
     ): OpenTrackForPracticeUseCase {
         val save = SavePracticeStateUseCase(engine, nowPlaying, repository)
-        return OpenTrackForPracticeUseCase(OpenTrackUseCase(sources, nowPlaying, decode), save, engine, repository)
+        return OpenTrackForPracticeUseCase(OpenTrackUseCase(sources, nowPlaying, decode), save, engine, repository, loops)
     }
 
     private inner class RecordingSources(

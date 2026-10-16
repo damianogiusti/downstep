@@ -651,7 +651,11 @@ class PlayerViewModel(
         }
     }
 
-    fun onPresetSelected(preset: PracticePreset) = control { practice.applyPreset(preset) }
+    /** Speed, pitch and the loop switch; the active loop keeps its bounds. A new speed breaks the pass. */
+    fun onPresetSelected(preset: PracticePreset) = control {
+        onIntervention()
+        viewModelScope.launch { practice.applyPreset(preset) }
+    }
 
     fun onPresetDeleteConfirmed(preset: PracticePreset) {
         viewModelScope.launch { practice.deletePreset(preset) }

@@ -17,6 +17,9 @@ internal suspend fun LoopRepository.isActive(loop: Loop): Boolean = trackLoops(l
 
 internal fun Loop.toRegion(isOn: Boolean) = LoopRegion(start, end, isOn)
 
+/** What the engine loops for this track: the active loop, or nothing (the whole file, off) without one. */
+internal fun TrackLoops.activeLoopRegion(isOn: Boolean): LoopRegion = activeLoop?.toRegion(isOn) ?: LoopRegion.WHOLE_FILE
+
 /** Progression drives the speed: only touch the engine when the value really changes. */
 internal fun PlaybackEngine.applyProgressionSpeed(loop: Loop) {
     if (!loop.progression.enabled) return

@@ -2,12 +2,15 @@ package com.damianogiusti.slowdowner.domain.practice
 
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
+import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.fake.FakeEngine
+import com.damianogiusti.slowdowner.fake.FakeLoopRepository
 import com.damianogiusti.slowdowner.fake.FakePracticeRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.test.Test
 
@@ -18,6 +21,8 @@ class PresetUseCasesTest {
     private val repository = FakePracticeRepository()
     private val savePreset = SavePresetUseCase(engine, nowPlaying, repository)
     private val song = LibraryTrack("a", "A", "/a.m4a", null, 0)
+    private val loops = FakeLoopRepository()
+    private val applyPreset = ApplyPresetUseCase(engine, loops, nowPlaying)
 
     @Test
     fun `when the name is blank then the preset is rejected`() = runTest {
@@ -58,15 +63,41 @@ class PresetUseCasesTest {
     }
 
     @Test
-    fun `when a preset is applied then the engine gets its speed pitch and loop`() {
-        val preset = PracticePreset(1, "a", "Solo", PracticeSettings(75f, -2f, LoopRegion(0.2f, 0.4f, isOn = true)))
+    fun `when a preset is applied then the engine gets its speed and pitch and keeps the active loop`() = runTest {
+        nowPlaying.set(song)
+        activeLoop(LoopBounds(0.3f, 0.5f))
 
-        ApplyPresetUseCase(engine)(preset)
+        applyPreset(preset(LoopRegion(0.2f, 0.4f, isOn = true)))
 
         assertEquals(
-            listOf("speed:75.0", "pitch:-2.0", "loop:${LoopRegion(0.2f, 0.4f, isOn = true)}"),
+            listOf("speed:75.0", "pitch:-2.0", "loop:${LoopRegion(0.3f, 0.5f, isOn = true)}"),
             engine.practiceCalls,
         )
+    }
+
+    @Test
+    fun `when a preset loops but the track has no active loop then nothing loops`() = runTest {
+        nowPlaying.set(song)
+
+        applyPreset(preset(LoopRegion(0.2f, 0.4f, isOn = true)))
+
+        assertEquals(LoopRegion.WHOLE_FILE, LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+    }
+
+    @Test
+    fun `when a preset has the loop off then the active loop is kept but off`() = runTest {
+        nowPlaying.set(song)
+        activeLoop(LoopBounds(0.3f, 0.5f))
+
+        applyPreset(preset(LoopRegion(0.2f, 0.4f, isOn = false)))
+
+        assertEquals(LoopRegion(0.3f, 0.5f, isOn = false), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+    }
+
+    private fun preset(loop: LoopRegion) = PracticePreset(1, "a", "Solo", PracticeSettings(75f, -2f, loop))
+
+    private suspend fun activeLoop(bounds: LoopBounds) {
+        loops.setActiveLoop(song.id, assertNotNull(loops.create(song.id, "Solo", bounds)).id)
     }
 
     @Test
