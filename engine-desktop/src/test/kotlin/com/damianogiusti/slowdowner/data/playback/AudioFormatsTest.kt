@@ -5,12 +5,15 @@ import java.nio.file.Files
 import kotlin.math.abs
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.junit.Assume.assumeTrue
 
 /**
  * The formats the app imports, through the OS decoder (AudioToolbox on macOS, Media Foundation on
- * Windows). Each file is a 3 s, 441 Hz stereo tone made with ffmpeg. The folder name has accents:
- * user folders often do, and Windows needs wide-character paths for them.
+ * Windows; miniaudio on Linux, which has no AAC). Each file is a 3 s, 441 Hz stereo tone made with
+ * ffmpeg. The folder name has accents: user folders often do, and Windows needs wide-character paths
+ * for them.
  */
 class AudioFormatsTest {
 
@@ -25,18 +28,30 @@ class AudioFormatsTest {
 
     /** YouTube's DASH audio, as the desktop keeps it after an import. */
     @Test
-    fun `a fragmented DASH m4a decodes`() = assertPlays("fragmented-dash.m4a")
+    fun `a fragmented DASH m4a decodes`() {
+        assumeTrue("no AAC decoder on Linux", HAS_AAC)
+        assertPlays("fragmented-dash.m4a")
+    }
 
     /** What Android's import writes, and what restored backups bring. */
     @Test
-    fun `a progressive m4a decodes`() = assertPlays("progressive.m4a")
+    fun `a progressive m4a decodes`() {
+        assumeTrue("no AAC decoder on Linux", HAS_AAC)
+        assertPlays("progressive.m4a")
+    }
+
+    @Test
+    fun `an m4a fails cleanly where there is no AAC decoder`() {
+        assumeTrue(!HAS_AAC)
+        assertFalse(native.open(fixture("progressive.m4a").path))
+    }
 
     @Test
     fun `an mp3 decodes`() = assertPlays("tone.mp3")
 
     @Test
     fun `an export writes to a path with accents`() {
-        assertTrue(native.open(fixture("progressive.m4a").path))
+        assertTrue(native.open(fixture(if (HAS_AAC) "progressive.m4a" else "tone.mp3").path))
         val output = File(folder, "Più lento.mp3")
         val export = requireNotNull(native.beginExport(output.path)) { "export did not start" }
         while (export.next() != null) Unit
@@ -64,5 +79,8 @@ class AudioFormatsTest {
 
     private companion object {
         const val RATE = 44_100
+
+        /** Linux decodes with miniaudio: WAV, FLAC and MP3 only. */
+        val HAS_AAC = !System.getProperty("os.name").startsWith("Linux")
     }
 }
