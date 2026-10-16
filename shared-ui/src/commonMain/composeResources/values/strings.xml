@@ -314,7 +314,7 @@
     <string name="hint_loops">loops</string>
     <string name="hint_focus">focus</string>
     <!-- Waveform and zoom strip (W) -->
-    <string name="waveform_description">Waveform, position %1$s of %2$s</string>
+    <string name="waveform_description">Waveform, %1$s long</string>
     <string name="zoom_title">ZOOM · %1$s · %2$s – %3$s</string>
     <string name="zoom_beats">%1$s beats · %2$s bars</string>
     <string name="zoom_seconds">%1$s s</string>

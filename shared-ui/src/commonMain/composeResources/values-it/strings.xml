@@ -312,7 +312,7 @@
     <string name="hint_loops">loop</string>
     <string name="hint_focus">focus</string>
     <!-- Waveform and zoom strip (W) -->
-    <string name="waveform_description">Forma d\'onda, posizione %1$s di %2$s</string>
+    <string name="waveform_description">Forma d\'onda, durata %1$s</string>
     <string name="zoom_title">ZOOM · %1$s · %2$s – %3$s</string>
     <string name="zoom_beats">%1$s battiti · %2$s battute</string>
     <string name="zoom_seconds">%1$s s</string>

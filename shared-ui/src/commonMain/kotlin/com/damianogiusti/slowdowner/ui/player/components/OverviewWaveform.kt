@@ -94,7 +94,7 @@ fun OverviewWaveform(
     val separator = stringResource(Res.string.decimal_separator)
     val markerA = stringResource(Res.string.marker_a, PLACEHOLDER)
     val markerB = stringResource(Res.string.marker_b, PLACEHOLDER)
-    val description = stringResource(Res.string.waveform_description, PLACEHOLDER, formatClock(state.durationSeconds))
+    val description = stringResource(Res.string.waveform_description, formatClock(state.durationSeconds))
     val pillStyle = type.tag.copy(fontSize = 11.sp)
     val labelStyle = type.tag.copy(fontSize = 10.sp, color = colors.amber)
     val durationStyle = type.meta.copy(fontSize = 11.sp, color = colors.fg2)
@@ -105,7 +105,8 @@ fun OverviewWaveform(
             .height(height)
             .background(colors.bgDeep)
             .onSizeChanged { width.intValue = it.width }
-            .semantics { contentDescription = description.replace(PLACEHOLDER, formatClock(position() * current.durationSeconds)) }
+            // No playhead here: semantics would then be rebuilt on every frame of playback.
+            .semantics { contentDescription = description }
             .pointerHoverIcon(PointerIcon.Crosshair)
             .pointerInput(actions) {
                 val gutter = DownstepDimens.gutter.toPx()

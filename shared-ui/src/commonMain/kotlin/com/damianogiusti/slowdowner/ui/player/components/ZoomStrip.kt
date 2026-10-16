@@ -88,7 +88,7 @@ fun ZoomStrip(
     val length = state.beats?.let {
         stringResource(Res.string.zoom_beats, formatDecimal(it, separator), formatDecimal(it / BeatGrid.BEATS_PER_BAR, separator))
     } ?: stringResource(Res.string.zoom_seconds, formatDecimal((state.end - state.start) * duration, separator))
-    val description = stringResource(Res.string.waveform_description, PLACEHOLDER, formatClock(duration))
+    val description = stringResource(Res.string.waveform_description, formatClock(duration))
     val markerStyle = type.tag.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold)
     val headerStyle = type.tag.copy(fontSize = 10.sp, letterSpacing = 0.5.sp)
 
@@ -100,7 +100,8 @@ fun ZoomStrip(
             .clip(Shape)
             .background(colors.surface1)
             .onSizeChanged { width.intValue = it.width }
-            .semantics { contentDescription = description.replace(PLACEHOLDER, formatClock(position() * current.durationSeconds)) }
+            // No playhead here: semantics would then be rebuilt on every frame of playback.
+            .semantics { contentDescription = description }
             .pointerHoverIcon(PointerIcon.Crosshair)
             .pointerInput(actions) {
                 val padding = INNER_PADDING.toPx()
