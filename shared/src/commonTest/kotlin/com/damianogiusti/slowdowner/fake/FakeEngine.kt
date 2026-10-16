@@ -57,6 +57,12 @@ class FakeEngine : PlaybackEngine, EffectsEngine {
     override fun doubleLoop() = Unit
     override fun shiftLoopForward() = Unit
     override fun shiftLoopBackward() = Unit
+    /** Peak levels of the whole file: [peaks] slices them like the real engine. */
+    var outline = FloatArray(0)
+    override fun peaks(from: Float, to: Float, buckets: Int): FloatArray {
+        if (!isOpen || outline.isEmpty()) return FloatArray(0)
+        return FloatArray(buckets) { i -> outline[((from + (to - from) * i / buckets) * outline.size).toInt().coerceIn(0, outline.lastIndex)] }
+    }
 
     override val mixRight = 0.5f
     override val mixSliderPosition = 0

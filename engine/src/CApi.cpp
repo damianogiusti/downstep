@@ -122,6 +122,10 @@ void sd_engine_set_preamp(SdEngine *engine, double gainDb) { engine->player->set
 
 void sd_engine_set_output_gain(SdEngine *engine, double gain) { engine->player->setOutputGain(gain); }
 
+int sd_engine_peaks(SdEngine *engine, double from, double to, float *out, int buckets) {
+    return engine->player->peaks(from, to, out, buckets);
+}
+
 unsigned sd_engine_take_events(SdEngine *engine) { return engine->player->takeEvents(); }
 
 int sd_engine_sample_rate(const SdEngine *engine) { return engine->player->outputRate(); }

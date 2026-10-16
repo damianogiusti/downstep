@@ -99,6 +99,14 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         api.setOutputGain.invokeExact(handle, gain)
     }
 
+    /** [buckets] peak levels 0..1 over [from]..[to] of the open file; empty when nothing is open. */
+    fun peaks(from: Double, to: Double, buckets: Int): FloatArray = Arena.ofConfined().use { arena ->
+        if (buckets <= 0) return FloatArray(0)
+        val buffer: MemorySegment = arena.allocate(MemoryLayout.sequenceLayout(buckets.toLong(), JAVA_FLOAT))
+        val written = api.peaks.invokeExact(handle, from, to, buffer, buckets) as Int
+        if (written <= 0) FloatArray(0) else buffer.toArray(JAVA_FLOAT)
+    }
+
     /** Returns and clears the [EVENT_REACHED_END] bits raised since the previous call. */
     fun takeEvents(): Int = api.takeEvents.invokeExact(handle) as Int
 
@@ -210,6 +218,8 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         val setEqBand = function("sd_engine_set_eq_band", null, ADDRESS, JAVA_INT, JAVA_DOUBLE, critical = true)
         val setPreamp = function("sd_engine_set_preamp", null, ADDRESS, JAVA_DOUBLE, critical = true)
         val setOutputGain = function("sd_engine_set_output_gain", null, ADDRESS, JAVA_DOUBLE, critical = true)
+        // Not critical: it takes a (short, uncontended) lock.
+        val peaks = function("sd_engine_peaks", JAVA_INT, ADDRESS, JAVA_DOUBLE, JAVA_DOUBLE, ADDRESS, JAVA_INT)
         val takeEvents = function("sd_engine_take_events", JAVA_INT, ADDRESS, critical = true)
         val sampleRate = function("sd_engine_sample_rate", JAVA_INT, ADDRESS, critical = true)
         val render = function("sd_engine_render", JAVA_INT, ADDRESS, ADDRESS, JAVA_INT)

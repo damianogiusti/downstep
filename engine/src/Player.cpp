@@ -22,11 +22,29 @@ bool Player::open(const std::string &path) {
     auto decoded = std::make_shared<PcmBuffer>();
     std::string error;
     if (!decodeFile(path, *decoded, error)) return false;
-    return open(std::move(decoded), path);
+    // Also outside the lock, and only here: the export's player never draws a waveform.
+    auto summary = PeakSummary::of(*decoded);
+    if (!open(std::move(decoded), path)) return false;
+    std::lock_guard<std::mutex> guard(peaksLock_);
+    peaks_ = std::move(summary);
+    return true;
+}
+
+int Player::peaks(double from, double to, float *out, int buckets) const {
+    std::shared_ptr<const PeakSummary> summary;
+    {
+        std::lock_guard<std::mutex> guard(peaksLock_);
+        summary = peaks_;
+    }
+    return summary ? summary->read(from, to, out, buckets) : 0;
 }
 
 bool Player::open(std::shared_ptr<const PcmBuffer> decoded, const std::string &path) {
     if (!decoded || decoded->frames <= 0 || decoded->channels < 1) return false;
+    {
+        std::lock_guard<std::mutex> guard(peaksLock_);
+        peaks_.reset();
+    }
     std::shared_ptr<const PcmBuffer> previous;
     {
         std::lock_guard<std::mutex> guard(lock_);
@@ -49,6 +67,10 @@ bool Player::open(std::shared_ptr<const PcmBuffer> decoded, const std::string &p
 }
 
 void Player::close() {
+    {
+        std::lock_guard<std::mutex> peaksGuard(peaksLock_);
+        peaks_.reset();
+    }
     std::shared_ptr<const PcmBuffer> previous; // declared before the guard: freed after unlocking
     std::lock_guard<std::mutex> guard(lock_);
     wantsPlaying_.store(false);

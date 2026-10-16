@@ -480,6 +480,34 @@ void renderingDoesNotAllocate(const std::string &path) {
     }
 }
 
+/** Loud first half, silent second half: the outline follows it at any zoom, and goes with the file. */
+void peaksOutlineTheOpenFile() {
+    PcmBuffer pcm;
+    pcm.sampleRate = kRate;
+    pcm.channels = 1;
+    pcm.frames = 4 * kRate;
+    pcm.data.assign(1, std::vector<float>(size_t(pcm.frames), 0.f));
+    for (int64_t i = 0; i < pcm.frames / 2; ++i) pcm.data[0][size_t(i)] = float(0.8 * std::sin(2 * M_PI * 441 * double(i) / kRate));
+    const auto path = (std::filesystem::temp_directory_path() / "sdengine-peaks.wav").string();
+    std::string error;
+    CHECK(writeWavFloat(path, pcm, error), "cannot write: %s", error.c_str());
+
+    SdEngine *e = sd_engine_create(0, kRate);
+    std::vector<float> out(64, -1.f);
+    CHECK(sd_engine_peaks(e, 0, 1, out.data(), 64) == 0, "peaks with nothing open");
+    sd_engine_open(e, path.c_str());
+    CHECK(sd_engine_peaks(e, 0, 1, out.data(), 64) == 64, "whole file not read");
+    CHECK(std::fabs(out[0] - 0.8f) < 0.01f && std::fabs(out[31] - 0.8f) < 0.01f, "loud half %f %f", out[0], out[31]);
+    CHECK(out[33] == 0.f && out[63] == 0.f, "silent half %f %f", out[33], out[63]);
+    // Zoomed into 10 ms around the middle: much narrower than one bucket per summary block.
+    CHECK(sd_engine_peaks(e, 0.4975, 0.5025, out.data(), 64) == 64, "zoomed read");
+    CHECK(out[0] > 0.5f && out[63] == 0.f, "zoomed edges %f %f", out[0], out[63]);
+    sd_engine_close(e);
+    CHECK(sd_engine_peaks(e, 0, 1, out.data(), 64) == 0, "peaks after close");
+    sd_engine_destroy(e);
+    std::filesystem::remove(path);
+}
+
 } // namespace
 
 int main() {
@@ -502,6 +530,7 @@ int main() {
         {"export shares the decoded audio", [&] { exportSharesTheDecodedAudio(path); }},
         {"flushes denormals in scope", [] { flushesDenormalsInScope(); }},
         {"rendering does not allocate", [&] { renderingDoesNotAllocate(path); }},
+        {"peaks outline the open file", [] { peaksOutlineTheOpenFile(); }},
     };
     for (const auto &[name, test] : tests) {
         const int before = failures;

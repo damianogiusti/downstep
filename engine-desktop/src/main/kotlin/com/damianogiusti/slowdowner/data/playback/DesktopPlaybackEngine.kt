@@ -190,6 +190,11 @@ class DesktopPlaybackEngine(
     override fun shiftLoopForward() = editLoop { LoopEditing.shiftForward(it) }
     override fun shiftLoopBackward() = editLoop { LoopEditing.shiftBackward(it) }
 
+    // Called off the main thread by the waveform: it must not race close() freeing the engine.
+    override fun peaks(from: Float, to: Float, buckets: Int): FloatArray = synchronized(closeLock) {
+        if (isClosed) FloatArray(0) else engine.peaks(from.toDouble(), to.toDouble(), buckets)
+    }
+
     override fun setMixFromSlider(position: Int) {
         mixRight = SliderCurves.mixRight(position)
         engine.setMix(mixRight.toDouble())

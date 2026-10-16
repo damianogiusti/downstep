@@ -64,6 +64,13 @@ SD_API void sd_engine_set_preamp(SdEngine *engine, double gainDb);
 /** Linear output gain, 1 by default. 0 mutes a device engine (scripted checks). */
 SD_API void sd_engine_set_output_gain(SdEngine *engine, double gain);
 
+/**
+ * Waveform of the open file for drawing: fills `buckets` values 0..1, the peak level of each equal
+ * slice of from..to (fractions 0..1 of the file). Cheap (read from a summary made at open) and safe
+ * from any thread. Returns the number of values written: `buckets`, or 0 when no file is open.
+ */
+SD_API int sd_engine_peaks(SdEngine *engine, double from, double to, float *out, int buckets);
+
 /** Returns and clears the SD_EVENT_* bits raised since the previous call. */
 SD_API unsigned sd_engine_take_events(SdEngine *engine);
 
