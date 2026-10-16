@@ -155,7 +155,6 @@ fun IsolateCard(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(DownstepShapes.pill)
                     .background(SlowDownerTheme.colors.bg, DownstepShapes.pill)
                     .alpha(if (enabled) 1f else DISABLED_ALPHA)
                     .padding(BAND_PILL_PADDING),

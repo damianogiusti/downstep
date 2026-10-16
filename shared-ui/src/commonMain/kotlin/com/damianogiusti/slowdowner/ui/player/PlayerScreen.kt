@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +28,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.practice.PracticePreset
 import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
-import com.damianogiusti.slowdowner.domain.theme.ThemeMode
 import com.damianogiusti.slowdowner.ui.common.ConfirmDialog
 import com.damianogiusti.slowdowner.ui.common.TextInputDialog
 import com.damianogiusti.slowdowner.ui.common.TextInputDialogTexts
@@ -102,7 +102,7 @@ fun PlayerScreen(
             if (layout.isFocusMode) {
                 FocusHeaderHost(viewModel, actions.onExitFocus)
             } else {
-                HeaderHost(viewModel, theme, actions.header)
+                HeaderHost(viewModel, actions.header)
                 LoadingHost(viewModel)
                 ExportBannerHost(viewModel)
                 ChipsHost(viewModel, actions.chips)
@@ -113,7 +113,9 @@ fun PlayerScreen(
             if (!layout.isFocusMode) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(DownstepDimens.cardGap),
-                    modifier = Modifier.fillMaxWidth().padding(start = DownstepDimens.gutter, end = DownstepDimens.gutter, top = 4.dp, bottom = 12.dp),
+                    // Cards of a row share its tallest card's height, as in the design.
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
+                        .padding(start = DownstepDimens.gutter, end = DownstepDimens.gutter, top = 4.dp, bottom = 12.dp),
                 ) {
                     SpeedHost(viewModel, actions.speedPitch, Modifier.weight(1.2f))
                     PitchHost(viewModel, actions.speedPitch, Modifier.weight(1.2f))
@@ -206,13 +208,12 @@ private fun playerActions(
 private fun State<Float>.reader(): () -> Float = { value }
 
 @Composable
-private fun HeaderHost(viewModel: PlayerViewModel, theme: ThemeViewModel, actions: HeaderActions) {
+private fun HeaderHost(viewModel: PlayerViewModel, actions: HeaderActions) {
     val state by viewModel.header.collectAsStateWithLifecycle()
     val presets by viewModel.presets.collectAsStateWithLifecycle()
     val clicks by viewModel.clicks.collectAsStateWithLifecycle()
     val analysis by remember(viewModel) { viewModel.analysis.map { it.status }.distinctUntilChanged() }
         .collectAsStateWithLifecycle(AnalysisStatus.Idle)
-    val mode by theme.mode.collectAsStateWithLifecycle()
     PlayerHeader(
         state = state,
         trackCount = rememberTrackCount(),
@@ -220,7 +221,8 @@ private fun HeaderHost(viewModel: PlayerViewModel, theme: ThemeViewModel, action
         analysis = analysis,
         clicks = clicks,
         presets = presets,
-        isDarkTheme = mode == ThemeMode.Dark,
+        // The theme on screen, whatever the ThemeViewModel was asked last.
+        isDarkTheme = SlowDownerTheme.colors.isDark,
         actions = actions,
     )
 }
@@ -340,7 +342,8 @@ private fun LoopCardsHost(viewModel: PlayerViewModel, actions: PlayerActions) {
     if (progression == null && notes == null) return
     Row(
         horizontalArrangement = Arrangement.spacedBy(DownstepDimens.cardGap),
-        modifier = Modifier.fillMaxWidth().padding(start = DownstepDimens.gutter, end = DownstepDimens.gutter, bottom = DownstepDimens.gutter),
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
+            .padding(start = DownstepDimens.gutter, end = DownstepDimens.gutter, bottom = DownstepDimens.gutter),
     ) {
         progression?.let { ProgressionCard(it, actions.progression, Modifier.weight(1.3f)) }
         notes?.let { NotesCard(it, actions.notes, Modifier.weight(1f)) }
