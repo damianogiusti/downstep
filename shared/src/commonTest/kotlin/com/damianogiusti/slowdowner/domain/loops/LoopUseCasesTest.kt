@@ -188,6 +188,32 @@ class LoopUseCasesTest {
     }
 
     @Test
+    fun `when progression is turned on then the ramp starts from From`() = runTest {
+        nowPlaying.set(song)
+        val loop = createLoop("a", LoopBounds(0.1f, 0.2f))!!
+        repeat(12) { recordPass(loop.id) }
+
+        val updated = updateProgression(loop.id, Progression(enabled = true))!!
+
+        assertEquals(0, updated.passes)
+        assertEquals(0, repository.loop(loop.id)!!.passes)
+        assertEquals(70f, engine.speedPercent)
+    }
+
+    @Test
+    fun `when a stepper changes while progression is on then the passes are kept`() = runTest {
+        nowPlaying.set(song)
+        val loop = createLoop("a", LoopBounds(0.1f, 0.2f))!!
+        updateProgression(loop.id, Progression(enabled = true))
+        repeat(4) { recordPass(loop.id) }
+
+        updateProgression(loop.id, Progression(enabled = true, stepPercent = 5f))
+
+        assertEquals(4, repository.loop(loop.id)!!.passes)
+        assertEquals(80f, engine.speedPercent)
+    }
+
+    @Test
     fun `when a progression is saved then it is brought into range`() = runTest {
         val loop = createLoop("a", LoopBounds(0.1f, 0.2f))!!
 
