@@ -57,7 +57,7 @@
     <string name="quality_very_high">Max</string>
 
     <string name="export">Export</string>
-    <string name="export_running">Exporting to MP3… %1$d%%</string>
+    <string name="export_running">Exporting to MP3… %1$d%</string>
     <string name="export_ready_title">Export ready</string>
     <string name="export_ready_text">"%1$s" is ready. Speed, pitch and effects are applied.</string>
     <string name="export_share">Share</string>
@@ -244,7 +244,7 @@
     <string name="update_later">Later</string>
     <string name="update_cancel">Cancel</string>
     <string name="update_retry">Try again</string>
-    <string name="update_downloading">Downloading… %1$d%%</string>
+    <string name="update_downloading">Downloading… %1$d%</string>
     <string name="update_preparing">Installing…</string>
     <string name="update_restarting">Restarting…</string>
     <string name="update_network_error">The download did not finish. Check the connection and try again.</string>
@@ -390,7 +390,7 @@
         <item quantity="one">%1$d file</item>
         <item quantity="other">%1$d files</item>
     </plurals>
-    <string name="export_running_many">Exporting %1$s to MP3… %2$d%%</string>
+    <string name="export_running_many">Exporting %1$s to MP3… %2$d%</string>
     <string name="export_ready_text_many">%1$s are ready. Speed, pitch and effects are applied.</string>
     <string name="export_ready_more">…and %1$d more</string>
     <string name="export_save_folder">Save to folder…</string>

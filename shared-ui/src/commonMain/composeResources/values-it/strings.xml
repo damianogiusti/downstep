@@ -55,7 +55,7 @@
     <string name="quality_very_high">Max</string>
 
     <string name="export">Esporta</string>
-    <string name="export_running">Esporto in MP3… %1$d%%</string>
+    <string name="export_running">Esporto in MP3… %1$d%</string>
     <string name="export_ready_title">Export pronto</string>
     <string name="export_ready_text">"%1$s" è pronto. Velocità, pitch ed effetti sono applicati.</string>
     <string name="export_share">Condividi</string>
@@ -242,7 +242,7 @@
     <string name="update_later">Più tardi</string>
     <string name="update_cancel">Annulla</string>
     <string name="update_retry">Riprova</string>
-    <string name="update_downloading">Scaricamento… %1$d%%</string>
+    <string name="update_downloading">Scaricamento… %1$d%</string>
     <string name="update_preparing">Installazione…</string>
     <string name="update_restarting">Riavvio…</string>
     <string name="update_network_error">Il download non è finito. Controlla la connessione e riprova.</string>
@@ -388,7 +388,7 @@
         <item quantity="one">%1$d file</item>
         <item quantity="other">%1$d file</item>
     </plurals>
-    <string name="export_running_many">Esporto %1$s in MP3… %2$d%%</string>
+    <string name="export_running_many">Esporto %1$s in MP3… %2$d%</string>
     <string name="export_ready_text_many">%1$s pronti. Velocità, intonazione ed effetti sono applicati.</string>
     <string name="export_ready_more">…e altri %1$d</string>
     <string name="export_save_folder">Salva in una cartella…</string>
