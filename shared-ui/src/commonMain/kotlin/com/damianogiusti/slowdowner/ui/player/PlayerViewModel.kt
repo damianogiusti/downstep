@@ -8,6 +8,7 @@ import com.damianogiusti.slowdowner.domain.analysis.SectionAnalysisResult
 import com.damianogiusti.slowdowner.domain.click.SetCountInUseCase
 import com.damianogiusti.slowdowner.domain.click.SetMetronomeUseCase
 import com.damianogiusti.slowdowner.domain.export.ExportResult
+import com.damianogiusti.slowdowner.domain.export.ExportScope
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
@@ -42,6 +43,7 @@ import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
 import com.damianogiusti.slowdowner.ui.common.UiMessage
+import com.damianogiusti.slowdowner.ui.common.UiPlural
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -148,7 +150,8 @@ class PlayerViewModel(
             loopCount = trackLoops?.loops?.size ?: 0,
             isOpen = engine.isOpen && loading == null,
             isLoading = loading != null,
-            canExport = engine.isOpen && track != null && loading == null && export == ExportUiState.Idle,
+            canExport = engine.isOpen && track != null && loading == null &&
+                export !is ExportUiState.Running && export !is ExportUiState.Ready,
             canEditBpm = track != null && loading == null && export !is ExportUiState.Running,
         )
     }.state(HeaderState())
@@ -282,6 +285,8 @@ class PlayerViewModel(
     private val openMutex = Mutex()
     private val loopEdits = Mutex()
     private var exportJob: Job? = null
+    /** The last export choice, offered again next time (not saved: the full track after a restart). */
+    private var exportScope = ExportScope.FULL_TRACK
     private var analysisJob: Job? = null
     private var notesJob: Job? = null
     // Also read by flushPendingNotes() on the quit path, off the main thread.
@@ -706,17 +711,34 @@ class PlayerViewModel(
     /** A name for the save-preset dialog, from the current settings: "75%, −2 st". */
     fun currentPracticeSettings(): PracticeSettings = engineState.value.practiceSettings
 
+    /** Opens the options: full track, loops or both. The last choice is kept while the app runs. */
     fun onExportClicked() {
+        if (!header.value.canExport || exportState.value is ExportUiState.Choosing) return
+        val loopCount = header.value.loopCount
+        exportState.value = ExportUiState.Choosing(if (loopCount > 0) exportScope else ExportScope.FULL_TRACK, loopCount)
+    }
+
+    /** The loop options do nothing on a track without loops (the dialog disables them). */
+    fun onExportScopeChanged(scope: ExportScope) {
+        exportState.update { state ->
+            if (state is ExportUiState.Choosing && (state.hasLoops || !scope.includesLoops)) state.copy(scope = scope) else state
+        }
+    }
+
+    fun onExportConfirmed() {
+        val choice = exportState.value as? ExportUiState.Choosing ?: return
         if (!header.value.canExport) return
+        exportScope = choice.scope
         val cancelled = exportJob
-        exportState.value = ExportUiState.Running(0f)
+        exportState.value = ExportUiState.Running(0f, choice.fileCount.coerceAtLeast(1))
         exportJob = viewModelScope.launch {
-            // A cancelled render stops only between native chunks: let it close its file first.
+            // A cancelled render stops only between native chunks: let it close its files first.
             cancelled?.cancelAndJoin()
-            val result = exports.exportTrack(::onExportProgress)
+            val result = exports.exportTrack(choice.scope, ::onExportProgress)
             when (result) {
-                is ExportResult.Success -> exportState.value = ExportUiState.Ready(result.file)
+                is ExportResult.Success -> exportState.value = ExportUiState.Ready(result.files)
                 ExportResult.NothingOpen -> exportFailed(UiMessage(Res.string.error_export_nothing_open))
+                ExportResult.NoLoops -> exportFailed(UiMessage(Res.string.error_export_no_loops))
                 is ExportResult.Failure -> exportFailed(
                     UiMessage(Res.string.error_export, listOf(result.cause.message.orEmpty())),
                 )
@@ -724,23 +746,38 @@ class PlayerViewModel(
         }
     }
 
+    /** Cancels the whole batch: the repository deletes every file it wrote. */
     fun onExportCancelClicked() {
         exportJob?.cancel()
         exportState.value = ExportUiState.Idle
     }
 
-    /** The share sheet took over, or the user closed the dialog. */
+    /** The options or the share sheet took over, or the user closed a dialog. */
     fun onExportDismissed() {
         exportState.value = ExportUiState.Idle
     }
 
-    /** The dialog stays up while the picker is open, so a cancelled pick returns to it. */
+    /** One file: the dialog stays up while the picker is open, so a cancelled pick returns to it. */
     fun onExportSaveTargetPicked(contentUri: String) {
-        val file = (exportState.value as? ExportUiState.Ready)?.file ?: return
+        val file = (exportState.value as? ExportUiState.Ready)?.files?.singleOrNull() ?: return
         exportState.value = ExportUiState.Idle
         viewModelScope.launch {
             val message = if (exports.saveExport(file, contentUri)) Res.string.export_saved else Res.string.error_export_save
             _messages.send(UiMessage(message, listOf(file.name)))
+        }
+    }
+
+    /** A batch: every file goes into [folder], next to each other. */
+    fun onExportSaveFolderPicked(folder: String) {
+        val files = (exportState.value as? ExportUiState.Ready)?.files ?: return
+        exportState.value = ExportUiState.Idle
+        viewModelScope.launch {
+            val message = if (exports.saveExport(files, folder)) {
+                UiMessage(Res.string.export_saved_many, listOf(UiPlural(Res.plurals.export_files_count, files.size), folder))
+            } else {
+                UiMessage(Res.string.error_export_save_many, listOf(folder))
+            }
+            _messages.send(message)
         }
     }
 
@@ -875,7 +912,7 @@ class PlayerViewModel(
     private fun onExportProgress(fraction: Float) {
         exportState.update { state ->
             if (state is ExportUiState.Running && (fraction * 100).toInt() != (state.fraction * 100).toInt()) {
-                ExportUiState.Running(fraction)
+                state.copy(fraction = fraction)
             } else {
                 state
             }

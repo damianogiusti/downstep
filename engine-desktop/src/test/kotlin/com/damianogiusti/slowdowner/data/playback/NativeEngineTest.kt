@@ -97,9 +97,40 @@ class NativeEngineTest {
     }
 
     @Test
+    fun `a range export lasts the range at the current speed`() {
+        NativeEngine.manual(RATE).use { native ->
+            assertTrue(native.open(file.path))
+            native.setSpeed(0.5)
+            val output = File.createTempFile("native-export-range", ".mp3")
+            // Half of a 2 s file at half speed: 2 s.
+            val export = assertNotNull(native.beginExport(output.path, start = 0.25, end = 0.75))
+            val progress = generateSequence { export.next() }.toList()
+            assertTrue(export.finish())
+            assertTrue(progress.zipWithNext().all { (a, b) -> b >= a }, progress.joinToString())
+            assertTrue(progress.last() in 0.9f..1f, progress.joinToString())
+            NativeEngine.manual(RATE).use { reader ->
+                assertTrue(reader.open(output.path))
+                // LAME's delay and padding add about 50 ms.
+                assertEquals(2.0, reader.durationSeconds, 0.1)
+            }
+            output.delete()
+        }
+    }
+
+    @Test
+    fun `an empty range exports nothing`() {
+        NativeEngine.manual(RATE).use { native ->
+            assertTrue(native.open(file.path))
+            val output = File.createTempFile("native-export-range", ".mp3").apply { deleteOnExit() }
+            assertNull(native.beginExport(output.path, start = 0.5, end = 0.5))
+        }
+    }
+
+    @Test
     fun `nothing open exports nothing`() {
         NativeEngine.manual(RATE).use { native ->
             assertNull(native.beginExport(File.createTempFile("native-export", ".mp3").apply { deleteOnExit() }.path))
+            assertNull(native.beginExport(File.createTempFile("native-export", ".mp3").apply { deleteOnExit() }.path, 0.1, 0.2))
         }
     }
 

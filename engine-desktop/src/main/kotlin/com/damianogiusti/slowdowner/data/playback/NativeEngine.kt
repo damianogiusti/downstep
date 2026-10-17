@@ -111,14 +111,26 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
     fun takeEvents(): Int = api.takeEvents.invokeExact(handle) as Int
 
     /**
-     * Starts an MP3 export of the open file with the current sound, loop ignored. It decodes the file
-     * again on its own: playback is not disturbed. Null if nothing is open or [path] cannot be written.
+     * Starts an MP3 export of the open file with the current sound, loop ignored. It renders in its
+     * own player over the audio already decoded (shared, not decoded again): playback is not
+     * disturbed. Null if nothing is open or [path] cannot be written.
      */
     fun beginExport(path: String, bitrateKbps: Int = 192): NativeExport? = Arena.ofConfined().use { arena ->
         val utf8Path: MemorySegment = arena.allocateFrom(path)
         val exporter = api.exportBegin.invokeExact(handle, utf8Path, bitrateKbps) as MemorySegment
         if (exporter == MemorySegment.NULL) null else NativeExport(api, exporter)
     }
+
+    /**
+     * As [beginExport], but only [start]..[end] (fractions of the file): a loop's slice, with short
+     * fades at both edges. Null also when the range is empty.
+     */
+    fun beginExport(path: String, start: Double, end: Double, bitrateKbps: Int = 192): NativeExport? =
+        Arena.ofConfined().use { arena ->
+            val utf8Path: MemorySegment = arena.allocateFrom(path)
+            val exporter = api.exportBeginRange.invokeExact(handle, utf8Path, bitrateKbps, start, end) as MemorySegment
+            if (exporter == MemorySegment.NULL) null else NativeExport(api, exporter)
+        }
 
     /** One MP3 export in progress. Call [next] until it returns null, then [finish]. */
     class NativeExport internal constructor(private val api: Api, private val exporter: MemorySegment) {
@@ -224,6 +236,7 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         val sampleRate = function("sd_engine_sample_rate", JAVA_INT, ADDRESS, critical = true)
         val render = function("sd_engine_render", JAVA_INT, ADDRESS, ADDRESS, JAVA_INT)
         val exportBegin = function("sd_export_begin", ADDRESS, ADDRESS, ADDRESS, JAVA_INT)
+        val exportBeginRange = function("sd_export_begin_range", ADDRESS, ADDRESS, ADDRESS, JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE)
         val exportNext = function("sd_export_next", JAVA_DOUBLE, ADDRESS)
         val exportEnd = function("sd_export_end", JAVA_INT, ADDRESS)
 

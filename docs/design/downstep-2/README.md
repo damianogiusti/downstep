@@ -72,7 +72,8 @@ OS‑style strip with the real Downstep icon (`assets/icons/downstep-app-icon.sv
 - **Track title** + meta line: source · duration · detected BPM · loop count.
 - **Analyze** pill → section detection (see §4.8). Label becomes *Analyzing…* then *Re‑analyze*.
 - **Metronome / Count‑in** segmented pill; each is an independent amber‑filled toggle.
-- Icon buttons: **Focus** (⤢), **Theme** (☀/☾), **Save preset** (bookmark), **Export** (↑).
+- Icon buttons: **Focus** (⤢), **Theme** (☀/☾), **Save preset** (bookmark), **Export** (↑; full track, loops or
+  both, see §7.3).
 
 ### 2.3 Loop chips strip
 One chip per loop, in time order: colour dot · name · length · **pass badge**. The active chip is inverted
@@ -302,3 +303,31 @@ the name selected. Enter or clicking away saves (trimmed, at most 40 characters)
 unchanged name keeps the old one. The first click of the double click still selects the loop. While the field has
 the focus the window's shortcuts are off, so Space, `L`, `A`, `B`, `F` and Esc go to the field. The rename dialog is
 gone.
+
+### 7.3 Export: full track, loops or both
+
+The header's **Export** icon opens an options dialog before anything renders: **Full track** (the default, and
+the only choice on a track without loops), **Loops, one file each** or **Full track and loops**. Each row says how
+many files it writes; the loop rows are disabled with "This track has no loops yet" when there are none. The last
+choice is offered again until the app quits.
+- **Files.** All MP3, as before. The full track keeps its name, `<track> <speed>%[ ±<n>st].mp3`. Each loop is
+  `<track> - <nn> <loop name>.mp3`: `nn` is the loop's place in the chip strip's order (by start), 1-based, with
+  two digits (three past 99 loops), so a folder sorted by name lists the loops in musical order and two loops with
+  the same name never collide. Names are made safe for Windows, macOS and Linux (`\ / : * ? " < > |` and control
+  characters become `_`, line breaks and runs of spaces become one space, trimmed, no leading dot (a hidden file)
+  and no trailing dot, the title capped
+  at 80 characters and the loop name at 40), and a name that still repeats another, ignoring case, gets " (2)".
+- **Sound.** A loop file is its A→B slice with exactly the full export's processing: speed, pitch, L/R mix, EQ
+  curve and preamp. It lasts (B − A) / speed, starts with the player's 10 ms fade-in and ends with a 10 ms fade-out,
+  so the cut never clicks. The engine renders every file of the batch from the one decoded buffer already in
+  memory (`sd_export_begin_range`): nothing is decoded again.
+- **Not exported, by decision:** the metronome, the count-in and Isolate. They are practice aids, not part of the
+  music: a click or a count-in baked into a file cannot be taken out again, and a count-in would move A away from
+  the start of a loop file. The dialog says so.
+- **Progress and cancel.** One banner for the whole batch ("Exporting 4 files to MP3… 42%") with one bar, weighted by
+  each file's length so it moves evenly from the first file to the last, and one Cancel. Cancelling, or any failure,
+  deletes every file of the batch, including a file cut short by a failed write (a full disk): it is all or nothing.
+- **Result.** One file: as before, *Save…* (a save-as dialog) and *Share* (shows it in the file manager). Several:
+  the dialog lists the first five names, and *Save to folder…* opens a folder picker; every file is copied there,
+  next to the others, and a file already in that folder is never replaced (the copy gets " (2)"). *Share* shows the
+  batch in the file manager.

@@ -12,7 +12,7 @@ Downloads are on the [Releases](../../releases) page.
 - Library that works offline: MP3, M4A, WAV and FLAC files, or a YouTube link (audio only).
   Playlists, and presets for each song.
 - 7-band equalizer with preamp, left and right balance.
-- MP3 export with your changes applied.
+- MP3 export with your changes applied: the full track, one file per loop, or both.
 - Backup of the whole library in one `.sldbackup` file, restored on Mac or Windows.
 - Keyboard: Space to play and stop, arrows to move, A, B and L for the loop.
 

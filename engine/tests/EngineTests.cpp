@@ -560,6 +560,128 @@ void exportBeginsWhileAnotherFileOpens(const std::string &path) {
     sd_engine_destroy(e);
 }
 
+/** Runs a range export to the end: the decoded MP3 (empty if it failed) and every progress value. */
+struct SliceExport {
+    PcmBuffer decoded;
+    std::vector<double> progress;
+};
+
+SliceExport exportSlice(SdEngine *e, const std::string &output, double start, double end) {
+    SliceExport result;
+    SdExport *exporter = sd_export_begin_range(e, output.c_str(), 192, start, end);
+    CHECK(exporter != nullptr, "cannot start the slice %.2f..%.2f", start, end);
+    if (!exporter) return result;
+    double progress = 0;
+    while ((progress = sd_export_next(exporter)) >= 0) result.progress.push_back(progress);
+    CHECK(sd_export_end(exporter) == 1, "slice export incomplete");
+    std::string error;
+    CHECK(decodeFile(output, result.decoded, error), "cannot read the MP3: %s", error.c_str());
+    std::filesystem::remove(output);
+    return result;
+}
+
+void exportsALoopSliceAtTheCurrentSpeed(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    const auto output = tempPath("sdengine-slice.mp3");
+    // 0.2..0.5 of 10 s = 3 s of the file. LAME's delay and padding add about 50 ms.
+    for (const double speed : {1.0, 0.5, 1.5}) {
+        sd_engine_set_speed(e, speed);
+        const SliceExport slice = exportSlice(e, output, 0.2, 0.5);
+        const double expected = 3.0 / speed;
+        CHECK(std::fabs(slice.decoded.seconds() - expected) < 0.1, "speed %.1f: slice lasts %f s, not %f",
+              speed, slice.decoded.seconds(), expected);
+        if (slice.decoded.frames > kRate)
+            CHECK(rms(slice.decoded.data[0], size_t(kRate / 2)) > 0.2, "speed %.1f: slice is silent", speed);
+    }
+    sd_engine_destroy(e);
+}
+
+void sliceProgressRisesWithinTheRange(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    sd_engine_set_speed(e, 0.5);
+    const SliceExport slice = exportSlice(e, tempPath("sdengine-slice-progress.mp3"), 0.6, 0.9);
+    // 3 s at half speed: 6 s of output, about 16 chunks.
+    CHECK(slice.progress.size() > 10, "%zu progress steps", slice.progress.size());
+    if (!slice.progress.empty()) {
+        CHECK(slice.progress.front() > 0 && slice.progress.front() < 0.1, "first step %f", slice.progress.front());
+        CHECK(slice.progress.back() > 0.9 && slice.progress.back() <= 1.0, "last step %f", slice.progress.back());
+    }
+    for (size_t i = 1; i < slice.progress.size(); ++i)
+        CHECK(slice.progress[i] >= slice.progress[i - 1], "progress went back at step %zu", i);
+    sd_engine_destroy(e);
+}
+
+void sliceHoldsTheRangeAndNothingElse() {
+    // Silence for 5 s, then a tone for 5 s: the slice 0.4..0.6 is 1 s of silence, then 1 s of tone.
+    PcmBuffer pcm;
+    pcm.sampleRate = kRate;
+    pcm.channels = 2;
+    pcm.frames = 10 * kRate;
+    pcm.data.assign(2, std::vector<float>(size_t(pcm.frames), 0.f));
+    for (int64_t i = 5 * kRate; i < pcm.frames; ++i) pcm.data[0][size_t(i)] = float(0.5 * std::sin(2 * M_PI * 441 * double(i) / kRate));
+    const auto source = tempPath("sdengine-slice-source.wav");
+    std::string error;
+    CHECK(writeWavFloat(source, pcm, error), "cannot write: %s", error.c_str());
+    SdEngine *e = openEngine(source);
+    // Loop and playback state of the live player never reach the export.
+    sd_engine_set_loop(e, 0.1, 0.2, 1);
+    // At half speed too: the slice still starts at A, so the tone still comes half way through.
+    for (const double speed : {1.0, 0.5}) {
+        sd_engine_set_speed(e, speed);
+        const SliceExport slice = exportSlice(e, tempPath("sdengine-slice-range.mp3"), 0.4, 0.6);
+        const auto &left = slice.decoded.data.empty() ? std::vector<float>() : slice.decoded.data[0];
+        const size_t second = size_t(double(kRate) / speed); // one second of the file, in output frames
+        CHECK(std::fabs(slice.decoded.seconds() - 2.0 / speed) < 0.1, "speed %.1f: slice lasts %f s", speed,
+              slice.decoded.seconds());
+        if (left.size() < 2 * second - second / 10) continue;
+        const std::vector<float> before(left.begin(), left.begin() + long(second * 9 / 10));
+        const std::vector<float> after(left.begin() + long(second * 11 / 10), left.begin() + long(second * 19 / 10));
+        CHECK(rms(before) < 0.01, "speed %.1f: audio before the tone starts: %f", speed, rms(before));
+        CHECK(rms(after) > 0.3, "speed %.1f: the tone is missing: %f", speed, rms(after));
+        // Only the music: the silent right channel stays silent (no click, no count-in).
+        CHECK(rms(slice.decoded.data[1]) < 0.01, "speed %.1f: sound on the silent side: %f", speed,
+              rms(slice.decoded.data[1]));
+        // The cut fades out: the last 2 ms of sound (before the MP3's padding) are already quiet.
+        size_t end = left.size();
+        while (end > 0 && std::fabs(left[end - 1]) < 0.01f) --end;
+        if (end > size_t(kRate / 500)) {
+            const std::vector<float> tail(left.begin() + long(end - kRate / 500), left.begin() + long(end));
+            CHECK(rms(tail) < 0.15, "speed %.1f: no fade-out at the cut: %f", speed, rms(tail));
+        }
+    }
+    sd_engine_destroy(e);
+    std::filesystem::remove(source);
+}
+
+void sliceExportsShareTheDecodedAudio(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    const auto shared = sdEnginePlayer(e)->source();
+    const long ownersBefore = shared.use_count();
+    const auto first = tempPath("sdengine-slice-a.mp3"), second = tempPath("sdengine-slice-b.mp3");
+    SdExport *a = sd_export_begin_range(e, first.c_str(), 128, 0.0, 0.3);
+    SdExport *b = sd_export_begin_range(e, second.c_str(), 128, 0.5, 0.7);
+    CHECK(a && b, "cannot start two slices");
+    CHECK(shared.use_count() == ownersBefore + 2, "the slices did not share the buffer (%ld owners)", shared.use_count());
+    if (a) sd_export_end(a);
+    if (b) sd_export_end(b);
+    CHECK(shared.use_count() == ownersBefore, "a slice kept the buffer (%ld owners)", shared.use_count());
+    std::filesystem::remove(first);
+    std::filesystem::remove(second);
+    sd_engine_destroy(e);
+}
+
+void anEmptyRangeExportsNothing(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    const auto output = tempPath("sdengine-slice-empty.mp3");
+    CHECK(sd_export_begin_range(e, output.c_str(), 128, 0.5, 0.5) == nullptr, "empty range started");
+    CHECK(sd_export_begin_range(e, output.c_str(), 128, 0.6, 0.4) == nullptr, "reversed range started");
+    CHECK(sd_export_begin_range(e, output.c_str(), 128, 1.2, 1.5) == nullptr, "range past the end started");
+    sd_engine_close(e);
+    CHECK(sd_export_begin_range(e, output.c_str(), 128, 0.1, 0.2) == nullptr, "export with nothing open");
+    std::filesystem::remove(output);
+    sd_engine_destroy(e);
+}
+
 } // namespace
 
 int main() {
@@ -585,6 +707,11 @@ int main() {
         {"peaks outline the open file", [] { peaksOutlineTheOpenFile(); }},
         {"a corrupt length reserves only what the file can hold", [] { aCorruptLengthReservesOnlyWhatTheFileCanHold(); }},
         {"export begins while another file opens", [&] { exportBeginsWhileAnotherFileOpens(path); }},
+        {"exports a loop slice at the current speed", [&] { exportsALoopSliceAtTheCurrentSpeed(path); }},
+        {"slice progress rises within the range", [&] { sliceProgressRisesWithinTheRange(path); }},
+        {"a slice holds the range and nothing else", [] { sliceHoldsTheRangeAndNothingElse(); }},
+        {"slice exports share the decoded audio", [&] { sliceExportsShareTheDecodedAudio(path); }},
+        {"an empty range exports nothing", [&] { anEmptyRangeExportsNothing(path); }},
     };
     for (const auto &[name, test] : tests) {
         const int before = failures;

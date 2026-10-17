@@ -2,6 +2,7 @@ package com.damianogiusti.slowdowner.ui.player
 
 import androidx.compose.runtime.Immutable
 import com.damianogiusti.slowdowner.domain.analysis.SuggestedSection
+import com.damianogiusti.slowdowner.domain.export.ExportScope
 import com.damianogiusti.slowdowner.domain.export.ExportedFile
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.loops.Progression
@@ -193,7 +194,16 @@ data class PlayerLayout(val isFocusMode: Boolean = false, val isDrawerOpen: Bool
 
 sealed interface ExportUiState {
     data object Idle : ExportUiState
-    data class Running(val fraction: Float) : ExportUiState
-    /** The file is rendered: the user picks share or save. */
-    data class Ready(val file: ExportedFile) : ExportUiState
+    /**
+     * The options dialog is open: the user picks what to export. With no loops, only the full
+     * track can be picked.
+     */
+    data class Choosing(val scope: ExportScope, val loopCount: Int) : ExportUiState {
+        val hasLoops: Boolean get() = loopCount > 0
+        val fileCount: Int get() = scope.fileCount(loopCount)
+    }
+    /** One bar and one cancel for the whole batch of [fileCount] files. */
+    data class Running(val fraction: Float, val fileCount: Int = 1) : ExportUiState
+    /** The files are rendered: the user picks share or save. */
+    data class Ready(val files: List<ExportedFile>) : ExportUiState
 }

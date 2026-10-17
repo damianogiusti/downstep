@@ -5,8 +5,10 @@ import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.domain.analysis.AnalyzeSectionsUseCase
 import com.damianogiusti.slowdowner.domain.click.SetCountInUseCase
 import com.damianogiusti.slowdowner.domain.click.SetMetronomeUseCase
+import com.damianogiusti.slowdowner.domain.export.ExportItem
 import com.damianogiusti.slowdowner.domain.export.ExportRepository
 import com.damianogiusti.slowdowner.domain.export.ExportResult
+import com.damianogiusti.slowdowner.domain.export.ExportScope
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.ExportedFile
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
@@ -317,10 +319,11 @@ class PlayerViewModelTest {
         val viewModel = openWithLoop(exports = exports)
 
         viewModel.onExportClicked()
+        viewModel.onExportConfirmed()
         runCurrent()
         val onProgress = assertNotNull(exports.onProgress)
         onProgress(0.1f)
-        assertEquals(ExportUiState.Running(0.1f), viewModel.export.value)
+        assertEquals(ExportUiState.Running(0.1f, fileCount = 1), viewModel.export.value)
 
         viewModel.onExportCancelClicked()
         // The render thread's next chunk, already past its own check.
@@ -329,6 +332,94 @@ class PlayerViewModelTest {
 
         assertEquals(ExportUiState.Idle, viewModel.export.value)
         assertTrue(viewModel.header.value.canExport)
+    }
+
+    @Test
+    fun `when export is clicked then the options open on the full track with the track's loops`() = runTest(main) {
+        val viewModel = openWithLoop()
+
+        viewModel.onExportClicked()
+
+        assertEquals(ExportUiState.Choosing(ExportScope.FULL_TRACK, loopCount = 1), viewModel.export.value)
+        // Nothing renders yet: the controls stay usable.
+        assertTrue(viewModel.header.value.canExport)
+    }
+
+    @Test
+    fun `when both is confirmed then one batch renders the full track and every loop`() = runTest(main) {
+        val exports = ParkedExports()
+        val viewModel = openWithLoop(exports = exports)
+
+        viewModel.onExportClicked()
+        viewModel.onExportScopeChanged(ExportScope.BOTH)
+        viewModel.onExportConfirmed()
+        runCurrent()
+
+        assertEquals(listOf("Easy Blues 100%.mp3", "Easy Blues - 01 Solo.mp3"), exports.items?.map { it.fileName })
+        assertEquals(listOf(0f to 1f, 0.2f to 0.4f), exports.items?.map { it.start to it.end })
+        assertEquals(ExportUiState.Running(0f, fileCount = 2), viewModel.export.value)
+        assertFalse(viewModel.header.value.canExport)
+    }
+
+    @Test
+    fun `when a batch is done then every file is ready and the folder save gets them all`() = runTest(main) {
+        val exports = RecordingExports()
+        val viewModel = openWithLoop(exports = exports)
+
+        viewModel.onExportClicked()
+        viewModel.onExportScopeChanged(ExportScope.BOTH)
+        viewModel.onExportConfirmed()
+        runCurrent()
+        val ready = viewModel.export.value as ExportUiState.Ready
+        assertEquals(2, ready.files.size)
+
+        viewModel.onExportSaveFolderPicked("/home/me/Exports")
+        runCurrent()
+
+        assertEquals(ExportUiState.Idle, viewModel.export.value)
+        assertEquals(ready.files to "/home/me/Exports", exports.savedToFolder)
+    }
+
+    @Test
+    fun `the last export choice is offered again`() = runTest(main) {
+        val viewModel = openWithLoop(exports = RecordingExports())
+
+        viewModel.onExportClicked()
+        viewModel.onExportScopeChanged(ExportScope.LOOPS)
+        viewModel.onExportConfirmed()
+        runCurrent()
+        viewModel.onExportDismissed()
+        runCurrent()
+        viewModel.onExportClicked()
+
+        assertEquals(ExportUiState.Choosing(ExportScope.LOOPS, loopCount = 1), viewModel.export.value)
+    }
+
+    @Test
+    fun `when the track has no loops then only the full track can be exported`() = runTest(main) {
+        val viewModel = openWithLoop()
+        loopRepository.delete(loopRepository.loops.value.single().id)
+        runCurrent()
+
+        viewModel.onExportClicked()
+        viewModel.onExportScopeChanged(ExportScope.LOOPS)
+        viewModel.onExportScopeChanged(ExportScope.BOTH)
+
+        assertEquals(ExportUiState.Choosing(ExportScope.FULL_TRACK, loopCount = 0), viewModel.export.value)
+    }
+
+    @Test
+    fun `when the options are dismissed then nothing is exported`() = runTest(main) {
+        val exports = ParkedExports()
+        val viewModel = openWithLoop(exports = exports)
+
+        viewModel.onExportClicked()
+        viewModel.onExportDismissed()
+        viewModel.onExportConfirmed()
+        runCurrent()
+
+        assertEquals(ExportUiState.Idle, viewModel.export.value)
+        assertNull(exports.items)
     }
 
     @Test
@@ -627,7 +718,7 @@ class PlayerViewModelTest {
                 setBpm = SetTrackBpmUseCase(loopRepository),
             ),
             seams = PracticeSeams(AnalyzeSectionsUseCase(null), SetMetronomeUseCase(null), SetCountInUseCase(null)),
-            exports = ExportUseCases(ExportTrackUseCase(engine, nowPlaying, exports), SaveExportUseCase(exports)),
+            exports = ExportUseCases(ExportTrackUseCase(engine, nowPlaying, loopRepository, exports), SaveExportUseCase(exports)),
             background = main,
         ).also { store.put("player", it) }
     }
@@ -665,8 +756,22 @@ class PlayerViewModelTest {
     }
 
     private class NoExports : ExportRepository {
-        override suspend fun exportOpenTrack(fileName: String, onProgress: (Float) -> Unit) = ExportResult.Failure(UnsupportedOperationException())
+        override suspend fun exportOpenTrack(items: List<ExportItem>, onProgress: (Float) -> Unit) =
+            ExportResult.Failure(UnsupportedOperationException())
         override suspend fun saveTo(file: ExportedFile, contentUri: String) = false
+        override suspend fun saveAllTo(files: List<ExportedFile>, folder: String) = false
+    }
+
+    /** Every batch succeeds at once; remembers the last folder save. */
+    private class RecordingExports : ExportRepository {
+        var savedToFolder: Pair<List<ExportedFile>, String>? = null
+        override suspend fun exportOpenTrack(items: List<ExportItem>, onProgress: (Float) -> Unit) =
+            ExportResult.Success(items.map { ExportedFile("/exports/${it.fileName}", it.fileName) })
+        override suspend fun saveTo(file: ExportedFile, contentUri: String) = true
+        override suspend fun saveAllTo(files: List<ExportedFile>, folder: String): Boolean {
+            savedToFolder = files to folder
+            return true
+        }
     }
 
     /** Passes [observe] through, except that [hold] freezes it at what it showed last until [release]. */
@@ -696,11 +801,14 @@ class PlayerViewModelTest {
     /** Keeps the render's progress callback and never finishes on its own. */
     private class ParkedExports : ExportRepository {
         var onProgress: ((Float) -> Unit)? = null
-        override suspend fun exportOpenTrack(fileName: String, onProgress: (Float) -> Unit): ExportResult {
+        var items: List<ExportItem>? = null
+        override suspend fun exportOpenTrack(items: List<ExportItem>, onProgress: (Float) -> Unit): ExportResult {
+            this.items = items
             this.onProgress = onProgress
             awaitCancellation()
         }
         override suspend fun saveTo(file: ExportedFile, contentUri: String) = false
+        override suspend fun saveAllTo(files: List<ExportedFile>, folder: String) = false
     }
 
     private companion object {
