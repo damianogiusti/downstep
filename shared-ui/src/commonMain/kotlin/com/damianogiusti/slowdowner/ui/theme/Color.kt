@@ -5,8 +5,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-// Downstep 2.0 tokens: exactly docs/design/downstep-2/assets/palette.json. The four marked "prototype"
-// are not in the JSON; they come from the palettes of the clickable prototype.
+// Downstep 2.0 tokens (the "downstep" theme, see Themes.kt): exactly docs/design/downstep-2/assets/palette.json.
+// The four marked "prototype" are not in the JSON; they come from the palettes of the clickable prototype.
+// The Material ones are the values Material had before themes.
 
 internal val DarkTokens = DownstepColors(
     isDark = true,
@@ -35,6 +36,13 @@ internal val DarkTokens = DownstepColors(
     fgGlow = Color(0xFFECE8E2).copy(alpha = 0.6f),
     scrim = Color.Black.copy(alpha = 0.55f),
     chipFgActive = Color(0xFF0F1114),
+    // Material.
+    tealContainer = Color(0xFF17403D),
+    onTealContainer = Color(0xFFCDEEEA),
+    onSecondary = Color(0xFF3A0F04),
+    error = Color(0xFFFF6B6B),
+    onError = Color(0xFF410002),
+    onErrorContainer = Color(0xFFFFDAD6),
 )
 
 internal val LightTokens = DownstepColors(
@@ -64,32 +72,39 @@ internal val LightTokens = DownstepColors(
     fgGlow = Color(0xFF1C1B19).copy(alpha = 0.3f),
     scrim = Color(0xFF1C1B19).copy(alpha = 0.35f),
     chipFgActive = Color(0xFFFAF6F0),
+    // Material.
+    tealContainer = Color(0xFFCDEEEA),
+    onTealContainer = Color(0xFF00201E),
+    onSecondary = Color.White,
+    error = Color(0xFFBA1A1A),
+    onError = Color.White,
+    onErrorContainer = Color(0xFF410002),
 )
 
 /**
  * The tokens as Material roles, so the Material screens and dialogs (playlist, import, effects,
- * backup, update) match the player. Roles the palette has no token for keep the earlier values.
+ * backup, update) match the player. [inversePrimary] is the other mode's [DownstepColors.amber].
  */
-internal fun DownstepColors.toMaterial(): ColorScheme = if (isDark) {
+internal fun DownstepColors.toMaterial(inversePrimary: Color): ColorScheme = if (isDark) {
     darkColorScheme(
         primary = amber,
         onPrimary = onAmber,
         primaryContainer = loopOnBg,
         onPrimaryContainer = loopOnFg,
         secondary = loopColors[2],
-        onSecondary = Color(0xFF3A0F04),
+        onSecondary = onSecondary,
         // Material uses secondaryContainer for slider tracks, segmented and tonal buttons:
         // a neutral keeps those calm and leaves the accent colors to the practice controls.
         secondaryContainer = surface3,
         onSecondaryContainer = fg,
         tertiary = teal,
         onTertiary = onTeal,
-        tertiaryContainer = Color(0xFF17403D),
-        onTertiaryContainer = Color(0xFFCDEEEA),
-        error = Color(0xFFFF6B6B),
-        onError = Color(0xFF410002),
+        tertiaryContainer = tealContainer,
+        onTertiaryContainer = onTealContainer,
+        error = error,
+        onError = onError,
         errorContainer = errBg,
-        onErrorContainer = errFg,
+        onErrorContainer = onErrorContainer,
         background = bg,
         onBackground = fg,
         surface = bg,
@@ -99,7 +114,7 @@ internal fun DownstepColors.toMaterial(): ColorScheme = if (isDark) {
         surfaceTint = amber,
         inverseSurface = fg,
         inverseOnSurface = bg,
-        inversePrimary = LightTokens.amber,
+        inversePrimary = inversePrimary,
         outline = surface4,
         outlineVariant = surface3,
         scrim = Color.Black,
@@ -118,17 +133,17 @@ internal fun DownstepColors.toMaterial(): ColorScheme = if (isDark) {
         primaryContainer = loopOnBg,
         onPrimaryContainer = loopOnFg,
         secondary = loopColors[2],
-        onSecondary = Color.White,
+        onSecondary = onSecondary,
         secondaryContainer = surface3,
         onSecondaryContainer = fg,
         tertiary = teal,
         onTertiary = onTeal,
-        tertiaryContainer = Color(0xFFCDEEEA),
-        onTertiaryContainer = Color(0xFF00201E),
-        error = errFg,
-        onError = Color.White,
+        tertiaryContainer = tealContainer,
+        onTertiaryContainer = onTealContainer,
+        error = error,
+        onError = onError,
         errorContainer = errBg,
-        onErrorContainer = Color(0xFF410002),
+        onErrorContainer = onErrorContainer,
         background = bg,
         onBackground = fg,
         surface = bg,
@@ -138,10 +153,11 @@ internal fun DownstepColors.toMaterial(): ColorScheme = if (isDark) {
         surfaceTint = amber,
         inverseSurface = fg,
         inverseOnSurface = bg,
-        inversePrimary = DarkTokens.amber,
+        inversePrimary = inversePrimary,
         outline = surface4,
         outlineVariant = surface3,
         scrim = Color.Black,
+        // Light surfaces top out at white whatever the palette's tint.
         surfaceBright = Color.White,
         surfaceDim = surface2,
         surfaceContainerLowest = Color.White,

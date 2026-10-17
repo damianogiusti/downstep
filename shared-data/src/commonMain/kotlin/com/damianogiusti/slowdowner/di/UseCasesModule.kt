@@ -61,8 +61,8 @@ import com.damianogiusti.slowdowner.domain.practice.SetLoopRegionUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
 import com.damianogiusti.slowdowner.domain.tempo.DetectTrackTempoUseCase
-import com.damianogiusti.slowdowner.domain.theme.ObserveThemeModeUseCase
-import com.damianogiusti.slowdowner.domain.theme.SetThemeModeUseCase
+import com.damianogiusti.slowdowner.domain.theme.ObserveThemeUseCase
+import com.damianogiusti.slowdowner.domain.theme.SetThemeUseCase
 import org.koin.core.module.dsl.factoryOf
 import org.koin.dsl.module
 
@@ -121,8 +121,8 @@ val useCasesModule = module {
     factory { DetectTrackTempoUseCase(getOrNull(), get(), get()) }
     factoryOf(::ObserveClickSettingsUseCase)
     factoryOf(::UpdateClickSettingsUseCase)
-    factoryOf(::ObserveThemeModeUseCase)
-    factoryOf(::SetThemeModeUseCase)
+    factoryOf(::ObserveThemeUseCase)
+    factoryOf(::SetThemeUseCase)
     factoryOf(::ObservePlaylistsUseCase)
     factoryOf(::ObservePlaylistUseCase)
     factoryOf(::ObservePlaylistMembershipUseCase)

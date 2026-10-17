@@ -125,6 +125,8 @@ fun OverviewWaveform(
     val pillStyle = type.tag.copy(fontSize = 11.sp)
     val labelStyle = type.tag.copy(fontSize = 10.sp, color = colors.amber)
     val durationStyle = type.meta.copy(fontSize = 11.sp, color = colors.fg2)
+    // Outside the draw cache, which every recomposition (a theme preview, a chip) rebuilds.
+    val levels = remember(state.peaks) { state.peaks?.let { normalizeLevels(resamplePeaks(it, 0f, 1f, BAR_COUNT)) } }
 
     Box(
         modifier = modifier
@@ -176,7 +178,6 @@ fun OverviewWaveform(
                 val axis = overviewAxis(size.width, gutter)
                 val barsTop = BARS_INSET.toPx()
                 val barsHeight = (size.height - barsTop * 2).coerceAtLeast(0f)
-                val levels = state.peaks?.let { normalizeLevels(resamplePeaks(it, 0f, 1f, BAR_COUNT)) }
                 val bars = levels?.let {
                     barShapes(it, axis, barsTop + barsHeight / 2, barsHeight, BAR_GAP.toPx(), BAR_RADIUS.toPx(), MIN_BAR.toPx())
                 }

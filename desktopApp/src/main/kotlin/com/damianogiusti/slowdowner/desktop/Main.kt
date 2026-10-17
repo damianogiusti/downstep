@@ -58,8 +58,9 @@ import com.damianogiusti.slowdowner.ui.update.UpdateBanner
 import com.damianogiusti.slowdowner.ui.update.UpdateHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import com.damianogiusti.slowdowner.ui.theme.ThemeViewModel
+import com.damianogiusti.slowdowner.ui.theme.themeById
 import com.damianogiusti.slowdowner.domain.practice.SavePracticeStateUseCase
-import com.damianogiusti.slowdowner.domain.theme.ThemeMode
+import com.damianogiusti.slowdowner.domain.theme.ThemeSelection
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -156,9 +157,10 @@ fun main() {
             // and the player, its effects and the theme live as long as the window.
             val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
             CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
-                // Without an engine there is no Koin: the error screen gets the default theme.
-                val themeMode = if (engine != null) koinViewModel<ThemeViewModel>().mode.collectAsStateWithLifecycle().value else ThemeMode.DEFAULT
-                SlowDownerTheme(themeMode) {
+                // Without an engine there is no Koin: the error screen gets the default theme. The theme
+                // on screen includes the theme menu's preview.
+                val theme = if (engine != null) koinViewModel<ThemeViewModel>().effective.collectAsStateWithLifecycle().value else ThemeSelection.DEFAULT
+                SlowDownerTheme(theme.mode, themeById(theme.themeId)) {
                     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(top = titleBarHeight)) {
                         if (engine != null && !hasAudioOutput) NoAudioOutputBanner()
                         Box(modifier = Modifier.weight(1f)) {
