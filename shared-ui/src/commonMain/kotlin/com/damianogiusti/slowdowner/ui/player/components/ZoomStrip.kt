@@ -42,6 +42,7 @@ import com.damianogiusti.slowdowner.ui.player.WaveformActions
 import com.damianogiusti.slowdowner.ui.player.ZoomStripState
 import com.damianogiusti.slowdowner.ui.player.components.waveform.BarColors
 import com.damianogiusti.slowdowner.ui.player.components.waveform.DRAG_THRESHOLD
+import com.damianogiusti.slowdowner.ui.player.components.waveform.ExpireDroppedPreview
 import com.damianogiusti.slowdowner.ui.player.components.waveform.HitRegion
 import com.damianogiusti.slowdowner.ui.player.components.waveform.LoopDragState
 import com.damianogiusti.slowdowner.ui.player.components.waveform.LoopGestureActions
@@ -80,6 +81,7 @@ fun ZoomStrip(
     val measurer = rememberTextMeasurer()
     val current by rememberUpdatedState(state)
     LaunchedEffect(state.loopId, state.start, state.end) { drag.settle(state.loopId, LoopBounds(state.start, state.end)) }
+    ExpireDroppedPreview(drag)
     val width = remember { mutableIntStateOf(0) }
 
     val separator = stringResource(Res.string.decimal_separator)

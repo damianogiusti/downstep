@@ -56,6 +56,7 @@ import com.damianogiusti.slowdowner.ui.player.OverviewWaveformState
 import com.damianogiusti.slowdowner.ui.player.WaveformActions
 import com.damianogiusti.slowdowner.ui.player.components.waveform.BarColors
 import com.damianogiusti.slowdowner.ui.player.components.waveform.DRAG_THRESHOLD
+import com.damianogiusti.slowdowner.ui.player.components.waveform.ExpireDroppedPreview
 import com.damianogiusti.slowdowner.ui.player.components.waveform.HitRegion
 import com.damianogiusti.slowdowner.ui.player.components.waveform.LoopDragState
 import com.damianogiusti.slowdowner.ui.player.components.waveform.LoopGestureActions
@@ -112,6 +113,7 @@ fun OverviewWaveform(
         drag.settle(dragged, state.regions.firstOrNull { it.id == dragged }?.bounds)
     }
     LaunchedEffect(state.isOpen, state.enabled) { if (!state.isOpen || !state.enabled) hover.value = null }
+    ExpireDroppedPreview(drag)
     // Only for the invisible A/B handles, which are placed in the layout phase.
     val width = remember { mutableIntStateOf(0) }
 

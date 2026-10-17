@@ -2,6 +2,8 @@ package com.damianogiusti.slowdowner.ui.player.components.waveform
 
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,6 +15,7 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
+import kotlinx.coroutines.delay
 import kotlin.math.max
 
 /**
@@ -30,7 +33,7 @@ class LoopDragState internal constructor() {
     internal var bounds: LoopBounds? by mutableStateOf(null)
         private set
 
-    internal var isDragging: Boolean = false
+    internal var isDragging: Boolean by mutableStateOf(false)
         private set
 
     /** Its bounds when the drag began: once the state shows anything else, the commit has landed. */
@@ -66,12 +69,35 @@ class LoopDragState internal constructor() {
         if (committed == null || committed != from) clear()
     }
 
+    /** The commit never came back (refused, or the loop went away): show the loop where it is. */
+    internal fun abandon() {
+        if (!isDragging) clear()
+    }
+
     private fun clear() {
         loopId = null
         bounds = null
         from = null
     }
 }
+
+/**
+ * A dropped preview whose commit does not come back within [DROPPED_PREVIEW_TIMEOUT_MS] (the
+ * ViewModel refused it: controls frozen by an export or a decode, the loop deleted meanwhile) goes,
+ * so the waveform never shows a loop where it is not. Recomposes only when a drag begins and ends.
+ */
+@Composable
+internal fun ExpireDroppedPreview(drag: LoopDragState) {
+    val dropped = drag.loopId?.takeIf { !drag.isDragging }
+    LaunchedEffect(drag, dropped) {
+        if (dropped == null) return@LaunchedEffect
+        delay(DROPPED_PREVIEW_TIMEOUT_MS)
+        drag.abandon()
+    }
+}
+
+/** Longer than the ViewModel waits for a loop edit to show (2 s): a slow commit still lands first. */
+internal const val DROPPED_PREVIEW_TIMEOUT_MS = 3_000L
 
 /** A press that travels further than this sideways is a drag; less is a click. */
 internal val DRAG_THRESHOLD = 4.dp

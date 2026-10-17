@@ -166,6 +166,22 @@ class WaveformMathTest {
     }
 
     @Test
+    fun `a dropped preview whose commit never lands is abandoned, a live drag is not`() {
+        val drag = LoopDragState()
+        val committed = LoopBounds(0.2f, 0.4f)
+
+        drag.begin(7, committed)
+        drag.move(LoopBounds(0.3f, 0.5f))
+        drag.abandon()
+        assertEquals(LoopBounds(0.3f, 0.5f), drag.shown(7, committed), "still in the hand")
+
+        drag.end(moved = true)
+        drag.abandon()
+        assertEquals(committed, drag.shown(7, committed), "refused: the loop shows where it is")
+        assertNull(drag.loopId)
+    }
+
+    @Test
     fun `a drag that moved nothing leaves no preview`() {
         val drag = LoopDragState()
         val committed = LoopBounds(0.2f, 0.4f)
