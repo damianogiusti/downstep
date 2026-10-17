@@ -25,6 +25,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -117,14 +119,20 @@ fun PlayerScreen(
     }.collectAsStateWithLifecycle(viewModel.progression.value != null || viewModel.notes.value != null)
     // One loop drag for both waveforms: the zoom strip draws a drag on the overview live, and back.
     val loopDrag = remember { LoopDragState() }
+    // The loading bar and the export banner above the cards, measured: the fit leaves them room. Set
+    // only when one appears or goes, never as the export's fraction moves.
+    var extraTop by remember { mutableStateOf(0.dp) }
+    val density = LocalDensity.current
 
     // A click outside Notes (or the drawer's search) ends typing: the shortcuts work again.
     Box(modifier = Modifier.fillMaxSize().background(SlowDownerTheme.colors.bg).clearsFocusOnPress()) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val isFocusMode = layout.isFocusMode
             val height = maxHeight
-            val fit = remember(maxWidth, height, isFocusMode, hasLoopCards) {
-                PlayerLayoutFit.of(maxWidth, height, isFocusMode, hasLoopCards)
+            // Focus mode shows neither: a banner measured before switching does not count there.
+            val top = if (isFocusMode) 0.dp else extraTop
+            val fit = remember(maxWidth, height, isFocusMode, hasLoopCards, top) {
+                PlayerLayoutFit.of(maxWidth, height, isFocusMode, hasLoopCards, top)
             }
             if (isFocusMode) {
                 // Stuck to the bottom, the space above left empty; scrolls only if even that cannot fit.
@@ -140,8 +148,10 @@ fun PlayerScreen(
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
                     HeaderHost(viewModel, theme, actions.header)
-                    LoadingHost(viewModel)
-                    ExportBannerHost(viewModel)
+                    Column(modifier = Modifier.fillMaxWidth().onSizeChanged { extraTop = with(density) { it.height.toDp() } }) {
+                        LoadingHost(viewModel)
+                        ExportBannerHost(viewModel)
+                    }
                     Column(modifier = Modifier.weight(1f).testTag(PlayerTags.CARDS).verticalScroll(rememberScrollState())) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(DownstepDimens.cardGap),
