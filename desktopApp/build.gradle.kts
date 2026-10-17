@@ -54,6 +54,8 @@ tasks.test {
     // The real app swap (scripts, disk images, Trash) runs only in CI, on machines that are thrown away:
     // ./gradlew :desktopApp:test -PupdateSwapTests=true. Never on a developer's computer.
     systemProperty("slowdowner.updateSwapTests", providers.gradleProperty("updateSwapTests").getOrElse("false"))
+    // A real full-screen window, over the whole screen for a moment: ./gradlew :desktopApp:test -PfullscreenWindowTests=true.
+    systemProperty("slowdowner.fullscreenWindowTests", providers.gradleProperty("fullscreenWindowTests").getOrElse("false"))
     enabled = osName.startsWith("Mac") || isWindows || isLinux
 }
 

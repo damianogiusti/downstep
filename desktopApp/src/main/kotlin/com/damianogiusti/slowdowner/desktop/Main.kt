@@ -122,6 +122,8 @@ fun main() {
             val scope = rememberCoroutineScope()
             val fullscreen = remember(windowState) { WindowFullscreen(windowState, scope) { window.placement } }
             LaunchedEffect(fullscreen) { fullscreen.trackRestorePlacement() }
+            // A file picker or another app taking the focus must not minimize the fullscreen window.
+            if (isWindows) LaunchedEffect(windowState) { window.keepFullscreenOnFocusLoss(windowState) }
             LaunchedEffect(Unit) {
                 // From the screen the window opens on: restored bounds may be on a smaller one than the primary.
                 window.minimumSize = minimumWindowSize(initialBounds, screens)

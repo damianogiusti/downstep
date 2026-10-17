@@ -21,8 +21,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * state is the window's own placement ([WindowState.placement] = [WindowPlacement.Fullscreen]),
  * which Compose implements per OS and keeps in step with the OS:
  * - Windows (and Linux): AWT's full-screen window, which covers the whole screen, taskbar included,
- *   without the title bar. Like any full-screen window there, it is minimized when another app comes
- *   to the front, and is fullscreen again when brought back.
+ *   without the title bar. Its own file pickers show over it (see [keepFullscreenOnFocusLoss]); when
+ *   another app comes to the front Windows may minimize it, and it is fullscreen again when brought back.
  * - macOS: the native fullscreen of the green button (`toggleFullScreen:`), in its own Space, so the
  *   button, the menu item, ⌃⌘F, F and F11 all toggle the same thing (see [useTransparentTitleBar],
  *   which makes the window fullscreenable).
