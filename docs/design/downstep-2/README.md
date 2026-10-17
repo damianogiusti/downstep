@@ -273,7 +273,8 @@ choice is offered again until the app quits.
   `<track> - <nn> <loop name>.mp3`: `nn` is the loop's place in the chip strip's order (by start), 1-based, with
   two digits (three past 99 loops), so a folder sorted by name lists the loops in musical order and two loops with
   the same name never collide. Names are made safe for Windows, macOS and Linux (`\ / : * ? " < > |` and control
-  characters become `_`, line breaks and runs of spaces become one space, trimmed, no trailing dot, the title capped
+  characters become `_`, line breaks and runs of spaces become one space, trimmed, no leading dot (a hidden file)
+  and no trailing dot, the title capped
   at 80 characters and the loop name at 40), and a name that still repeats another, ignoring case, gets " (2)".
 - **Sound.** A loop file is its A→B slice with exactly the full export's processing: speed, pitch, L/R mix, EQ
   curve and preamp. It lasts (B − A) / speed, starts with the player's 10 ms fade-in and ends with a 10 ms fade-out,
@@ -284,7 +285,7 @@ choice is offered again until the app quits.
   the start of a loop file. The dialog says so.
 - **Progress and cancel.** One banner for the whole batch ("Exporting 4 files to MP3… 42%") with one bar, weighted by
   each file's length so it moves evenly from the first file to the last, and one Cancel. Cancelling, or any failure,
-  deletes every file of the batch: it is all or nothing.
+  deletes every file of the batch, including a file cut short by a failed write (a full disk): it is all or nothing.
 - **Result.** One file: as before, *Save…* (a save-as dialog) and *Share* (shows it in the file manager). Several:
   the dialog lists the first five names, and *Save to folder…* opens a folder picker; every file is copied there,
   next to the others, and a file already in that folder is never replaced (the copy gets " (2)"). *Share* shows the
