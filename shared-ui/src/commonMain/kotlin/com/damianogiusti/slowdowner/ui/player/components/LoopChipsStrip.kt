@@ -194,7 +194,14 @@ private fun LoopChip(
                 .padding(horizontal = 10.dp),
         ) {
             val text = if (chip.isActive) colors.chipFgActive else colors.fg
-            Box(Modifier.size(8.dp).background(colors.loopColor(chip.colorIndex), CircleShape))
+            // On the fg-filled active chip a loop colour can be as light as fg: a ring of the chip's text
+            // colour keeps the dot 3:1 apart.
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .background(colors.loopColor(chip.colorIndex), CircleShape)
+                    .then(if (chip.isActive) Modifier.border(1.dp, colors.chipFgActive, CircleShape) else Modifier),
+            )
             if (isEditing) {
                 LoopNameEditor(
                     initial = chip.name,
@@ -349,10 +356,11 @@ private fun SuggestionChip(suggestion: SuggestionModel, enabled: Boolean, action
             .padding(start = 12.dp, end = 4.dp),
     ) {
         Text(suggestion.name, style = SlowDownerTheme.type.control, color = colors.amber, maxLines = 1)
+        // Set apart by weight only: amber is just AA as small text, any dimming would not be.
         Text(
             stringResource(Res.string.loop_length_seconds, suggestion.lengthSeconds.roundToInt()),
             style = SlowDownerTheme.type.control.copy(fontWeight = FontWeight.Normal),
-            color = colors.amber.copy(alpha = SUGGESTION_LENGTH_ALPHA),
+            color = colors.amber,
             maxLines = 1,
         )
         RoundIcon(
@@ -430,8 +438,8 @@ private fun NewLoopChip(enabled: Boolean, onClick: () -> Unit) {
     }
 }
 
-private const val LENGTH_ALPHA = 0.6f
+// The least dimming that keeps the length AA on surface1 in every light theme (ThemeContrastTest).
+private const val LENGTH_ALPHA = 0.65f
 private val EDITOR_MIN_WIDTH = 48.dp
 private val EDITOR_MAX_WIDTH = 220.dp
-private const val SUGGESTION_LENGTH_ALPHA = 0.7f
 private val KeyShape = RoundedCornerShape(4.dp)

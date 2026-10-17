@@ -5,7 +5,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-// Downstep 2.0 tokens (the "downstep" theme, see Themes.kt): exactly docs/design/downstep-2/assets/palette.json.
+// Downstep 2.0 tokens (the "downstep" theme, see Themes.kt): exactly docs/design/downstep-2/assets/palette.json,
+// but for light amber, amberHover and teal (marked "AA"): darkened the least that makes them AA as small text
+// where the UI draws them (amber on surface2 menus and dialogs, teal on the EQ's surface1; ThemeContrastTest).
 // The four marked "prototype" are not in the JSON; they come from the palettes of the clickable prototype.
 // The Material ones are the values Material had before themes.
 
@@ -55,10 +57,10 @@ internal val LightTokens = DownstepColors(
     surface4 = Color(0xFFD3CABD),
     fg = Color(0xFF1C1B19),
     fg2 = Color(0xFF5E5A54),
-    amber = Color(0xFFA86400),
-    amberHover = Color(0xFF8F5500),
+    amber = Color(0xFF935100), // AA: palette.json A86400.
+    amberHover = Color(0xFF7B4200), // AA: palette.json 8F5500.
     onAmber = Color(0xFFFFFFFF),
-    teal = Color(0xFF2D7C77),
+    teal = Color(0xFF23746F), // AA: palette.json 2D7C77.
     onTeal = Color(0xFFFFFFFF),
     errBg = Color(0xFFFFDAD6),
     errFg = Color(0xFFBA1A1A),
@@ -66,9 +68,9 @@ internal val LightTokens = DownstepColors(
     loopOnFg = Color(0xFF3A2300),
     barMuted = Color(0xFFD3CABD),
     barPlayed = Color(0xFF5E5A54),
-    loopColors = listOf(Color(0xFFA86400), Color(0xFF2D7C77), Color(0xFFB0533A), Color(0xFF3F7A5A)),
+    loopColors = listOf(Color(0xFF935100), Color(0xFF23746F), Color(0xFFB0533A), Color(0xFF3F7A5A)), // AA: amber, teal.
     // Prototype.
-    amberGlow = Color(0xFFA86400).copy(alpha = 0.28f),
+    amberGlow = Color(0xFF935100).copy(alpha = 0.28f), // AA: amber.
     fgGlow = Color(0xFF1C1B19).copy(alpha = 0.3f),
     scrim = Color(0xFF1C1B19).copy(alpha = 0.35f),
     chipFgActive = Color(0xFFFAF6F0),

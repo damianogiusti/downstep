@@ -82,9 +82,9 @@ class PlayerRenderTest {
     @Test
     fun `the light player uses the light palette`() {
         val image = renderPlayer("player-light.png", ThemeMode.Light)
-        assertColorNear(image, PLAY_BUTTON_X, PLAY_BUTTON_Y, 0xA86400, "Play button")
+        assertColorNear(image, PLAY_BUTTON_X, PLAY_BUTTON_Y, 0x935100, "Play button")
         assertColorNear(image, 4, image.height - 4, 0xFAF6F0, "background")
-        assertPlayIconCentred(image, 0xA86400)
+        assertPlayIconCentred(image, 0x935100)
     }
 
     @Test

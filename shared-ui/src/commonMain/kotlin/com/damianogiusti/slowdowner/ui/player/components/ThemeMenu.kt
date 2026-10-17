@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -71,6 +72,7 @@ import com.damianogiusti.slowdowner.ui.theme.DownstepDimens
 import com.damianogiusti.slowdowner.ui.theme.DownstepShapes
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import com.damianogiusti.slowdowner.ui.theme.Themes
+import com.damianogiusti.slowdowner.ui.theme.themeById
 import kotlinx.coroutines.flow.drop
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
@@ -78,9 +80,9 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * The header's theme button (sun or moon: the mode on screen) and its menu: Dark / Light, then the
  * themes, each with a swatch of its colours in the mode on screen. What the pointer or the keyboard
- * focus is on is previewed across the app; leaving the item, Esc or closing the menu goes back to
- * [selection]; a click, Enter or Space applies and saves. A theme closes the menu, a mode keeps it
- * open so a theme can follow.
+ * focus is on is previewed across the app (the pointer's item first, see PreviewTarget); Esc or
+ * closing the menu goes back to [selection]; a click, or Enter or Space on what is previewed, applies
+ * and saves. A theme closes the menu, a mode keeps it open so a theme can follow.
  */
 @Composable
 internal fun ThemeMenuButton(selection: ThemeSelection, actions: HeaderActions) {
@@ -112,21 +114,57 @@ internal fun ThemeMenuButton(selection: ThemeSelection, actions: HeaderActions) 
     }
 }
 
-/** What the menu previews: the item last entered by the pointer or the focus, until it is left. */
+/** An item of the menu, by what it changes, so it applies onto the selection of the moment. */
+@Immutable
+private sealed interface MenuItem {
+    /** A theme closes the menu; a mode keeps it open so a theme can follow. */
+    val closes: Boolean
+
+    fun option(selection: ThemeSelection): ThemeSelection
+
+    data class Mode(val mode: ThemeMode) : MenuItem {
+        override val closes get() = false
+        override fun option(selection: ThemeSelection) = selection.copy(mode = mode)
+    }
+
+    data class Theme(val id: String) : MenuItem {
+        override val closes get() = true
+        override fun option(selection: ThemeSelection) = selection.copy(themeId = id)
+    }
+}
+
+/**
+ * What the menu previews and what Enter or Space applies: always the same item, [shown]. The pointer's
+ * item wins over the keyboard's; leaving it falls back to the focused item, which is the chosen theme
+ * until a key moves the focus (so leaving the menu without touching the keyboard looks like a revert).
+ * A key that moves the focus elsewhere drops the pointer's item until the pointer moves again.
+ */
 @Stable
 private class PreviewTarget {
-    var value by mutableStateOf<ThemeSelection?>(null)
-        private set
+    private var hovered by mutableStateOf<MenuItem?>(null)
+    private var focused by mutableStateOf<MenuItem?>(null)
+
+    val shown: MenuItem? get() = hovered ?: focused
 
     /** Set once a pick closes the menu: its fade-out must not preview what the pointer crosses. */
     var isClosing = false
 
-    fun enter(selection: ThemeSelection) {
-        if (!isClosing) value = selection
+    fun enter(item: MenuItem) {
+        if (!isClosing) hovered = item
     }
 
-    fun leave(selection: ThemeSelection) {
-        if (value == selection) value = null
+    fun exit(item: MenuItem) {
+        if (hovered == item) hovered = null
+    }
+
+    fun focus(item: MenuItem) {
+        if (isClosing) return
+        focused = item
+        if (hovered != item) hovered = null
+    }
+
+    fun blur(item: MenuItem) {
+        if (focused == item) focused = null
     }
 }
 
@@ -141,11 +179,16 @@ private fun ThemeMenuContent(
     val colors = SlowDownerTheme.colors
     val focusManager = LocalFocusManager.current
     val target = remember { PreviewTarget() }
+    val currentSelection by rememberUpdatedState(selection)
     val currentOnPreview by rememberUpdatedState(onPreview)
     val currentOnPreviewEnd by rememberUpdatedState(onPreviewEnd)
     LaunchedEffect(target) {
-        // drop(1): opening previews nothing.
-        snapshotFlow { target.value }.drop(1).collect { if (it != null) currentOnPreview(it) else currentOnPreviewEnd() }
+        // drop(1): opening previews nothing. The option follows the selection: a mode applied meanwhile
+        // must not come back when the pointer falls back to the focused theme.
+        snapshotFlow { target.shown?.option(currentSelection) }.drop(1).collect {
+            if (target.isClosing) return@collect
+            if (it != null) currentOnPreview(it) else currentOnPreviewEnd()
+        }
     }
     // Gone without a pick (or after one, harmless): back to the chosen theme.
     DisposableEffect(Unit) { onDispose { currentOnPreviewEnd() } }
@@ -154,14 +197,21 @@ private fun ThemeMenuContent(
     val checkedRow = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { checkedRow.requestFocus() } }
 
-    val apply = { applied: ThemeSelection, closes: Boolean ->
-        if (closes) target.isClosing = true
-        onApply(applied, closes)
+    val apply = { item: MenuItem ->
+        if (item.closes) target.isClosing = true
+        onApply(item.option(selection), item.closes)
     }
     Column(
         modifier = Modifier
             .width(MENU_WIDTH)
             .onPreviewKeyEvent { event ->
+                // Enter and Space apply what is previewed, on release; here rather than in clickable, so the
+                // window's shortcuts (Space plays) and the click never both run. The press is taken too.
+                if (event.key == Key.Enter || event.key == Key.NumPadEnter || event.key == Key.Spacebar) {
+                    val shown = target.shown ?: return@onPreviewKeyEvent false
+                    if (event.type == KeyEventType.KeyUp) apply(shown)
+                    return@onPreviewKeyEvent true
+                }
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
                     Key.DirectionDown, Key.DirectionRight -> focusManager.moveFocus(FocusDirection.Next)
@@ -178,12 +228,12 @@ private fun ThemeMenuContent(
             modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth().selectableGroup(),
         ) {
             ThemeMode.entries.forEach { mode ->
-                val option = selection.copy(mode = mode)
+                val item = MenuItem.Mode(mode)
                 ModeOption(
                     mode = mode,
                     selected = mode == selection.mode,
-                    modifier = Modifier.weight(1f).previewsOn(option, target),
-                    onClick = { apply(option, false) },
+                    modifier = Modifier.weight(1f).previewsOn(item, target),
+                    onClick = { apply(item) },
                 )
             }
         }
@@ -191,17 +241,19 @@ private fun ThemeMenuContent(
         MenuLabel(stringResource(Res.string.theme_palettes))
         Column(Modifier.selectableGroup().padding(bottom = 4.dp)) {
             val mode = if (colors.isDark) ThemeMode.Dark else ThemeMode.Light
+            // An unknown saved id (a newer version's theme) checks Downstep, which is what shows.
+            val checkedId = themeById(selection.themeId).id
             Themes.forEach { theme ->
-                val option = selection.copy(themeId = theme.id)
-                val checked = theme.id == selection.themeId
+                val item = MenuItem.Theme(theme.id)
+                val checked = theme.id == checkedId
                 ThemeRow(
                     theme = theme,
                     swatch = theme.colors(mode),
                     selected = checked,
                     modifier = Modifier
                         .then(if (checked) Modifier.focusRequester(checkedRow) else Modifier)
-                        .previewsOn(option, target),
-                    onClick = { apply(option, true) },
+                        .previewsOn(item, target),
+                    onClick = { apply(item) },
                 )
             }
         }
@@ -209,32 +261,24 @@ private fun ThemeMenuContent(
 }
 
 /**
- * Hover and focus preview [selection]; leaving it ends the preview. Enter and Space apply on release,
- * here rather than in clickable, so the window's shortcuts (Space plays) and the click never both run.
- * The items count as text input meanwhile: the shortcuts leave the arrows, Space and Esc to the menu.
+ * The pointer and the focus on [item] tell [target]. The items count as text input meanwhile: the
+ * window's shortcuts leave the arrows, Enter, Space and Esc to the menu.
  */
-private fun Modifier.previewsOn(selection: ThemeSelection, target: PreviewTarget): Modifier = this
-    .pointerInput(selection) {
+private fun Modifier.previewsOn(item: MenuItem, target: PreviewTarget): Modifier = this
+    .pointerInput(item) {
         awaitPointerEventScope {
             while (true) {
                 val event = awaitPointerEvent()
                 when (event.type) {
                     // A move too: the first event in a just opened popup is not always an Enter.
-                    PointerEventType.Enter, PointerEventType.Move -> target.enter(selection)
-                    PointerEventType.Exit -> target.leave(selection)
+                    PointerEventType.Enter, PointerEventType.Move -> target.enter(item)
+                    PointerEventType.Exit -> target.exit(item)
                 }
             }
         }
     }
     .reportsTextInputFocus()
-    .onFocusChanged { if (it.isFocused) target.enter(selection) else target.leave(selection) }
-
-/** Enter, numpad Enter and Space click on release; the press is taken too, so nothing else sees it. */
-private fun Modifier.clicksOnKeys(onClick: () -> Unit): Modifier = onPreviewKeyEvent { event ->
-    if (event.key != Key.Enter && event.key != Key.NumPadEnter && event.key != Key.Spacebar) return@onPreviewKeyEvent false
-    if (event.type == KeyEventType.KeyUp) onClick()
-    true
-}
+    .onFocusChanged { if (it.isFocused) target.focus(item) else target.blur(item) }
 
 @Composable
 private fun MenuLabel(text: String) {
@@ -258,7 +302,6 @@ private fun ModeOption(mode: ThemeMode, selected: Boolean, modifier: Modifier, o
             .height(MODE_HEIGHT)
             .clip(DownstepShapes.pill)
             .background(if (selected) colors.fg else colors.surface1, DownstepShapes.pill)
-            .clicksOnKeys(onClick)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
     ) {
         Icon(
@@ -287,7 +330,6 @@ private fun ThemeRow(theme: AppTheme, swatch: DownstepColors, selected: Boolean,
         modifier = modifier
             .fillMaxWidth()
             .height(ROW_HEIGHT)
-            .clicksOnKeys(onClick)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 16.dp),
     ) {
