@@ -73,8 +73,6 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
 import org.koin.mp.KoinPlatform
-import java.awt.Dimension
-import java.awt.Rectangle
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.nio.file.Path
@@ -126,7 +124,8 @@ fun main() {
             onPreviewKeyEvent = { event -> shortcuts?.handle(event) ?: false },
         ) {
             LaunchedEffect(Unit) {
-                window.minimumSize = minimumWindowSize(screens.firstOrNull())
+                // From the screen the window opens on: restored bounds may be on a smaller one than the primary.
+                window.minimumSize = minimumWindowSize(initialBounds, screens)
                 window.useTransparentTitleBar()
                 window.useAppIcon()
                 // A key held while switching away is released in the other app: forget it.
@@ -205,13 +204,6 @@ private fun sinceLaunchMillis(): Long? = ProcessHandle.current().info().startIns
 
 /** Set by Gradle (-PappVersion, see desktopApp/build.gradle.kts). */
 private val appVersion: String = System.getProperty("slowdowner.version") ?: "dev"
-
-/** [MinimumWindowSize], or the whole usable area of a screen smaller than that. In AWT units, like dp. */
-private fun minimumWindowSize(screen: Rectangle?): Dimension {
-    val width = MinimumWindowSize.width.value.roundToInt()
-    val height = MinimumWindowSize.height.value.roundToInt()
-    return if (screen == null) Dimension(width, height) else Dimension(minOf(width, screen.width), minOf(height, screen.height))
-}
 
 /**
  * Saves where the window is a moment after it stops moving or resizing, so the next run opens there.

@@ -2,7 +2,10 @@ package com.damianogiusti.slowdowner.desktop
 
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.min
+import com.damianogiusti.slowdowner.ui.player.PlayerPartHeights
+import java.awt.Dimension
 import java.awt.GraphicsEnvironment
 import java.awt.Rectangle
 import java.awt.Toolkit
@@ -23,14 +26,25 @@ val DesignWindowSize = DpSize(1280.dp, 820.dp)
 private const val SCREEN_SHARE = 0.94f
 
 /**
+ * Windows' invisible resize borders, left and right, which AWT counts in the window's width. With
+ * them, the narrowest window whose player keeps the progression's sentence on one line.
+ */
+private val WINDOW_SIDE_BORDERS = 16.dp
+private val ONE_LINE_WINDOW_WIDTH = PlayerPartHeights().loopCardsOneLineWidth + WINDOW_SIDE_BORDERS
+
+/**
  * The first window's size on a screen whose usable area (taskbar, dock and menu bar left out) is
  * [usable]: the design size, smaller on a laptop screen, never below [minimum] unless the screen is.
+ * On a screen just wider than that, the width margin gives way first: a wrapped progression sentence
+ * costs more height than a laptop screen has to spare (1280×720 with its taskbar).
  * Sizes are in dp, which on desktop are AWT's user-space units: the OS scale is already applied.
  */
 fun defaultWindowSize(usable: DpSize, minimum: DpSize = MinimumWindowSize): DpSize {
     val floor = DpSize(min(minimum.width, usable.width), min(minimum.height, usable.height))
+    val shared = usable.width * SCREEN_SHARE
+    val width = if (usable.width >= ONE_LINE_WINDOW_WIDTH) max(shared, ONE_LINE_WINDOW_WIDTH) else shared
     return DpSize(
-        width = min(DesignWindowSize.width, usable.width * SCREEN_SHARE).coerceAtLeast(floor.width).rounded(),
+        width = min(DesignWindowSize.width, width).coerceAtLeast(floor.width).rounded(),
         height = min(DesignWindowSize.height, usable.height * SCREEN_SHARE).coerceAtLeast(floor.height).rounded(),
     )
 }
@@ -70,6 +84,20 @@ fun restoreWindowBounds(saved: WindowBounds?, screens: List<Rectangle>, minimum:
         height = height,
         isMaximized = saved.isMaximized,
     )
+}
+
+/**
+ * The window's minimum size where it opens at [bounds]: [minimum], or the whole usable area of its
+ * screen (the one that shows most of it, else the primary) where that screen is smaller. Restored
+ * bounds may sit on a smaller screen than the primary one. In AWT units, like dp.
+ */
+fun minimumWindowSize(bounds: WindowBounds, screens: List<Rectangle>, minimum: DpSize = MinimumWindowSize): Dimension {
+    val width = minimum.width.value.roundToInt()
+    val height = minimum.height.value.roundToInt()
+    val screen = screens.maxByOrNull { visibleArea(bounds.rectangle, it) }?.takeIf { visibleArea(bounds.rectangle, it) > 0 }
+        ?: screens.firstOrNull()
+        ?: return Dimension(width, height)
+    return Dimension(minOf(width, screen.width), minOf(height, screen.height))
 }
 
 private fun centred(screen: Rectangle, width: Int, height: Int, isMaximized: Boolean) = WindowBounds(

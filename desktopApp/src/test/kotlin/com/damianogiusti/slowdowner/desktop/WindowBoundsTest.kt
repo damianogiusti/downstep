@@ -2,6 +2,7 @@ package com.damianogiusti.slowdowner.desktop
 
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import java.awt.Dimension
 import java.awt.Rectangle
 import java.util.UUID
 import java.util.prefs.Preferences
@@ -28,8 +29,16 @@ class WindowBoundsTest {
     fun `on a laptop screen the first window leaves a margin of the usable area`() {
         // 1366×768 with the Windows taskbar.
         assertEquals(DpSize(1280.dp, 677.dp), defaultWindowSize(DpSize(1366.dp, 720.dp)))
-        // A 1280×800 MacBook with menu bar and Dock.
-        assertEquals(DpSize(1203.dp, 667.dp), defaultWindowSize(DpSize(1280.dp, 710.dp)))
+        // A 1280×800 MacBook with menu bar and Dock: the width keeps the progression on one line.
+        assertEquals(DpSize(1256.dp, 667.dp), defaultWindowSize(DpSize(1280.dp, 710.dp)))
+    }
+
+    @Test
+    fun `on a 1280x720 screen the width margin gives way so the progression keeps one line`() {
+        // With the Windows taskbar. 1256 less the 16dp side borders leaves the player 1240dp.
+        assertEquals(DpSize(1256.dp, 632.dp), defaultWindowSize(DpSize(1280.dp, 672.dp)))
+        // Too narrow for one line anyway: the usual margin.
+        assertEquals(DpSize(1175.dp, 632.dp), defaultWindowSize(DpSize(1250.dp, 672.dp)))
     }
 
     @Test
@@ -91,6 +100,25 @@ class WindowBoundsTest {
         val bounds = restoreWindowBounds(WindowBounds(10, 10, 300, 200), listOf(Rectangle(0, 0, 1920, 1032)))
 
         assertEquals(WindowBounds(10, 10, 1000, 600), bounds)
+    }
+
+    @Test
+    fun `the minimum size comes from the screen the window opens on`() {
+        val screens = listOf(Rectangle(0, 0, 1920, 1032), Rectangle(1920, 0, 960, 560))
+
+        assertEquals(Dimension(1000, 600), minimumWindowSize(WindowBounds(100, 100, 1200, 800), screens))
+        // Restored onto the small second screen: no larger than it, though the primary has room.
+        assertEquals(Dimension(960, 560), minimumWindowSize(WindowBounds(1920, 0, 960, 560), screens))
+        // Mostly on the small screen.
+        assertEquals(Dimension(960, 560), minimumWindowSize(WindowBounds(1800, 0, 1000, 560), screens))
+    }
+
+    @Test
+    fun `the minimum size falls back to the primary screen, then to the minimum`() {
+        val small = Rectangle(0, 0, 900, 500)
+
+        assertEquals(Dimension(900, 500), minimumWindowSize(WindowBounds(5000, 5000, 1000, 600), listOf(small)))
+        assertEquals(Dimension(1000, 600), minimumWindowSize(WindowBounds(0, 0, 1000, 600), emptyList()))
     }
 
     @Test
