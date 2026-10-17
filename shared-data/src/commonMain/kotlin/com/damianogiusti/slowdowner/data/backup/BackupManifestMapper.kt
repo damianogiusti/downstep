@@ -38,7 +38,6 @@ object BackupManifestMapper {
         // Ids are local to a database: the backup points at the active loop by position.
         activeLoop = rows.state?.activeLoopId?.let { id -> rows.loops.indexOfFirst { it.id == id } }?.takeIf { it >= 0 },
         bpm = rows.state?.bpm,
-        snapToBeat = rows.state?.snapToBeat,
     )
 
     fun toDto(loop: LoopEntity) = BackupLoopDto(
@@ -93,7 +92,6 @@ object BackupManifestMapper {
         settings = toColumns(settings),
         updatedAt = updatedAt,
         bpm = dto.bpm?.takeIf(BeatGrid::isValidBpm),
-        snapToBeat = dto.snapToBeat ?: true,
     )
 
     /**

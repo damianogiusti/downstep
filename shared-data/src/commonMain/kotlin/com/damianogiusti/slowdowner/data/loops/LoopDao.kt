@@ -65,10 +65,16 @@ interface LoopDao {
     @Query("DELETE FROM practice_loops WHERE id = :loopId")
     suspend fun deleteLoop(loopId: Long)
 
-    @Query("SELECT active_loop_id, bpm, snap_to_beat FROM track_practice_state WHERE track_id = :trackId")
+    @Query(
+        "SELECT active_loop_id, bpm, detected_bpm, beat_offset_seconds, tempo_analysis_version " +
+            "FROM track_practice_state WHERE track_id = :trackId",
+    )
     fun observeSettings(trackId: String): Flow<TrackLoopSettingsRow?>
 
-    @Query("SELECT active_loop_id, bpm, snap_to_beat FROM track_practice_state WHERE track_id = :trackId")
+    @Query(
+        "SELECT active_loop_id, bpm, detected_bpm, beat_offset_seconds, tempo_analysis_version " +
+            "FROM track_practice_state WHERE track_id = :trackId",
+    )
     suspend fun findSettings(trackId: String): TrackLoopSettingsRow?
 
     /**
@@ -90,8 +96,8 @@ interface LoopDao {
     // Room binds query arguments one by one; use ensureStateRow instead.
     @Query(
         "INSERT OR IGNORE INTO track_practice_state " +
-            "(track_id, speed_percent, pitch_semitones, loop_start, loop_end, is_loop_on, updated_at, snap_to_beat) " +
-            "SELECT :trackId, :speedPercent, :pitchSemitones, :loopStart, :loopEnd, :isLoopOn, :now, 1 " +
+            "(track_id, speed_percent, pitch_semitones, loop_start, loop_end, is_loop_on, updated_at) " +
+            "SELECT :trackId, :speedPercent, :pitchSemitones, :loopStart, :loopEnd, :isLoopOn, :now " +
             "WHERE EXISTS (SELECT 1 FROM tracks WHERE id = :trackId)",
     )
     suspend fun insertStateIfAbsent(
@@ -110,6 +116,18 @@ interface LoopDao {
     @Query("UPDATE track_practice_state SET bpm = :bpm WHERE track_id = :trackId")
     suspend fun setBpm(trackId: String, bpm: Float?)
 
-    @Query("UPDATE track_practice_state SET snap_to_beat = :enabled WHERE track_id = :trackId")
-    suspend fun setSnapToBeat(trackId: String, enabled: Boolean)
+    /**
+     * The result of a tempo analysis: [detectedBpm] and [beatOffsetSeconds] null when nothing was
+     * found; [analysisVersion] says which analysis ran, so it is not repeated. Needs the state row
+     * ([ensureStateRow]).
+     */
+    @Query(
+        "UPDATE track_practice_state SET detected_bpm = :detectedBpm, beat_offset_seconds = :beatOffsetSeconds, " +
+            "tempo_analysis_version = :analysisVersion WHERE track_id = :trackId",
+    )
+    suspend fun setDetectedTempo(trackId: String, detectedBpm: Float?, beatOffsetSeconds: Float?, analysisVersion: Int)
+
+    /** Moves the first beat (for example after tap tempo); null when unknown. Needs the state row. */
+    @Query("UPDATE track_practice_state SET beat_offset_seconds = :offset WHERE track_id = :trackId")
+    suspend fun setBeatOffset(trackId: String, offset: Float?)
 }

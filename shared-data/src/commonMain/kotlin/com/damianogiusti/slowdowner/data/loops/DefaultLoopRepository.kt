@@ -78,10 +78,6 @@ class DefaultLoopRepository(
 
     override suspend fun setBpm(trackId: String, bpm: Float?) = withSettingsRow(trackId) { dao.setBpm(trackId, bpm) }
 
-    override suspend fun setSnapToBeat(trackId: String, enabled: Boolean) = withSettingsRow(trackId) {
-        dao.setSnapToBeat(trackId, enabled)
-    }
-
     // Two statements, no transaction: both are idempotent, and the auto-save's REPLACE in between
     // keeps the loop columns.
     private suspend fun withSettingsRow(trackId: String, update: suspend () -> Unit) = withContext(dispatcher) {

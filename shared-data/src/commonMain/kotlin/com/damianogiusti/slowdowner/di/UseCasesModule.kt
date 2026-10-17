@@ -28,7 +28,6 @@ import com.damianogiusti.slowdowner.domain.loops.RecordLoopPassUseCase
 import com.damianogiusti.slowdowner.domain.loops.RenameLoopUseCase
 import com.damianogiusti.slowdowner.domain.loops.ResetLoopPassesUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetActiveLoopUseCase
-import com.damianogiusti.slowdowner.domain.loops.SetSnapToBeatUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetTrackBpmUseCase
 import com.damianogiusti.slowdowner.domain.loops.UpdateLoopNotesUseCase
 import com.damianogiusti.slowdowner.domain.loops.UpdateLoopProgressionUseCase
@@ -106,7 +105,6 @@ val useCasesModule = module {
     factoryOf(::ResetLoopPassesUseCase)
     factoryOf(::UpdateLoopProgressionUseCase)
     factoryOf(::SetTrackBpmUseCase)
-    factoryOf(::SetSnapToBeatUseCase)
     // Optional backends: no platform binds them yet, so these get null and report unavailable.
     factory { AnalyzeSectionsUseCase(getOrNull()) }
     factory { SetMetronomeUseCase(getOrNull()) }

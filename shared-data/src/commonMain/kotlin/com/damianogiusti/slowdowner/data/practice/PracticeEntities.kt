@@ -39,9 +39,16 @@ data class PracticeStateEntity(
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
     /** Not a foreign key: a stale id reads as no active loop, and deleting a loop picks the next one. */
     @ColumnInfo(name = "active_loop_id") val activeLoopId: Long? = null,
-    /** Set by the user, null when unknown. */
+    /** Set by the user (the manual BPM), null when unknown. It wins over [detectedBpm]. */
     @ColumnInfo(name = "bpm") val bpm: Float? = null,
-    @ColumnInfo(name = "snap_to_beat", defaultValue = "1") val snapToBeat: Boolean = true,
+    /** The track's own EQ curve as JSON; null = the track uses the global EQ. */
+    @ColumnInfo(name = "eq_curve") val eqCurve: String? = null,
+    /** Found by the tempo analysis; null when not analysed yet or nothing was found. */
+    @ColumnInfo(name = "detected_bpm") val detectedBpm: Float? = null,
+    /** Where the first beat falls, in seconds of the file; null when unknown. */
+    @ColumnInfo(name = "beat_offset_seconds") val beatOffsetSeconds: Float? = null,
+    /** The version of the tempo analysis that ran on the track; 0 = never analysed. */
+    @ColumnInfo(name = "tempo_analysis_version", defaultValue = "0") val tempoAnalysisVersion: Int = 0,
 )
 
 @Entity(
@@ -62,4 +69,6 @@ data class PracticePresetEntity(
     val name: String,
     @Embedded val settings: PracticeSettingsColumns,
     @ColumnInfo(name = "created_at") val createdAt: Long,
+    /** The EQ curve saved with the preset as JSON; null = the preset predates EQ and leaves it alone. */
+    @ColumnInfo(name = "eq_curve") val eqCurve: String? = null,
 )

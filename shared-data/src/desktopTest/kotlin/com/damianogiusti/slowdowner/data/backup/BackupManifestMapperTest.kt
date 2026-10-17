@@ -9,6 +9,7 @@ import com.damianogiusti.slowdowner.data.practice.PracticeSettingsColumns
 import com.damianogiusti.slowdowner.data.practice.PracticeStateEntity
 import com.damianogiusti.slowdowner.domain.backup.BackupScope
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -37,7 +38,6 @@ class BackupManifestMapperTest {
                 audio = "audio/yt_abc.m4a",
                 practiceState = settings,
                 presets = listOf(BackupPresetDto("Solo", settings)),
-                snapToBeat = true,
             ),
             dto,
         )
@@ -49,7 +49,7 @@ class BackupManifestMapperTest {
         val chorus = loop(id = 3, name = "Chorus", start = 0.5f, end = 0.6f)
         val rows = TrackBackupRows(
             track = track,
-            state = PracticeStateEntity("yt_abc", columns, updatedAt = 1, activeLoopId = 3, bpm = 92f, snapToBeat = false),
+            state = PracticeStateEntity("yt_abc", columns, updatedAt = 1, activeLoopId = 3, bpm = 92f),
             presets = emptyList(),
             loops = listOf(verse, chorus),
         )
@@ -66,7 +66,6 @@ class BackupManifestMapperTest {
         )
         assertEquals(1, dto.activeLoop)
         assertEquals(92f, dto.bpm)
-        assertEquals(false, dto.snapToBeat)
     }
 
     @Test
@@ -90,7 +89,29 @@ class BackupManifestMapperTest {
         val state = BackupManifestMapper.toStateEntity(dto, BackupManifestMapper.toDto(columns), updatedAt = 1)
 
         assertNull(state.bpm)
-        assertEquals(true, state.snapToBeat)
+    }
+
+    @Test
+    fun `when a manifest still has Snap to beat then it restores and the key is ignored`() {
+        // Written before Snap to beat was removed (after 2.0).
+        val json = """{"format":"sldbackup","version":1,"createdAt":1,"kind":"track","tracks":[""" +
+            """{"id":"t","title":"T","addedAt":0,"audio":"audio/t.mp3","bpm":92,"snapToBeat":false,""" +
+            """"practiceState":{"speedPercent":75,"pitchSemitones":0,"loopStart":0.2,"loopEnd":0.4,"isLoopOn":true}}]}"""
+
+        val track = BackupArchive.json.decodeFromString(BackupManifestDto.serializer(), json).tracks.single()
+        val state = BackupManifestMapper.toStateEntity(track, track.practiceState!!, updatedAt = 1)
+
+        assertEquals(92f, state.bpm)
+        assertEquals(75f, state.settings.speedPercent)
+    }
+
+    @Test
+    fun `when a manifest is written then it has no Snap to beat`() {
+        val rows = TrackBackupRows(track, PracticeStateEntity("yt_abc", columns, updatedAt = 1, bpm = 92f), emptyList())
+
+        val json = BackupArchive.json.encodeToString(BackupTrackDto.serializer(), BackupManifestMapper.toDto(rows, "audio/a.m4a"))
+
+        assertFalse(json.contains("snap", ignoreCase = true))
     }
 
     @Test
@@ -104,7 +125,6 @@ class BackupManifestMapperTest {
         assertEquals(emptyList<BackupLoopDto>(), track.loops)
         assertNull(track.activeLoop)
         assertNull(track.bpm)
-        assertNull(track.snapToBeat)
     }
 
     private fun loop(id: Long, name: String, start: Float, end: Float) = LoopEntity(

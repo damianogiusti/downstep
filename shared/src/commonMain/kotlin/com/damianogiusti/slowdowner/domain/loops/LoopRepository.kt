@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * The named loops of each track, and the per-track settings that go with them (active loop,
- * tempo, snap). Writes to a loop id that no longer exists do nothing.
+ * tempo). Writes to a loop id that no longer exists do nothing.
  */
 interface LoopRepository {
     fun observe(trackId: String): Flow<TrackLoops>
@@ -22,5 +22,4 @@ interface LoopRepository {
     suspend fun delete(loopId: Long)
     suspend fun setActiveLoop(trackId: String, loopId: Long?)
     suspend fun setBpm(trackId: String, bpm: Float?)
-    suspend fun setSnapToBeat(trackId: String, enabled: Boolean)
 }

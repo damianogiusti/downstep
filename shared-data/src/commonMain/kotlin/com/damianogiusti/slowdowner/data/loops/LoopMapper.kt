@@ -41,7 +41,9 @@ object LoopMapper {
             loops = domainLoops,
             activeLoopId = settings?.activeLoopId?.takeIf { id -> domainLoops.any { it.id == id } },
             bpm = settings?.bpm,
-            snapToBeat = settings?.snapToBeat ?: true,
+            detectedBpm = settings?.detectedBpm,
+            beatOffsetSeconds = settings?.beatOffsetSeconds,
+            tempoAnalysisVersion = settings?.tempoAnalysisVersion ?: 0,
         )
     }
 }

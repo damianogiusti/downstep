@@ -42,7 +42,8 @@ data class BackupTrackDto(
     /** Index in [loops] of the active one. */
     val activeLoop: Int? = null,
     val bpm: Float? = null,
-    val snapToBeat: Boolean? = null,
+    // "snapToBeat" (Snap to beat, removed after 2.0) is no longer written; backups that still carry
+    // it restore fine, the key is ignored like any unknown one.
 )
 
 @Serializable
