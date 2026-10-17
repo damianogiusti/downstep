@@ -4,6 +4,7 @@ import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
@@ -116,34 +118,40 @@ private fun HeaderRow(
     val colors = SlowDownerTheme.colors
     // Beside the window buttons, a little less than the gutter: they have their own room.
     val end = titleBar?.buttonsWidth?.takeIf { it > 0.dp }?.let { it + WINDOW_BUTTONS_GAP } ?: DownstepDimens.gutter
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = DownstepDimens.gutter, end = end, top = 18.dp, bottom = 6.dp),
-    ) {
-        Pill(
-            onClick = actions.onOpenLibrary,
-            container = colors.surface1,
-            contentPadding = PaddingValues(start = 12.dp, end = 14.dp),
-            tooltip = stringResource(Res.string.library_open_description),
-            modifier = Modifier.titleBarControl(),
+    // Measured: the choice below follows the header's width (a resize), never a frame or a tick.
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        // Short of room (a narrow window, the window buttons beside): Analyze and the click toggles
+        // show their icons only, so that the title, the BPM and the icons keep theirs.
+        val compact = maxWidth - DownstepDimens.gutter - end < HEADER_COMPACT_BELOW
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = DownstepDimens.gutter, end = end, top = 18.dp, bottom = 6.dp),
         ) {
-            Icon(painterResource(Res.drawable.ic_h_menu), contentDescription = null, modifier = Modifier.size(18.dp))
-            Text(stringResource(Res.string.library), maxLines = 1)
-            Text(trackCount.toString(), color = colors.fg2, style = SlowDownerTheme.type.control.copy(fontWeight = FontWeight.Normal))
-        }
-        TitleBlock(state, actions, Modifier.weight(1f))
-        AnalyzePill(state.isOpen && !state.isLoading, features.canAnalyze, analysis, actions)
-        ClickToggles(features, clicks, actions)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.titleBarControl()) {
-            actions.onFullscreenToggled?.let { FullscreenToggle(isFullscreen, it) }
-            ThemeMenuButton(theme, actions)
-            // Not in the design, which has no way to the Effects sheet: kept so the EQ is not lost.
-            HeaderIcon(Res.drawable.ic_tune, stringResource(Res.string.eq_title), actions.onShowEffects)
-            PresetsMenuButton(state.isOpen && !state.isLoading, presets, actions)
-            HeaderIcon(Res.drawable.ic_h_export, stringResource(Res.string.export), actions.onExport, enabled = state.canExport)
+            Pill(
+                onClick = actions.onOpenLibrary,
+                container = colors.surface1,
+                contentPadding = PaddingValues(start = 12.dp, end = 14.dp),
+                tooltip = stringResource(Res.string.library_open_description),
+                modifier = Modifier.titleBarControl(),
+            ) {
+                Icon(painterResource(Res.drawable.ic_h_menu), contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(stringResource(Res.string.library), maxLines = 1)
+                Text(trackCount.toString(), color = colors.fg2, style = SlowDownerTheme.type.control.copy(fontWeight = FontWeight.Normal))
+            }
+            TitleBlock(state, actions, Modifier.weight(1f))
+            AnalyzePill(state.isOpen && !state.isLoading, features.canAnalyze, analysis, actions, compact)
+            ClickToggles(features, clicks, actions, compact)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.titleBarControl()) {
+                actions.onFullscreenToggled?.let { FullscreenToggle(isFullscreen, it) }
+                ThemeMenuButton(theme, actions)
+                // Not in the design, which has no way to the Effects sheet: kept so the EQ is not lost.
+                HeaderIcon(Res.drawable.ic_tune, stringResource(Res.string.eq_title), actions.onShowEffects)
+                PresetsMenuButton(state.isOpen && !state.isLoading, presets, actions)
+                HeaderIcon(Res.drawable.ic_h_export, stringResource(Res.string.export), actions.onExport, enabled = state.canExport)
+            }
         }
     }
 }
@@ -171,7 +179,8 @@ private fun TitleBlock(state: HeaderState, actions: HeaderActions, modifier: Mod
                     TrackSource.None -> null
                 }
                 val before = listOfNotNull(source, formatClock(state.durationSeconds)).joinToString(SEPARATOR, postfix = SEPARATOR)
-                Text(before, style = metaStyle, color = colors.fg2, maxLines = 1)
+                // Weighted, so measured after the BPM: short of room, these shorten and the BPM stays whole.
+                Text(before, style = metaStyle, color = colors.fg2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 // "≈ 92 BPM" when it comes from the analysis, "BPM …" while the analysis runs.
                 val bpm = when {
                     state.bpm != null && state.isBpmDetected ->
@@ -200,7 +209,7 @@ private fun TitleBlock(state: HeaderState, actions: HeaderActions, modifier: Mod
                 }
                 val loops = if (state.loopCount == 0) stringResource(Res.string.loops_none)
                 else pluralStringResource(Res.plurals.loops_count, state.loopCount, state.loopCount)
-                Text(SEPARATOR + loops, style = metaStyle, color = colors.fg2, maxLines = 1)
+                Text(SEPARATOR + loops, style = metaStyle, color = colors.fg2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
             }
             else -> Text(stringResource(Res.string.no_track_hint), style = metaStyle, color = colors.fg2, maxLines = 1)
         }
@@ -208,35 +217,33 @@ private fun TitleBlock(state: HeaderState, actions: HeaderActions, modifier: Mod
 }
 
 @Composable
-private fun AnalyzePill(isOpen: Boolean, canAnalyze: Boolean, analysis: AnalysisStatus, actions: HeaderActions) {
+private fun AnalyzePill(isOpen: Boolean, canAnalyze: Boolean, analysis: AnalysisStatus, actions: HeaderActions, compact: Boolean) {
     val colors = SlowDownerTheme.colors
     val running = analysis == AnalysisStatus.Running
+    val label = stringResource(
+        when (analysis) {
+            AnalysisStatus.Idle -> Res.string.analyze
+            AnalysisStatus.Running -> Res.string.analyze_running
+            AnalysisStatus.Done -> Res.string.analyze_again
+        },
+    )
     Pill(
         onClick = actions.onAnalyze,
         enabled = canAnalyze && isOpen && !running,
         container = if (running) colors.amber.copy(alpha = RUNNING_FILL_ALPHA) else colors.surface1,
         contentColor = if (running) colors.amber else colors.fg,
         border = if (running) colors.amber else colors.surface3,
-        contentPadding = PaddingValues(start = 12.dp, end = 16.dp),
+        contentPadding = if (compact) PaddingValues(horizontal = 12.dp) else PaddingValues(start = 12.dp, end = 16.dp),
         tooltip = stringResource(if (canAnalyze) Res.string.analyze_tooltip else Res.string.analyze_unavailable),
-        modifier = Modifier.titleBarControl(),
+        modifier = Modifier.titleBarControl().then(if (compact) Modifier.semantics { contentDescription = label } else Modifier),
     ) {
         Icon(painterResource(Res.drawable.ic_h_sparkle), contentDescription = null, modifier = Modifier.size(16.dp))
-        Text(
-            stringResource(
-                when (analysis) {
-                    AnalysisStatus.Idle -> Res.string.analyze
-                    AnalysisStatus.Running -> Res.string.analyze_running
-                    AnalysisStatus.Done -> Res.string.analyze_again
-                },
-            ),
-            maxLines = 1,
-        )
+        if (!compact) Text(label, maxLines = 1)
     }
 }
 
 @Composable
-private fun ClickToggles(features: PlayerFeatures, clicks: ClickUiState, actions: HeaderActions) {
+private fun ClickToggles(features: PlayerFeatures, clicks: ClickUiState, actions: HeaderActions, compact: Boolean) {
     SegmentedPill(padding = 4.dp, modifier = Modifier.titleBarControl()) {
         PillToggle(
             checked = clicks.isMetronomeOn,
@@ -245,6 +252,7 @@ private fun ClickToggles(features: PlayerFeatures, clicks: ClickUiState, actions
             icon = painterResource(Res.drawable.ic_h_metronome),
             enabled = features.hasMetronome,
             tooltip = if (features.hasMetronome) stringResource(Res.string.metronome) else stringResource(Res.string.metronome_unavailable),
+            showText = !compact,
         )
         PillToggle(
             checked = clicks.isCountInOn,
@@ -253,6 +261,7 @@ private fun ClickToggles(features: PlayerFeatures, clicks: ClickUiState, actions
             icon = painterResource(Res.drawable.ic_h_count_in),
             enabled = features.hasCountIn,
             tooltip = if (features.hasCountIn) stringResource(Res.string.count_in) else stringResource(Res.string.count_in_unavailable),
+            showText = !compact,
         )
         if (features.hasMetronome || features.hasCountIn) ClickMenuButton(clicks, actions)
     }
@@ -441,6 +450,13 @@ private fun PresetItem(preset: PracticePreset, isActive: Boolean, enabled: Boole
 }
 
 private const val SEPARATOR = " · "
+
+/**
+ * Below this much room for the header's content (the window less its gutters and the window
+ * buttons), Analyze and the click toggles show their icons only. The design's 1280 dp window has
+ * 1232 dp; the minimum 1000 dp window has 952 dp, or 826 dp beside Windows' window buttons.
+ */
+private val HEADER_COMPACT_BELOW = 900.dp
 
 /** Between the header's last icon and the window buttons. */
 private val WINDOW_BUTTONS_GAP = 12.dp

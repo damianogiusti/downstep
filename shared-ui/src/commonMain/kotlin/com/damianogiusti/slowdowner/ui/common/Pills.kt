@@ -160,20 +160,23 @@ fun PillToggle(
     onContentColor: Color = SlowDownerTheme.colors.onAmber,
     offContentColor: Color = SlowDownerTheme.colors.fg,
     tooltip: String? = null,
+    /** False: the [icon] alone, where room is short; [text] is then what screen readers say. */
+    showText: Boolean = true,
 ) {
+    val iconOnly = !showText && icon != null
     Pill(
         onClick = onClick,
-        modifier = modifier,
+        modifier = if (iconOnly) modifier.semantics { contentDescription = text } else modifier,
         enabled = enabled,
         height = height,
         container = if (checked) onColor else null,
         contentColor = if (checked) onContentColor else offContentColor,
         border = null,
-        contentPadding = PaddingValues(horizontal = 14.dp),
+        contentPadding = PaddingValues(horizontal = if (iconOnly) 10.dp else 14.dp),
         tooltip = tooltip,
     ) {
         icon?.let { Icon(it, contentDescription = null, modifier = Modifier.size(16.dp)) }
-        Text(text, maxLines = 1)
+        if (!iconOnly) Text(text, maxLines = 1)
     }
 }
 

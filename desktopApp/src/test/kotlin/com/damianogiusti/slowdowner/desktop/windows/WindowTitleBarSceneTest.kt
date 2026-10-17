@@ -23,6 +23,7 @@ import com.damianogiusti.slowdowner.desktop.AppDirectories
 import com.damianogiusti.slowdowner.desktop.InMemoryClickSettingsStore
 import com.damianogiusti.slowdowner.desktop.InMemoryEffectsSettingsStore
 import com.damianogiusti.slowdowner.desktop.InMemorySupportPromptStore
+import com.damianogiusti.slowdowner.desktop.MinimumWindowSize
 import com.damianogiusti.slowdowner.desktop.PlayerScene
 import com.damianogiusti.slowdowner.desktop.TestFullscreen
 import com.damianogiusti.slowdowner.desktop.desktopModule
@@ -210,6 +211,53 @@ class WindowTitleBarSceneTest {
             SwingUtilities.invokeAndWait { scene.close() }
         }
     }
+
+    @Test
+    fun `at the minimum width beside the window buttons, the header keeps the title, the BPM and its icons`() =
+        assertHeaderFits(MinimumWindowSize.width.value.toInt(), File("build/screenshots/titlebar-header-minimum.png"))
+
+    @Test
+    fun `on a small screen narrower than the minimum, the header still fits beside the window buttons`() =
+        // 1280 × 720 at 150 %: the minimum window size gives way to the screen's 853 dp.
+        assertHeaderFits(853, File("build/screenshots/titlebar-header-853.png"))
+
+    private fun assertHeaderFits(widthDp: Int, screenshot: File) =
+        PlayerScene(koin, widthDp, MinimumWindowSize.height.value.toInt(), scale = 2, fullscreen = fullscreen, titleBar = titleBar)
+            .use { scene ->
+                scene.openTrackWithLoops()
+                scene.capture(screenshot)
+                val minimize = assertNotNull(scene.boundsOfDescription("Minimize"))
+                // The BPM opens the BPM dialog: laid out whole, and clickable.
+                val bpm = assertNotNull(scene.boundsOfText("BPM"), "BPM in the header")
+                assertTrue(bpm.width > 40f, "BPM width ${bpm.width}")
+                assertEquals(HitCode.CLIENT, hit(bpm.center))
+                val title = assertNotNull(scene.boundsOfText("Easy Blues"))
+                assertTrue(title.width > 160f, "title width ${title.width}")
+                // The icons at the header's end, whole, left of the window buttons.
+                for (name in listOf("Theme", "Export")) {
+                    val icon = assertNotNull(scene.boundsOfDescription(name), name)
+                    assertTrue(icon.width >= 36f * 2 - 1, "$name width ${icon.width}")
+                    assertTrue(icon.right <= minimize.left, "$name ${icon.right} under the window buttons at ${minimize.left}")
+                }
+                // Analyze and the click toggles keep their icons, and their names for screen readers.
+                for (name in listOf("Analyze", "Metronome", "Count-in")) assertNotNull(scene.boundsOfDescription(name), name)
+            }
+
+    @Test
+    fun `at the design width the header keeps every label`() = scene { scene ->
+        for (name in listOf("Analyze", "Metronome", "Count-in")) assertNotNull(scene.boundsOfText(name), name)
+    }
+
+    /** In the header: the window's top bar, as the hook last heard of it. */
+    private fun PlayerScene.headerNodes() = nodes().filter { it.boundsInRoot.bottom <= window.regions.captions.single().bottom }
+
+    private fun PlayerScene.boundsOfText(text: String) = headerNodes()
+        .firstOrNull { node -> node.config.getOrNull(SemanticsProperties.Text)?.any { it.text.contains(text) } == true }
+        ?.boundsInRoot
+
+    private fun PlayerScene.boundsOfDescription(description: String) = headerNodes()
+        .firstOrNull { it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains(description) == true }
+        ?.boundsInRoot
 
     private fun hit(at: Offset) = titleBarHitTest(
         at.x.toInt(), at.y.toInt(), window.regions,
