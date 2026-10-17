@@ -83,7 +83,7 @@ import kotlin.math.abs
 
 /**
  * The open track, its loops and its practice controls. Scoped to the window: it outlives the drawer,
- * the sheets and focus mode.
+ * the sheets and fullscreen.
  *
  * The state is split into small flows, one per part of the screen (see PlayerUiState.kt), all derived
  * from a few sources: the now-playing track, its loops (Room), and [EngineSnapshot], which is refreshed
@@ -720,15 +720,13 @@ class PlayerViewModel(
 
     // region Layout
 
-    fun onFocusToggled() = layoutState.update { it.copy(isFocusMode = !it.isFocusMode) }
-
     fun onDrawerOpened() = layoutState.update { it.copy(isDrawerOpen = true) }
 
     fun onDrawerClosed() = layoutState.update { it.copy(isDrawerOpen = false) }
 
     /**
      * False while another screen (a playlist) covers the player: the window's practice keys must not
-     * edit loops or toggle focus mode out of sight. Transport keys still work.
+     * edit loops out of sight. Transport keys still work.
      */
     var isShown: Boolean = true
         private set
@@ -737,14 +735,14 @@ class PlayerViewModel(
         isShown = shown
     }
 
-    /** Esc: closes the drawer, else leaves focus mode. False when there was nothing to close. */
+    /**
+     * Esc: closes the drawer. False when there was nothing to close: Esc then goes on to the dialogs and
+     * menus, and last to the window, which leaves fullscreen.
+     */
     fun onEscape(): Boolean {
         val layout = layoutState.value
-        layoutState.value = when {
-            layout.isDrawerOpen -> layout.copy(isDrawerOpen = false)
-            layout.isFocusMode -> layout.copy(isFocusMode = false)
-            else -> return false
-        }
+        if (!layout.isDrawerOpen) return false
+        layoutState.value = layout.copy(isDrawerOpen = false)
         return true
     }
 

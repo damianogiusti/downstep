@@ -41,6 +41,7 @@ import com.damianogiusti.slowdowner.ui.backup.PlaylistConflictDialog
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.common.CollectMessages
 import com.damianogiusti.slowdowner.ui.common.ConfirmDialog
+import com.damianogiusti.slowdowner.ui.common.FullscreenControl
 import com.damianogiusti.slowdowner.ui.library.ImportBanner
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.library.LibraryNavigation
@@ -77,6 +78,8 @@ class ActivityActions(
     val onSaveBackup: (BackupFile) -> Unit,
     /** Null where the app is not published (Android): the Donate menu item is then hidden. */
     val onDonate: (() -> Unit)? = null,
+    /** The window's fullscreen (desktop). Null on Android: the header then has no fullscreen toggle. */
+    val fullscreen: FullscreenControl? = null,
 )
 
 /** ViewModels scoped to the activity: results of activity pickers and intents land in them. */
@@ -123,6 +126,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
         PlayerNavigation(
             onPlayStop = activity.onPlayStop,
             onAddToPlaylist = { trackForPlaylist = it },
+            fullscreen = activity.fullscreen,
             library = LibraryNavigation(
                 onTrackClick = playerViewModel::onTrackSelected,
                 onPlaylistClick = {

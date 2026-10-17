@@ -30,6 +30,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,8 +62,9 @@ import kotlin.math.roundToInt
 
 /**
  * Library pill (track count) · title + meta line (source · duration · BPM · loops; the BPM opens the
- * BPM dialog) · Analyze · Metronome / Count-in · Focus, Theme (menu, see [ThemeMenuButton]), Equalizer,
- * Save preset (bookmark menu with the presets), Export. Unavailable features are disabled with a tooltip (see [PlayerFeatures]).
+ * BPM dialog) · Analyze · Metronome / Count-in · Fullscreen (where the platform has it), Theme (menu,
+ * see [ThemeMenuButton]), Equalizer, Save preset (bookmark menu with the presets), Export. Unavailable
+ * features are disabled with a tooltip (see [PlayerFeatures]).
  */
 @Composable
 fun PlayerHeader(
@@ -74,6 +78,8 @@ fun PlayerHeader(
     theme: ThemeSelection,
     actions: HeaderActions,
     modifier: Modifier = Modifier,
+    /** The window is fullscreen: the toggle shows filled, with the exit icon. */
+    isFullscreen: Boolean = false,
 ) {
     val colors = SlowDownerTheme.colors
     Row(
@@ -97,7 +103,7 @@ fun PlayerHeader(
         AnalyzePill(state.isOpen && !state.isLoading, features.canAnalyze, analysis, actions)
         ClickToggles(features, clicks, actions)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            HeaderIcon(Res.drawable.ic_h_focus, stringResource(Res.string.focus_mode), actions.onFocusToggled)
+            actions.onFullscreenToggled?.let { FullscreenToggle(isFullscreen, it) }
             ThemeMenuButton(theme, actions)
             // Not in the design, which has no way to the Effects sheet: kept so the EQ is not lost.
             HeaderIcon(Res.drawable.ic_tune, stringResource(Res.string.eq_title), actions.onShowEffects)
@@ -286,6 +292,21 @@ private fun HeaderIcon(
         onClick,
         enabled = enabled,
         container = SlowDownerTheme.colors.surface1,
+    )
+}
+
+/** Enter / exit fullscreen: filled amber while fullscreen, as the header's other toggles when on. */
+@Composable
+private fun FullscreenToggle(isFullscreen: Boolean, onClick: () -> Unit) {
+    val colors = SlowDownerTheme.colors
+    IconPill(
+        painterResource(if (isFullscreen) Res.drawable.ic_h_fullscreen_exit else Res.drawable.ic_h_fullscreen),
+        stringResource(if (isFullscreen) Res.string.fullscreen_exit else Res.string.fullscreen_enter),
+        onClick,
+        modifier = Modifier.semantics { toggleableState = ToggleableState(isFullscreen) },
+        container = if (isFullscreen) colors.amber else colors.surface1,
+        tint = if (isFullscreen) colors.onAmber else colors.fg,
+        border = if (isFullscreen) null else colors.surface3,
     )
 }
 

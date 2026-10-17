@@ -720,16 +720,13 @@ class PlayerViewModelTest {
     }
 
     @Test
-    fun `Esc closes the drawer first, then focus mode`() = runTest(main) {
+    fun `Esc closes the drawer, then leaves the key to the dialogs and the window`() = runTest(main) {
         val viewModel = viewModel()
-        viewModel.onFocusToggled()
         viewModel.onDrawerOpened()
 
         assertTrue(viewModel.onEscape())
-        assertEquals(PlayerLayout(isFocusMode = true, isDrawerOpen = false), viewModel.layout.value)
-        assertTrue(viewModel.onEscape())
-        assertEquals(PlayerLayout(), viewModel.layout.value)
-        assertFalse(viewModel.onEscape())
+        assertEquals(PlayerLayout(isDrawerOpen = false), viewModel.layout.value)
+        assertFalse(viewModel.onEscape(), "nothing of the player's to close: the window leaves fullscreen")
     }
 
     @Test

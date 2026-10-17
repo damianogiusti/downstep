@@ -223,6 +223,8 @@
     <string name="menu_window">Window</string>
     <string name="menu_close_window">Close Window</string>
     <string name="menu_minimize">Minimize</string>
+    <string name="menu_enter_fullscreen">Enter Full Screen</string>
+    <string name="menu_exit_fullscreen">Exit Full Screen</string>
     <string name="menu_help">Help</string>
 
     <!-- Support prompt (desktop) -->
@@ -252,7 +254,7 @@
     <string name="update_banner">Downstep %1$s is available</string>
     <string name="update_banner_action">Update</string>
 
-    <!-- Downstep 2.0 player. Component groups: H header, chips, transport · W waveform · C cards · D drawer, focus, title bar -->
+    <!-- Downstep 2.0 player. Component groups: H header, chips, transport · W waveform · C cards · D drawer, title bar -->
     <!-- Header (H) -->
     <string name="library_open_description">Open the library</string>
     <string name="header_bpm">%1$s BPM</string>
@@ -279,8 +281,8 @@
     <string name="count_in">Count-in</string>
     <string name="count_in_unavailable">Count-in isn’t available yet</string>
     <string name="error_click_needs_bpm">Set the tempo of the track first.</string>
-    <string name="focus_mode">Focus mode (F)</string>
-    <string name="exit_focus">Exit focus</string>
+    <string name="fullscreen_enter">Fullscreen (F)</string>
+    <string name="fullscreen_exit">Exit fullscreen (Esc)</string>
     <string name="theme">Theme</string>
     <string name="theme_mode">Mode</string>
     <string name="theme_mode_dark">Dark</string>
@@ -321,7 +323,7 @@
     <string name="pass_at_target">at target</string>
     <string name="hint_set">set</string>
     <string name="hint_loops">loops</string>
-    <string name="hint_focus">focus</string>
+    <string name="hint_fullscreen">fullscreen</string>
     <!-- Waveform and zoom strip (W) -->
     <string name="waveform_description">Waveform, %1$s long</string>
     <string name="zoom_title">ZOOM · %1$s · %2$s – %3$s</string>
@@ -363,11 +365,9 @@
     <string name="stepper_increase">Increase %1$s</string>
     <string name="notes">Notes</string>
     <string name="notes_placeholder">Chords, fingering, what to listen for…</string>
-    <!-- Library drawer, focus mode, title bar (D) -->
+    <!-- Library drawer, title bar (D) -->
     <string name="close">Close</string>
     <string name="drawer_track_meta">%1$s · %2$s</string>
-    <string name="focus_title">%1$s — %2$s</string>
-    <string name="focus_no_loop">no loop</string>
     <string name="title_bar">Downstep %1$s</string>
     <!-- Group H additions (component agents append here only) -->
     <!-- Group W additions -->

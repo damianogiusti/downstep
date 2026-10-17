@@ -14,6 +14,11 @@ import androidx.compose.ui.unit.min
  * window gets shorter: a stage keeps it at most at the floor of the stage before, so the room a
  * compaction frees stays below the cards instead of jumping into the overview.
  *
+ * On a taller window than the design needs, a full screen above all, the spare room goes to the
+ * waveforms: the overview takes [OVERVIEW_SHARE] of it and the zoom strip [ZOOM_SHARE], up to
+ * [PlayerPartHeights.overviewTall] and [PlayerPartHeights.zoomTall]; what is left stays between the
+ * cards and the controls.
+ *
  * A pure function of the window's size and of what is on screen: the player computes it again when
  * the window is resized, never while it plays.
  */
@@ -31,7 +36,7 @@ data class PlayerLayoutFit(
     val compactLoopCards: Boolean,
     /** The key hints beside the transport: only where its right column has room for them. */
     val showKeyboardHints: Boolean,
-    /** Even the most compact layout is taller than the window: the cards scroll (focus: everything). */
+    /** Even the most compact layout is taller than the window: the cards scroll. */
     val overflows: Boolean,
 ) {
     companion object {
@@ -44,22 +49,26 @@ data class PlayerLayoutFit(
         fun of(
             width: Dp,
             height: Dp,
-            isFocusMode: Boolean,
             hasLoopCards: Boolean,
             extraTop: Dp = 0.dp,
             parts: PlayerPartHeights = PlayerPartHeights(),
         ): PlayerLayoutFit {
-            val hints = !isFocusMode && width >= parts.keyboardHintsMinWidth
-            val stages = if (isFocusMode) focusStages(parts) else stages(parts)
+            val hints = width >= parts.keyboardHintsMinWidth
+            val stages = stages(parts)
             val available = height - extraTop
             for ((index, stage) in stages.withIndex()) {
-                val rest = stage.restHeight(parts, width, isFocusMode, hasLoopCards)
+                val rest = stage.restHeight(parts, width, hasLoopCards)
                 val room = available - rest
                 if (room >= stage.overviewMin) {
-                    // Only an uncompressed layout grows the overview into the spare room. A later stage
-                    // starts where the one before gave up: more would make the overview jump up 1dp shorter.
-                    val cap = if (index == 0) stage.overviewMax(parts, isFocusMode) else stages[index - 1].overviewMin
-                    return stage.toFit(min(room, cap), hints, overflows = false)
+                    // A later stage starts where the one before gave up: more would make the overview jump
+                    // up 1dp shorter.
+                    if (index > 0) return stage.toFit(min(room, stages[index - 1].overviewMin), hints, overflows = false)
+                    // Only an uncompressed layout grows the waveforms into the spare room.
+                    val spare = room - parts.overviewGrown
+                    if (spare <= 0.dp) return stage.toFit(room, hints, overflows = false)
+                    val overview = min(parts.overviewGrown + spare * OVERVIEW_SHARE, parts.overviewTall)
+                    val zoom = min(stage.zoom + spare * ZOOM_SHARE, parts.zoomTall)
+                    return stage.copy(zoom = zoom).toFit(overview, hints, overflows = false)
                 }
             }
             return stages.last().let { it.toFit(it.overviewMin, hints, overflows = true) }
@@ -72,14 +81,13 @@ data class PlayerLayoutFit(
             Stage(parts.overviewMin, parts.zoomMin, compactCards = true, compactLoopCards = true, compactChrome = true),
         )
 
-        // Focus mode has no cards: only the overview, the zoom strip and the paddings give way.
-        private fun focusStages(parts: PlayerPartHeights) = listOf(
-            Stage(overviewMin = parts.overviewShrunk, zoom = parts.zoom),
-            Stage(parts.overviewMin + STEP, parts.zoomShrunk, compactChrome = true),
-            Stage(parts.overviewMin, parts.zoomMin, compactChrome = true),
-        )
-
         private val STEP = 20.dp
+
+        /** The share of the room past the design's height that the overview grows by. */
+        const val OVERVIEW_SHARE = 0.6f
+
+        /** The share of that room the zoom strip grows by. */
+        const val ZOOM_SHARE = 0.25f
     }
 
     private data class Stage(
@@ -89,14 +97,10 @@ data class PlayerLayoutFit(
         val compactLoopCards: Boolean = false,
         val compactChrome: Boolean = false,
     ) {
-        fun overviewMax(parts: PlayerPartHeights, isFocusMode: Boolean): Dp =
-            if (isFocusMode) parts.overviewFocus else parts.overviewGrown
-
         /** Everything but the overview. */
-        fun restHeight(parts: PlayerPartHeights, width: Dp, isFocusMode: Boolean, hasLoopCards: Boolean): Dp {
+        fun restHeight(parts: PlayerPartHeights, width: Dp, hasLoopCards: Boolean): Dp {
             val chrome = (if (compactChrome) parts.chipsCompact else parts.chips) +
                 zoom + (if (compactChrome) parts.transportCompact else parts.transport)
-            if (isFocusMode) return parts.focusHeader + chrome
             val cards = if (compactCards) parts.cardsCompact else parts.cards
             val loopCards = when {
                 !hasLoopCards -> 0.dp
@@ -127,16 +131,18 @@ data class PlayerLayoutFit(
 @Immutable
 data class PlayerPartHeights(
     val header: Dp = 74.dp,
-    val focusHeader: Dp = 54.dp,
     val chips: Dp = 56.dp,
     val chipsCompact: Dp = 44.dp,
-    /** Grown into spare room on a tall window. */
+    /** Grown into spare room on a tall window: the design's height. */
     val overviewGrown: Dp = 260.dp,
-    val overviewFocus: Dp = 260.dp,
+    /** Past the design's height (a full screen), the overview grows on, up to this. */
+    val overviewTall: Dp = 640.dp,
     /** The first stage shrinks the overview down to this before anything else gives way. */
     val overviewShrunk: Dp = 160.dp,
     val overviewMin: Dp = 120.dp,
     val zoom: Dp = 96.dp,
+    /** The zoom strip grows with the overview past the design's height, up to this. */
+    val zoomTall: Dp = 200.dp,
     val zoomShrunk: Dp = 76.dp,
     val zoomMin: Dp = 64.dp,
     val transport: Dp = 96.dp,

@@ -322,13 +322,15 @@ class ThemeRenderTest {
     private fun noActions() = ActivityActions(
         onPickFile = {}, onOpenSpotify = null, onPlayStop = {}, onPlaybackStarted = {},
         onShareExport = {}, onSaveExport = {}, onPickBackup = {}, onShareBackup = {}, onSaveBackup = {},
+        // As in the app: the header shows the fullscreen toggle.
+        fullscreen = TestFullscreen(),
     )
 
     private companion object {
         const val WIDTH_DP = 1280
         const val HEIGHT_DP = 860
         const val SCALE = 2
-        // The header's icons end 24dp from the right, 40dp each, 4dp apart: Focus, Theme, EQ, Presets, Export.
+        // The header's icons end 24dp from the right, 40dp each, 4dp apart: Fullscreen, Theme, EQ, Presets, Export.
         val THEME_BUTTON = Offset((WIDTH_DP - 24 - 3 * 44 - 20f) * SCALE, 40f * SCALE)
         // Measured on theme-menu-downstep-dark.png: the theme rows, 40dp apart.
         const val MENU_ROW_X = 1000f

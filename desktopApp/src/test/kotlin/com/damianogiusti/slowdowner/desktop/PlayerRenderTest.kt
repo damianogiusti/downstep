@@ -49,7 +49,7 @@ import kotlin.test.assertTrue
 
 /**
  * Renders the Downstep 2.0 player as the design shows it (README §2): a track with three loops and a
- * BPM, in both themes, in focus mode and with the library drawer open. The PNGs land in
+ * BPM, in both themes and with the library drawer open. The PNGs land in
  * build/screenshots for a side-by-side look with docs/design/downstep-2/screenshots; the asserts check
  * the colours that say the right layout is up (amber Play button, the drawer's panel).
  */
@@ -85,14 +85,6 @@ class PlayerRenderTest {
         assertColorNear(image, PLAY_BUTTON_X, PLAY_BUTTON_Y, 0x935100, "Play button")
         assertColorNear(image, 4, image.height - 4, 0xFAF6F0, "background")
         assertPlayIconCentred(image, 0x935100)
-    }
-
-    @Test
-    fun `focus mode keeps the practice core`() {
-        val image = renderPlayer("player-focus.png", ThemeMode.Dark) { it.onFocusToggled() }
-        // The practice core sticks to the bottom: the top of the window is the plain background.
-        assertColorNear(image, image.width / 2, 40 * SCALE, 0x0F1114, "background above the focus content")
-        assertPlayIconCentred(image, 0xF2A541)
     }
 
     @Test
@@ -249,6 +241,8 @@ class PlayerRenderTest {
     private fun noActions() = ActivityActions(
         onPickFile = {}, onOpenSpotify = null, onPlayStop = {}, onPlaybackStarted = {},
         onShareExport = {}, onSaveExport = {}, onPickBackup = {}, onShareBackup = {}, onSaveBackup = {},
+        // As in the app: the header shows the fullscreen toggle.
+        fullscreen = TestFullscreen(),
     )
 
     private companion object {

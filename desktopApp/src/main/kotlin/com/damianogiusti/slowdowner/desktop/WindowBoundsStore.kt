@@ -1,6 +1,17 @@
 package com.damianogiusti.slowdowner.desktop
 
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.window.WindowState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.withContext
 import java.util.prefs.Preferences
+import kotlin.math.roundToInt
 
 /** The window's last bounds in the user's Java preferences, next to the theme and effects settings. */
 class WindowBoundsStore(
@@ -38,3 +49,41 @@ class WindowBoundsStore(
         const val KEY_MAXIMIZED = "maximized"
     }
 }
+
+/**
+ * Saves where the window is a moment after it stops moving or resizing, so the next run opens there.
+ * Runs for the window's life. A maximized window keeps the size it had before, to restore to.
+ *
+ * Fullscreen is never saved, so it is never the startup state: the next run opens the window as it was
+ * before going fullscreen ([WindowFullscreen]). The states that are not fullscreen are picked before
+ * the pause, so a move just before going fullscreen is still saved. [isWindowFullscreen] is the real
+ * window's state: on macOS it stays fullscreen for a moment after the placement says otherwise, while
+ * the OS animates the way out, and the window's size meanwhile is still the screen's.
+ */
+@OptIn(FlowPreview::class)
+suspend fun WindowState.saveBoundsTo(
+    store: WindowBoundsStore,
+    initial: WindowBounds,
+    isWindowFullscreen: () -> Boolean = { false },
+    delayMillis: Long = WINDOW_SAVE_DELAY_MS,
+) {
+    var floating = initial
+    snapshotFlow { Triple(placement, position, size) }
+        .filter { (placement) -> placement != WindowPlacement.Fullscreen && !isWindowFullscreen() }
+        .debounce(delayMillis)
+        .collect { (placement, position, size) ->
+            if (isMinimized) return@collect
+            if (placement == WindowPlacement.Floating && position is WindowPosition.Absolute && size.isSpecified) {
+                floating = WindowBounds(
+                    position.x.value.roundToInt(),
+                    position.y.value.roundToInt(),
+                    size.width.value.roundToInt(),
+                    size.height.value.roundToInt(),
+                )
+            }
+            val bounds = floating.copy(isMaximized = placement == WindowPlacement.Maximized)
+            withContext(Dispatchers.IO) { runCatching { store.write(bounds) } }
+        }
+}
+
+private const val WINDOW_SAVE_DELAY_MS = 500L

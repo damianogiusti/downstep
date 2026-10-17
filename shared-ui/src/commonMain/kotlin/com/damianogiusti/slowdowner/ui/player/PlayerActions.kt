@@ -20,7 +20,8 @@ class HeaderActions(
     val onAnalyze: () -> Unit,
     val onMetronomeToggled: () -> Unit,
     val onCountInToggled: () -> Unit,
-    val onFocusToggled: () -> Unit,
+    /** The window's fullscreen on or off. Null where there is none (Android): the header shows no toggle. */
+    val onFullscreenToggled: (() -> Unit)?,
     /** The theme menu: hover or focus on an item shows it, leaving goes back, a click saves (ThemeViewModel). */
     val onThemePreview: (ThemeSelection) -> Unit,
     val onThemePreviewEnd: () -> Unit,
@@ -124,6 +125,5 @@ class PlayerActions(
     val isolate: IsolateActions,
     val progression: ProgressionActions,
     val notes: NotesActions,
-    val onExitFocus: () -> Unit,
     val onCloseDrawer: () -> Unit,
 )

@@ -21,6 +21,8 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.damianogiusti.slowdowner.domain.library.ImportDocumentUseCase
 import com.damianogiusti.slowdowner.domain.library.ImportResult
 import com.damianogiusti.slowdowner.domain.theme.ThemeMode
+import androidx.compose.ui.input.key.KeyEvent
+import com.damianogiusti.slowdowner.ui.common.FullscreenControl
 import com.damianogiusti.slowdowner.ui.common.LocalTextInputFocus
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
 import com.damianogiusti.slowdowner.ui.navigation.ActivityActions
@@ -55,6 +57,8 @@ class PlayerScene(
     val scale: Int = 2,
     theme: ThemeMode = ThemeMode.Dark,
     private val textInput: TextInputFocus = TextInputFocus(),
+    /** The window's fullscreen, for the header's toggle. */
+    private val fullscreen: FullscreenControl = TestFullscreen(),
 ) : AutoCloseable {
 
     private lateinit var scene: ImageComposeScene
@@ -161,6 +165,15 @@ class PlayerScene(
         frames(2)
     }
 
+    /**
+     * [event] as a window routes it: its onPreviewKeyEvent ([preview]) first, then the focused element,
+     * menus and dialogs of the scene, then the window's onKeyEvent ([unconsumed]) if nothing took it.
+     */
+    fun windowKey(event: KeyEvent, preview: (KeyEvent) -> Boolean, unconsumed: (KeyEvent) -> Boolean) {
+        SwingUtilities.invokeAndWait { preview(event) || scene.sendKeyEvent(event) || unconsumed(event) }
+        frames(2)
+    }
+
     override fun close() {
         SwingUtilities.invokeAndWait { scene.close() }
     }
@@ -170,6 +183,7 @@ class PlayerScene(
     private fun noActions() = ActivityActions(
         onPickFile = {}, onOpenSpotify = null, onPlayStop = {}, onPlaybackStarted = {},
         onShareExport = {}, onSaveExport = {}, onPickBackup = {}, onShareBackup = {}, onSaveBackup = {},
+        fullscreen = fullscreen,
     )
 
     companion object {

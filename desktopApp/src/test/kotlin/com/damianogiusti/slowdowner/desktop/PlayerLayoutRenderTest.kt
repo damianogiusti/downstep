@@ -26,8 +26,9 @@ import kotlin.test.assertTrue
 /**
  * The real player at the window sizes of common screens, with an active loop so Progression and Notes
  * show: the controls sit at the bottom, fully visible, and nothing scrolls. PNGs land in
- * build/screenshots/layout-<w>x<h>[-focus|-export].png, sized as the player's area: the window less
- * its frame (title bar, and for a window that is not maximized Windows' invisible resize borders).
+ * build/screenshots/layout-<w>x<h>[-export].png, sized as the player's area: the window less its frame
+ * (title bar, and for a window that is not maximized Windows' invisible resize borders). Fullscreen is
+ * the same layout on the whole screen, with no frame at all: build/screenshots/fullscreen-<w>x<h>.png.
  */
 class PlayerLayoutRenderTest {
 
@@ -65,7 +66,7 @@ class PlayerLayoutRenderTest {
 
     @Test
     fun `an export running on the design-size window leaves the cards unscrolled`() =
-        render(defaultOn(DpSize(1920.dp, 1080.dp - TASKBAR)), focus = false, cardsMayScroll = false, export = true)
+        render(defaultOn(DpSize(1920.dp, 1080.dp - TASKBAR)), cardsMayScroll = false, export = true)
 
     @Test
     fun `the default window on a 1280x800 Mac screen fits`() = assertFits(defaultOn(DpSize(1280.dp, MAC_USABLE_HEIGHT)))
@@ -84,25 +85,51 @@ class PlayerLayoutRenderTest {
             "minimum",
         )
         // Narrower than 1240dp with Progression and Notes up, the cards may scroll a little; the controls never.
-        render(area, focus = false, cardsMayScroll = true)
-        render(area, focus = true, cardsMayScroll = false)
+        render(area, cardsMayScroll = true)
     }
 
     @Test
-    fun `a tall window keeps the controls at the bottom`() = render(Area(1280, 1200, "tall"), focus = false, cardsMayScroll = false)
+    fun `a tall window keeps the controls at the bottom`() = render(Area(1280, 1200, "tall"), cardsMayScroll = false)
 
-    private fun assertFits(area: Area) {
-        render(area, focus = false, cardsMayScroll = false)
-        render(area, focus = true, cardsMayScroll = false)
+    @Test
+    fun `fullscreen on a 1920x1080 screen gives the waveforms the room`() =
+        assertFullscreen(1920, 1080, minOverview = 380f, minZoom = 140f)
+
+    @Test
+    fun `fullscreen on a 2560x1440 screen gives the waveforms the room`() =
+        assertFullscreen(2560, 1440, minOverview = 600f, minZoom = 190f)
+
+    @Test
+    fun `fullscreen on a 1366x768 screen fits`() = assertFullscreen(1366, 768, minOverview = 160f, minZoom = 90f)
+
+    private fun assertFits(area: Area) = render(area, cardsMayScroll = false)
+
+    /** The whole screen, no taskbar and no title bar: the same layout, its waveforms grown into the room. */
+    private fun assertFullscreen(width: Int, height: Int, minOverview: Float, minZoom: Float) {
+        render(Area(width, height, "fullscreen"), cardsMayScroll = false, fullscreen = true) { scene, what ->
+            val overview = assertNotNull(scene.boundsOf(PlayerTags.OVERVIEW), "$what: no overview")
+            assertTrue(overview.height >= minOverview, "$what: the overview is ${overview.height}dp")
+            val controls = assertNotNull(scene.boundsOf(PlayerTags.CONTROLS))
+            val transport = assertNotNull(scene.boundsOf(PlayerTags.TRANSPORT))
+            // Below the overview: the zoom strip, down to the transport.
+            assertTrue(transport.top - overview.bottom >= minZoom, "$what: the zoom strip is ${transport.top - overview.bottom}dp")
+            assertTrue(controls.top >= 0f)
+        }
     }
 
-    private fun render(area: Area, focus: Boolean, cardsMayScroll: Boolean, export: Boolean = false) {
-        val variant = if (focus) "focus" else if (export) "export" else null
-        val name = "layout-${area.width}x${area.height}${variant?.let { "-$it" } ?: ""}.png"
+    private fun render(
+        area: Area,
+        cardsMayScroll: Boolean,
+        export: Boolean = false,
+        fullscreen: Boolean = false,
+        extra: (PlayerScene, String) -> Unit = { _, _ -> },
+    ) {
+        val variant = if (export) "export" else null
+        val prefix = if (fullscreen) "fullscreen" else "layout"
+        val name = "$prefix-${area.width}x${area.height}${variant?.let { "-$it" } ?: ""}.png"
         val what = "${area.label} ${area.width}x${area.height}${variant?.let { " $it" } ?: ""}"
-        PlayerScene(koin, area.width, area.height).use { scene ->
+        PlayerScene(koin, area.width, area.height, fullscreen = TestFullscreen(isFullscreen = fullscreen)).use { scene ->
             scene.openTrackWithLoops()
-            if (focus) scene.steps({ it.onFocusToggled() })
             if (export) scene.steps({ it.exportState().value = ExportUiState.Running(0.4f, fileCount = 4) })
             scene.capture(File("build/screenshots/$name"))
             if (export) assertIs<ExportUiState.Running>(scene.player.export.value, "$what: the export is over")
@@ -112,18 +139,15 @@ class PlayerLayoutRenderTest {
             assertTrue(transport.top >= 0f && transport.height >= MIN_TRANSPORT_HEIGHT, "$what: the transport is cut, $transport")
             assertNear(area.height.toFloat(), transport.bottom, "$what: the transport is not at the bottom")
             assertNear(area.height.toFloat(), controls.bottom, "$what: the controls are not at the bottom")
-            if (focus) {
-                assertEquals(0f, scene.scrollRangeOf(PlayerTags.FOCUS), "$what: focus mode scrolls")
-                // Focus mode keeps the loop chips, in the block at the bottom.
-                val chip = scene.player.loopChips.value.chips.first().name
-                val chipCentre = assertNotNull(scene.centreOfText(chip), "$what: no loop chip")
-                assertTrue(chipCentre.y / scene.scale in controls.top..controls.bottom, "$what: the chips are not with the controls")
-            } else {
-                val cards = assertNotNull(scene.boundsOf(PlayerTags.CARDS), "$what: no cards")
-                assertTrue(cards.bottom <= controls.top + 0.5f, "$what: the cards overlap the controls")
-                val range = assertNotNull(scene.scrollRangeOf(PlayerTags.CARDS), "$what: the cards tell no scroll range")
-                if (!cardsMayScroll) assertEquals(0f, range, "$what: the cards scroll by ${range / scene.scale}dp")
-            }
+            val cards = assertNotNull(scene.boundsOf(PlayerTags.CARDS), "$what: no cards")
+            assertTrue(cards.bottom <= controls.top + 0.5f, "$what: the cards overlap the controls")
+            val range = assertNotNull(scene.scrollRangeOf(PlayerTags.CARDS), "$what: the cards tell no scroll range")
+            if (!cardsMayScroll) assertEquals(0f, range, "$what: the cards scroll by ${range / scene.scale}dp")
+            // The loop chips, in the block at the bottom.
+            val chip = scene.player.loopChips.value.chips.first().name
+            val chipCentre = assertNotNull(scene.centreOfText(chip), "$what: no loop chip")
+            assertTrue(chipCentre.y / scene.scale in controls.top..controls.bottom, "$what: the chips are not with the controls")
+            extra(scene, what)
         }
     }
 

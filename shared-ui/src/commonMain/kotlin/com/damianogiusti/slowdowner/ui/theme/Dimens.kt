@@ -9,7 +9,6 @@ object DownstepDimens {
     val headerControl = 40.dp
     val chip = 34.dp
     val waveform = 200.dp
-    val waveformFocus = 260.dp
     val zoomStrip = 96.dp
     val playButton = 68.dp
     /** Also the minimum hit target in the transport. */

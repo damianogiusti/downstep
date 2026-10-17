@@ -49,7 +49,7 @@ class ThemeContrastTest {
     @Test
     fun `accent text meets AA where it is drawn`() = assertAll { colors, _ ->
         listOf(
-            // The suggestion chips (name and length), the progression steppers' values, focus mode's speed.
+            // The suggestion chips (name and length), the progression steppers' values.
             Check("amber", colors.amber, "bg" to colors.bg, TEXT),
             // The overview's 10sp suggestion labels.
             Check("amber", colors.amber, "bgDeep" to colors.bgDeep, TEXT),
@@ -59,8 +59,6 @@ class ThemeContrastTest {
             Check("amber", colors.amber, "nowPlayingRow on surface1" to colors.nowPlayingRow.over(colors.surface1), TEXT),
             // Analyze while it runs: amber on its faint amber fill.
             Check("amber", colors.amber, "analyze fill on bg" to colors.amber.copy(alpha = ANALYZE_FILL_ALPHA).over(colors.bg), TEXT),
-            // Focus mode's pitch.
-            Check("teal", colors.teal, "bg" to colors.bg, TEXT),
         )
     }
 
