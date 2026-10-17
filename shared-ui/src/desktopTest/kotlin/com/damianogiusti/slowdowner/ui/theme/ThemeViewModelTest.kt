@@ -126,13 +126,38 @@ class ThemeViewModelTest {
     }
 
     @Test
-    fun `an unknown saved id shows and checks Downstep but stays in the store`() = runTest {
+    fun `an unknown saved id shows Downstep but stays the selection and in the store`() = runTest {
         repository.stored.value = ThemeSelection(ThemeMode.Light, "from-a-newer-version")
         val viewModel = viewModel()
 
-        assertEquals(ThemeSelection(ThemeMode.Light, "downstep"), viewModel.selection.value)
+        assertEquals(ThemeSelection(ThemeMode.Light, "from-a-newer-version"), viewModel.selection.value)
         assertEquals(ThemeSelection(ThemeMode.Light, "downstep"), viewModel.effective.value)
         assertEquals(emptyList(), repository.saves)
+    }
+
+    @Test
+    fun `a mode applied over an unknown saved id keeps the id`() = runTest {
+        repository.stored.value = ThemeSelection(ThemeMode.Light, "from-a-newer-version")
+        val viewModel = viewModel()
+
+        // As the menu's Dark option builds it.
+        viewModel.onApply(viewModel.selection.value.copy(mode = ThemeMode.Dark))
+        advanceUntilIdle()
+
+        assertEquals(listOf(ThemeSelection(ThemeMode.Dark, "from-a-newer-version")), repository.saves)
+        assertEquals(ThemeSelection(ThemeMode.Dark, "from-a-newer-version"), viewModel.selection.value)
+        assertEquals(ThemeSelection(ThemeMode.Dark, "downstep"), viewModel.effective.value)
+    }
+
+    @Test
+    fun `a theme picked over an unknown saved id replaces it`() = runTest {
+        repository.stored.value = ThemeSelection(ThemeMode.Light, "from-a-newer-version")
+        val viewModel = viewModel()
+
+        viewModel.onApply(viewModel.selection.value.copy(themeId = "downstep"))
+        advanceUntilIdle()
+
+        assertEquals(ThemeSelection(ThemeMode.Light, "downstep"), repository.stored.value)
     }
 
     @Test

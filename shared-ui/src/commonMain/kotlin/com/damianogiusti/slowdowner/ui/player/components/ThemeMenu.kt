@@ -71,6 +71,7 @@ import com.damianogiusti.slowdowner.ui.theme.DownstepDimens
 import com.damianogiusti.slowdowner.ui.theme.DownstepShapes
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import com.damianogiusti.slowdowner.ui.theme.Themes
+import com.damianogiusti.slowdowner.ui.theme.themeById
 import kotlinx.coroutines.flow.drop
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
@@ -191,9 +192,11 @@ private fun ThemeMenuContent(
         MenuLabel(stringResource(Res.string.theme_palettes))
         Column(Modifier.selectableGroup().padding(bottom = 4.dp)) {
             val mode = if (colors.isDark) ThemeMode.Dark else ThemeMode.Light
+            // An unknown saved id (a newer version's theme) checks Downstep, which is what shows.
+            val checkedId = themeById(selection.themeId).id
             Themes.forEach { theme ->
                 val option = selection.copy(themeId = theme.id)
-                val checked = theme.id == selection.themeId
+                val checked = theme.id == checkedId
                 ThemeRow(
                     theme = theme,
                     swatch = theme.colors(mode),
