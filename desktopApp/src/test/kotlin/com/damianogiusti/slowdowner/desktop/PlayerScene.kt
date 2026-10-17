@@ -11,6 +11,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.unit.Density
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -97,6 +99,7 @@ class PlayerScene(
                     LocalViewModelStoreOwner provides store,
                     LocalTextInputFocus provides textInput,
                     LocalNavigationEventDispatcherOwner provides backOwner,
+                    LocalViewConfiguration provides slowMachineConfiguration(LocalViewConfiguration.current),
                 ) {
                     root()
                     SlowDownerTheme(theme) {
@@ -242,4 +245,10 @@ class PlayerScene(
             return header.array() + data.array()
         }
     }
+}
+
+// The chips time a double click on the wall clock, and a frame of this scene can take a few hundred
+// milliseconds on a slow machine (the Mac): two clicks sent one after the other must still pair up.
+private fun slowMachineConfiguration(base: ViewConfiguration): ViewConfiguration = object : ViewConfiguration by base {
+    override val doubleTapTimeoutMillis: Long get() = 5_000L
 }
