@@ -7,6 +7,7 @@
 #include "Pcm.h"
 #include "Player.h"
 #include "sdengine.h"
+#include <lame.h>
 
 #include <atomic>
 #include <cmath>
@@ -896,14 +897,80 @@ void sliceProgressRisesWithinTheRange(const std::string &path) {
     sd_engine_destroy(e);
 }
 
-void sliceHoldsTheRangeAndNothingElse() {
-    // Silence for 5 s, then a tone for 5 s: the slice 0.4..0.6 is 1 s of silence, then 1 s of tone.
+/** 10 s of silence with a 441 Hz tone on the left from `toneFrom` seconds to the end. */
+PcmBuffer toneFrom(double toneFrom) {
     PcmBuffer pcm;
     pcm.sampleRate = kRate;
     pcm.channels = 2;
     pcm.frames = 10 * kRate;
     pcm.data.assign(2, std::vector<float>(size_t(pcm.frames), 0.f));
-    for (int64_t i = 5 * kRate; i < pcm.frames; ++i) pcm.data[0][size_t(i)] = float(0.5 * std::sin(2 * M_PI * 441 * double(i) / kRate));
+    for (int64_t i = int64_t(toneFrom * kRate); i < pcm.frames; ++i)
+        pcm.data[0][size_t(i)] = float(0.5 * std::sin(2 * M_PI * 441 * double(i) / kRate));
+    return pcm;
+}
+
+/** The first frame of `x` louder than `threshold`, or -1. */
+long firstAbove(const std::vector<float> &x, float threshold) {
+    for (size_t i = 0; i < x.size(); ++i)
+        if (std::fabs(x[i]) > threshold) return long(i);
+    return -1;
+}
+
+/**
+ * The MP3 round trip's own delay in frames (encoder and decoder): `pcm` encoded straight with LAME, as
+ * the export does but with no player in between, then decoded; -1 if it fails. The tone of
+ * toneFrom(1.0) then starts this many frames after 1 s.
+ */
+long mp3Delay() {
+    const PcmBuffer pcm = toneFrom(1.0);
+    const auto output = tempPath("sdengine-mp3-delay.mp3");
+    lame_global_flags *lame = lame_init();
+    lame_set_in_samplerate(lame, kRate);
+    lame_set_num_channels(lame, 2);
+    lame_set_brate(lame, 192);
+    lame_set_quality(lame, 2);
+    if (lame_init_params(lame) < 0) return -1;
+    std::vector<unsigned char> mp3(size_t(pcm.frames) * 2 + 7200);
+    int bytes = lame_encode_buffer_ieee_float(lame, pcm.data[0].data(), pcm.data[1].data(), int(pcm.frames), mp3.data(),
+                                              int(mp3.size()));
+    bytes += lame_encode_flush(lame, mp3.data() + bytes, int(mp3.size()) - bytes);
+    lame_close(lame);
+    if (FILE *file = std::fopen(output.c_str(), "wb")) {
+        std::fwrite(mp3.data(), 1, size_t(bytes), file);
+        std::fclose(file);
+    }
+    PcmBuffer decoded;
+    std::string error;
+    const bool ok = decodeFile(output, decoded, error);
+    std::filesystem::remove(output);
+    return ok && !decoded.data.empty() ? firstAbove(decoded.data[0], 0.05f) - kRate : -1;
+}
+
+SdEngine *openInMemory(PcmBuffer pcm);
+
+void aSliceStartsAtAItself() {
+    // Silence up to 5.1 s, then a tone. The player starts at 0.5 (5 s) exactly: the tone comes
+    // 0.1 s of the file later, not after the stretcher's run-in (about 35 ms of the audio before A).
+    // (Within a few ms: the stretcher smears the tone's onset a little, more at low speeds.)
+    for (const double speed : {1.0, 0.5}) {
+        SdEngine *e = openInMemory(toneFrom(5.1));
+        sd_engine_set_speed(e, speed);
+        sdEnginePlayer(e)->seekExact(0.5);
+        sd_engine_set_playing(e, 1);
+        const Rendered r = render(e, 0.5 / speed);
+        const long onset = firstAbove(r.left, 0.05f);
+        const double expected = 0.1 / speed * kRate;
+        CHECK(onset >= 0 && std::fabs(double(onset) - expected) < 0.006 * kRate,
+              "speed %.1f: the tone starts at frame %ld, A + 0.1 s is at %.0f", speed, onset, expected);
+        sd_engine_destroy(e);
+    }
+}
+
+void sliceHoldsTheRangeAndNothingElse() {
+    // Silence for 5 s, then a tone for 5 s: the slice 0.4..0.6 is 1 s of silence, then 1 s of tone.
+    const PcmBuffer pcm = toneFrom(5.0);
+    const long codecDelay = mp3Delay();
+    CHECK(codecDelay >= 0 && codecDelay < kRate / 10, "MP3 delay of %ld frames", codecDelay);
     const auto source = tempPath("sdengine-slice-source.wav");
     std::string error;
     CHECK(writeWavFloat(source, pcm, error), "cannot write: %s", error.c_str());
@@ -923,6 +990,12 @@ void sliceHoldsTheRangeAndNothingElse() {
         const std::vector<float> after(left.begin() + long(second * 11 / 10), left.begin() + long(second * 19 / 10));
         CHECK(rms(before) < 0.01, "speed %.1f: audio before the tone starts: %f", speed, rms(before));
         CHECK(rms(after) > 0.3, "speed %.1f: the tone is missing: %f", speed, rms(after));
+        // To the frame, give or take the stretcher's smear: the slice starts at A, not before it, so
+        // the tone comes exactly one second of the file in (and the slice's fixed length ends at B).
+        const long onset = firstAbove(left, 0.05f) - codecDelay;
+        CHECK(std::fabs(double(onset) - double(second)) < 0.006 * kRate,
+              "speed %.1f: the tone starts %.1f ms into the slice, expected %.1f ms", speed,
+              1000.0 * double(onset) / kRate, 1000.0 * double(second) / kRate);
         // Only the music: the silent right channel stays silent (no click, no count-in).
         CHECK(rms(slice.decoded.data[1]) < 0.01, "speed %.1f: sound on the silent side: %f", speed,
               rms(slice.decoded.data[1]));
@@ -1468,6 +1541,7 @@ int main() {
         {"exports a loop slice at the current speed", [&] { exportsALoopSliceAtTheCurrentSpeed(path); }},
         {"slice progress rises within the range", [&] { sliceProgressRisesWithinTheRange(path); }},
         {"a slice holds the range and nothing else", [] { sliceHoldsTheRangeAndNothingElse(); }},
+        {"a slice starts at A itself", [] { aSliceStartsAtAItself(); }},
         {"slice exports share the decoded audio", [&] { sliceExportsShareTheDecodedAudio(path); }},
         {"an empty range exports nothing", [&] { anEmptyRangeExportsNothing(path); }},
         {"metronome clicks on the beat at any speed", [] { metronomeClicksOnTheBeatAtAnySpeed(); }},

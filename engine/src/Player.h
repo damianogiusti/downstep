@@ -72,6 +72,12 @@ public:
     /** 0..1 of the file. */
     double position() const;
     void seek(double position);
+    /**
+     * As seek(), and the audio then starts with `position` itself, not Bungee's run-in before it
+     * (about 35 ms of the audio before the target): what an export of a slice needs to start at A and
+     * end at B. Once, for this seek; playing from where the player is counts as a seek too.
+     */
+    void seekExact(double position);
 
     void setSpeed(double ratio) { speed_.store(ratio); }
     void setPitch(double semitones) { pitch_.store(semitones); }
@@ -167,6 +173,7 @@ private:
     std::atomic<bool> loopOn_{false};
     unsigned appliedLoopVersion_ = ~0u;
     std::atomic<double> seekTo_{-1.0};
+    std::atomic<bool> startsExactly_{false}; // seekExact(): drop the next seek's run-in
     std::atomic<double> positionFrames_{0.0};
     std::atomic<double> outputGain_{1.0};
     std::atomic<unsigned> events_{0};

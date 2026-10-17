@@ -115,8 +115,9 @@ SdExport *sd_export_begin_range(SdEngine *engine, const char *utf8OutputPath, in
     lame_set_quality(exporter->lame, 2); // near-best; encoding is much faster than real time anyway
     if (lame_init_params(exporter->lame) < 0) return nullptr;
 
-    // The seek lands in the first block, with the start: the slice fades in as playback does.
-    if (start > 0.0) exporter->player->seek(start);
+    // The seek lands in the first block, with the start: the slice fades in as playback does. It
+    // starts with A itself, not the stretcher's run-in before it, so its fixed length ends at B.
+    exporter->player->seekExact(start);
     exporter->player->setPlaying(true);
     return exporter.release();
 } catch (...) {

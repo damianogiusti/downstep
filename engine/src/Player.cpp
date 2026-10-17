@@ -142,6 +142,11 @@ void Player::seek(double position) {
     positionFrames_.store(clamped * double(sourceFrames_.load()));
 }
 
+void Player::seekExact(double position) {
+    startsExactly_.store(true);
+    seek(position);
+}
+
 void Player::setLoop(double start, double end, bool enabled, double seek) {
     loopVersion_.fetch_add(1, std::memory_order_relaxed); // odd: being written
     // Keeps the writes below after the odd version, as in writeEq.
@@ -297,7 +302,8 @@ int Player::render(float *const *out, int frames) {
         needsFadeIn_ = true;
         lastSourceFrame_ = -1;
     }
-    if (wantsPlaying && !isRunning_) {
+    const bool justStarted = wantsPlaying && !isRunning_;
+    if (justStarted) {
         // Start from where the user is, with a fresh grain history.
         if (seek < 0) stretcher_.seek(positionFrames_.load());
         equalizer_.reset();
@@ -307,6 +313,8 @@ int Player::render(float *const *out, int frames) {
         lastSourceFrame_ = -1;
         if (countInBeats > 0) armCountIn(countInBeats);
     }
+    // After the stretcher has been sought in this block: the next frame is the target itself.
+    if (isRunning_ && (seek >= 0 || justStarted) && startsExactly_.exchange(false)) stretcher_.skipPreroll();
     if (!isRunning_) {
         std::fill(out[0], out[0] + frames, 0.f);
         std::fill(out[1], out[1] + frames, 0.f);
