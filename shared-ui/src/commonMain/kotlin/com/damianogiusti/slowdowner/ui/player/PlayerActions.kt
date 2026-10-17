@@ -48,7 +48,7 @@ class LoopChipActions(
 class WaveformActions(
     /** A click: seek there (0..1 of the file). */
     val onSeek: (position: Float) -> Unit,
-    /** The end of an A/B drag, once: the bounds shown at release, snapped with the state's snapGrid. */
+    /** The end of an A/B drag, once: the bounds shown at release (free, never rounded to a beat). */
     val onLoopBoundsChanged: (loopId: Long, bounds: LoopBounds) -> Unit,
 )
 
@@ -63,7 +63,7 @@ class TransportActions(
     val onLoopToggled: () -> Unit,
 )
 
-/** Active-loop tool group and Snap to beat. */
+/** Active-loop tool group. */
 @Stable
 class LoopToolActions(
     /** −1 earlier, +1 later. */
@@ -71,7 +71,6 @@ class LoopToolActions(
     val onHalve: () -> Unit,
     val onDouble: () -> Unit,
     val onDelete: () -> Unit,
-    val onSnapToggled: () -> Unit,
 )
 
 /** Speed and pitch cards. Sliders use the engine's slider positions (0..SLIDER_MAX). */

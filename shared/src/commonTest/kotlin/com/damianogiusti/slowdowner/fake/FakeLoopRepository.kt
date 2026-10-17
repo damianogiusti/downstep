@@ -54,8 +54,6 @@ class FakeLoopRepository(private val existingTrackIds: Set<String> = setOf("a", 
 
     override suspend fun setBpm(trackId: String, bpm: Float?) = editSettings(trackId) { it.copy(bpm = bpm) }
 
-    override suspend fun setSnapToBeat(trackId: String, enabled: Boolean) = editSettings(trackId) { it.copy(snapToBeat = enabled) }
-
     private fun snapshot(trackId: String): TrackLoops {
         val trackLoops = loops.value.filter { it.trackId == trackId }.sortedWith(compareBy({ it.start }, { it.id }))
         val stored = settings.value[trackId] ?: TrackLoops(trackId)

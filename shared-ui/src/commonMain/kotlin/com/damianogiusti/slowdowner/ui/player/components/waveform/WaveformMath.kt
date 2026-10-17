@@ -1,6 +1,5 @@
 package com.damianogiusti.slowdowner.ui.player.components.waveform
 
-import com.damianogiusti.slowdowner.domain.loops.BeatGrid
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.loops.LoopMath
 import com.damianogiusti.slowdowner.ui.player.Peaks
@@ -101,9 +100,9 @@ internal fun hitHandle(x: Float, startX: Float, endX: Float, reach: Float): Loop
     }
 }
 
-/** The loop while [handle] is dragged to [position]: snapped to [grid], and A never crosses B. */
-internal fun dragLoop(handle: LoopHandle, bounds: LoopBounds, position: Float, durationSeconds: Float, grid: BeatGrid?): LoopBounds =
+/** The loop while [handle] is dragged to [position]: free (no beat grid), and A never crosses B. */
+internal fun dragLoop(handle: LoopHandle, bounds: LoopBounds, position: Float, durationSeconds: Float): LoopBounds =
     when (handle) {
-        LoopHandle.Start -> LoopMath.moveStart(bounds, position, durationSeconds, grid)
-        LoopHandle.End -> LoopMath.moveEnd(bounds, position, durationSeconds, grid)
+        LoopHandle.Start -> LoopMath.moveStart(bounds, position, durationSeconds)
+        LoopHandle.End -> LoopMath.moveEnd(bounds, position, durationSeconds)
     }

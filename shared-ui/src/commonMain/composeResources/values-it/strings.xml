@@ -34,8 +34,8 @@
     <string name="loop_shift_forward">▶</string>
     <string name="loop_halve_description">Dimezza il loop</string>
     <string name="loop_double_description">Raddoppia il loop</string>
-    <string name="loop_shift_backward_description">Sposta il loop indietro</string>
-    <string name="loop_shift_forward_description">Sposta il loop avanti</string>
+    <string name="loop_shift_backward_description">Sposta il loop indietro di 1 s</string>
+    <string name="loop_shift_forward_description">Sposta il loop avanti di 1 s</string>
 
     <string name="mix_title">Bilanciamento L / R</string>
     <string name="effects_subtitle">Valgono per tutti i brani.</string>
@@ -257,7 +257,7 @@
     <string name="header_bpm_unset">BPM —</string>
     <string name="bpm_edit_description">Imposta il tempo di questo brano</string>
     <string name="bpm_dialog_title">Tempo di questo brano</string>
-    <string name="bpm_dialog_message">Downstep non rileva ancora il tempo. Inseriscilo per agganciare i loop alla battuta (%1$d–%2$d BPM).</string>
+    <string name="bpm_dialog_message">Serve per il metronomo, il conteggio iniziale e la lunghezza dei nuovi loop (%1$d–%2$d BPM).</string>
     <string name="bpm_label">BPM</string>
     <string name="bpm_clear">Cancella</string>
     <string name="error_bpm_range">Inserisci un tempo tra %1$d e %2$d BPM.</string>
@@ -299,9 +299,6 @@
     <!-- Transport and loop tools (H) -->
     <string name="loop_off">Loop spento</string>
     <string name="loop_toggle_tooltip">Loop sì/no (Maiusc+L)</string>
-    <string name="snap_to_beat">Aggancia al battito</string>
-    <string name="snap_tooltip">Aggancia A/B ai battiti</string>
-    <string name="snap_needs_bpm">Imposta i BPM del brano per agganciare al battito</string>
     <string name="to_start_description">Inizio</string>
     <string name="next_loop_description">Loop successivo (])</string>
     <string name="pause">Pausa</string>

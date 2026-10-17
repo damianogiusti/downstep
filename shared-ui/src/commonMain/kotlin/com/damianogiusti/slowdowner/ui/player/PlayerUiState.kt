@@ -3,7 +3,6 @@ package com.damianogiusti.slowdowner.ui.player
 import androidx.compose.runtime.Immutable
 import com.damianogiusti.slowdowner.domain.analysis.SuggestedSection
 import com.damianogiusti.slowdowner.domain.export.ExportedFile
-import com.damianogiusti.slowdowner.domain.loops.BeatGrid
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.loops.Progression
 import com.damianogiusti.slowdowner.domain.loops.ProgressionStatus
@@ -98,10 +97,6 @@ data class LoopRegionModel(val id: Long, val start: Float, val end: Float, val c
 @Immutable
 class Peaks(val from: Float, val to: Float, val values: FloatArray)
 
-/** A beat line, at [position] (0..1 of the file); bar starts are drawn stronger. */
-@Immutable
-data class BeatLine(val position: Float, val isBarStart: Boolean)
-
 /** The full-width overview waveform (README §2.4). */
 @Immutable
 data class OverviewWaveformState(
@@ -115,10 +110,6 @@ data class OverviewWaveformState(
     val isLoopOn: Boolean = false,
     /** The zoom strip's window, drawn as a faint bracket. */
     val zoomWindow: LoopBounds? = null,
-    /** Bar lines (every 4 beats), only while Snap to beat is on and a BPM is set. */
-    val barLines: List<Float> = emptyList(),
-    /** What drags snap to (LoopMath.moveStart / moveEnd); null when edits are free. */
-    val snapGrid: BeatGrid? = null,
     val suggestions: List<SuggestionModel> = emptyList(),
     /** False while loading or exporting: no seeks, no drags. */
     val enabled: Boolean = false,
@@ -136,11 +127,8 @@ data class ZoomStripState(
     val durationSeconds: Float,
     /** Covers exactly [window]; null until read. */
     val peaks: Peaks?,
-    /** Every beat in the window, only while snapping. */
-    val beatLines: List<BeatLine>,
     /** Beats and bars in the loop; null without a BPM (then the strip shows the length in seconds). */
     val beats: Float?,
-    val snapGrid: BeatGrid?,
     val enabled: Boolean,
 )
 
@@ -157,7 +145,7 @@ data class TransportState(
     val enabled: Boolean = false,
 )
 
-/** The active-loop tool group and the Snap to beat toggle. */
+/** The active-loop tool group. */
 @Immutable
 data class LoopToolsState(
     val hasActiveLoop: Boolean = false,
@@ -165,10 +153,6 @@ data class LoopToolsState(
     val canDouble: Boolean = false,
     val canNudgeBack: Boolean = false,
     val canNudgeForward: Boolean = false,
-    /** The user's toggle. */
-    val snapToBeat: Boolean = false,
-    /** Snap needs a BPM: without one the toggle is disabled (with a tooltip saying why). */
-    val canSnap: Boolean = false,
     val enabled: Boolean = false,
 )
 

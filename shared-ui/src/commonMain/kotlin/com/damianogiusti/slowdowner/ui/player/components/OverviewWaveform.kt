@@ -68,7 +68,7 @@ import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 
 /**
- * The full-width overview: bars from [OverviewWaveformState.peaks], loop regions, bar lines, A/B pills
+ * The full-width overview: bars from [OverviewWaveformState.peaks], loop regions, A/B pills
  * and drag handles, the zoom bracket, suggestions, and the playhead with its timecode pill.
  *
  * [position] is read only inside draw code: playback never recomposes this composable. The bars are
@@ -168,9 +168,6 @@ fun OverviewWaveform(
                         drawText(suggestionLabels[index], topLeft = Offset(left + 6.dp.toPx(), 8.dp.toPx()))
                     }
 
-                    val barLine = colors.fg.copy(alpha = 0.08f)
-                    for (line in state.barLines) drawVerticalLine(barLine, axis.x(line), px)
-
                     if (bars != null) {
                         val loopColor = active?.let { colors.loopColor(it.colorIndex) } ?: colors.amber
                         drawBars(
@@ -260,7 +257,7 @@ internal fun HandleTarget(description: String, x: Density.() -> Float, width: Dp
 private fun overviewAxis(width: Float, gutter: Float) = WaveformAxis(gutter, (width - gutter * 2).coerceAtLeast(0f), 0f, 1f)
 
 private fun OverviewWaveformState.dragTarget(): DragTarget? =
-    active?.let { DragTarget(it.id, LoopBounds(it.start, it.end), durationSeconds, snapGrid) }
+    active?.let { DragTarget(it.id, LoopBounds(it.start, it.end), durationSeconds) }
 
 /** "A 1:00.0" with the letter bold and the time lighter, as in the design. */
 private fun marker(template: String, time: String): AnnotatedString = buildAnnotatedString {

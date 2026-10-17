@@ -189,7 +189,6 @@ private fun playerActions(
         onHalve = viewModel::onHalveLoop,
         onDouble = viewModel::onDoubleLoop,
         onDelete = viewModel::onDeleteActiveLoop,
-        onSnapToggled = viewModel::onSnapToggled,
     ),
     speedPitch = SpeedPitchActions(
         onSpeedSlider = viewModel::onSpeedChanged,

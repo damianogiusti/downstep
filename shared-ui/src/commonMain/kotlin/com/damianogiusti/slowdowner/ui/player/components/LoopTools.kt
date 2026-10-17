@@ -7,7 +7,6 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,7 +27,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.damianogiusti.slowdowner.ui.common.DISABLED_ALPHA
-import com.damianogiusti.slowdowner.ui.common.Pill
 import com.damianogiusti.slowdowner.ui.common.SegmentedPill
 import com.damianogiusti.slowdowner.ui.common.Tooltip
 import com.damianogiusti.slowdowner.ui.player.LoopToolActions
@@ -42,10 +40,7 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * The active-loop tool group (◀ nudge · ½ · ×2 · nudge ▶ · ✕ delete, 30dp buttons in a segmented
- * pill; only with an active loop) and the Snap to beat toggle (disabled without a BPM, tooltip why).
- *
- * Emits the two as siblings, each with [modifier], so the transport's flow row can wrap Snap to its
- * own line when the window is narrow (as in the design at 1280dp).
+ * pill); nothing without an active loop. The nudges move the loop by a fixed second of track time.
  */
 @Composable
 fun LoopToolGroup(
@@ -82,21 +77,6 @@ fun LoopToolGroup(
                 hoverTint = colors.errFg,
             )
         }
-    }
-    val snapping = state.snapToBeat && state.canSnap
-    Pill(
-        onClick = actions.onSnapToggled,
-        modifier = modifier,
-        enabled = state.enabled && state.canSnap,
-        height = 36.dp,
-        container = if (snapping) colors.surface3 else null,
-        contentColor = if (snapping) colors.fg else colors.fg2,
-        border = if (snapping) colors.surface4 else colors.surface3,
-        contentPadding = PaddingValues(horizontal = 12.dp),
-        tooltip = stringResource(if (state.canSnap) Res.string.snap_tooltip else Res.string.snap_needs_bpm),
-    ) {
-        Icon(painterResource(Res.drawable.ic_h_snap), contentDescription = null, modifier = Modifier.size(14.dp))
-        Text(stringResource(Res.string.snap_to_beat), style = SlowDownerTheme.type.control.copy(fontSize = 12.sp), maxLines = 1)
     }
 }
 

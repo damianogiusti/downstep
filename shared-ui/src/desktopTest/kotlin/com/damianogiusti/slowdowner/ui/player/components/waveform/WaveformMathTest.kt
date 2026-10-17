@@ -1,6 +1,5 @@
 package com.damianogiusti.slowdowner.ui.player.components.waveform
 
-import com.damianogiusti.slowdowner.domain.loops.BeatGrid
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.ui.player.Peaks
 import kotlin.test.Test
@@ -109,7 +108,7 @@ class WaveformMathTest {
     fun `dragging A past B stops before it`() {
         val bounds = LoopBounds(0.2f, 0.4f)
 
-        val dragged = dragLoop(LoopHandle.Start, bounds, 0.9f, durationSeconds = 100f, grid = null)
+        val dragged = dragLoop(LoopHandle.Start, bounds, 0.9f, durationSeconds = 100f)
 
         assertEquals(0.4f, dragged.end)
         assertTrue(dragged.start < dragged.end)
@@ -117,20 +116,19 @@ class WaveformMathTest {
 
     @Test
     fun `dragging B before A stops after it`() {
-        val dragged = dragLoop(LoopHandle.End, LoopBounds(0.2f, 0.4f), 0.05f, durationSeconds = 100f, grid = null)
+        val dragged = dragLoop(LoopHandle.End, LoopBounds(0.2f, 0.4f), 0.05f, durationSeconds = 100f)
 
         assertEquals(0.2f, dragged.start)
         assertTrue(dragged.end > dragged.start)
     }
 
     @Test
-    fun `drags snap to the beat grid`() {
-        // 60 BPM over 100 s: a beat every 1% of the file.
-        val grid = BeatGrid.of(60f, 100f)
+    fun `drags are free and land exactly where the pointer is`() {
+        val end = dragLoop(LoopHandle.End, LoopBounds(0.2f, 0.4f), 0.4537f, durationSeconds = 100f)
+        val start = dragLoop(LoopHandle.Start, LoopBounds(0.2f, 0.4f), 0.2113f, durationSeconds = 100f)
 
-        val dragged = dragLoop(LoopHandle.End, LoopBounds(0.2f, 0.4f), 0.4537f, durationSeconds = 100f, grid = grid)
-
-        assertEquals(0.45f, dragged.end, 1e-5f)
+        assertEquals(0.4537f, end.end, 1e-6f)
+        assertEquals(0.2113f, start.start, 1e-6f)
     }
 
     @Test

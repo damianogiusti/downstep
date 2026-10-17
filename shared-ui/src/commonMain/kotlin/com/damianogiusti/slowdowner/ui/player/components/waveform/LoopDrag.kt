@@ -12,11 +12,10 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.unit.IntSize
-import com.damianogiusti.slowdowner.domain.loops.BeatGrid
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 
 /** What an A/B drag edits: the active loop as the state has it. */
-internal class DragTarget(val loopId: Long, val bounds: LoopBounds, val durationSeconds: Float, val grid: BeatGrid?)
+internal class DragTarget(val loopId: Long, val bounds: LoopBounds, val durationSeconds: Float)
 
 /**
  * The A/B drag of one waveform, local to it: moves are drawn from [bounds] (read in draw code only, so
@@ -91,7 +90,7 @@ internal suspend fun PointerInputScope.loopGestures(
                 }
                 if (change.positionChanged()) {
                     change.consume()
-                    bounds = dragLoop(handle, from, currentAxis.fraction(change.position.x), loop.durationSeconds, loop.grid)
+                    bounds = dragLoop(handle, from, currentAxis.fraction(change.position.x), loop.durationSeconds)
                     drag.move(bounds)
                 }
             }

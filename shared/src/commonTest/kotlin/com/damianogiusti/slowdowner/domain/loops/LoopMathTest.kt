@@ -2,10 +2,8 @@ package com.damianogiusti.slowdowner.domain.loops
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class LoopMathTest {
 
@@ -14,16 +12,10 @@ class LoopMathTest {
     private val grid = BeatGrid.of(120f, duration)!!
 
     @Test
-    fun `when snapping then the position goes to the nearest beat`() {
-        assertEquals(0.105f, LoopMath.snap(0.1068f, grid), TOLERANCE)
-        assertEquals(0.1068f, LoopMath.snap(0.1068f, null), TOLERANCE)
-    }
-
-    @Test
     fun `when A is dragged past B then it stops before B`() {
         val loop = LoopBounds(0.2f, 0.3f)
 
-        val moved = LoopMath.moveStart(loop, 0.5f, duration, grid = null)
+        val moved = LoopMath.moveStart(loop, 0.5f, duration)
 
         assertEquals(0.3f - LoopMath.minLength(duration), moved.start, TOLERANCE)
         assertEquals(0.3f, moved.end)
@@ -31,7 +23,7 @@ class LoopMathTest {
 
     @Test
     fun `when B is dragged before A then it stops after A`() {
-        val moved = LoopMath.moveEnd(LoopBounds(0.2f, 0.3f), 0.1f, duration, grid = null)
+        val moved = LoopMath.moveEnd(LoopBounds(0.2f, 0.3f), 0.1f, duration)
 
         assertEquals(0.2f + LoopMath.minLength(duration), moved.end, TOLERANCE)
     }
@@ -44,15 +36,18 @@ class LoopMathTest {
     }
 
     @Test
-    fun `when B is set with snap on then it lands on a beat`() {
-        val moved = LoopMath.moveEnd(LoopBounds(0.2f, 0.3f), 0.2526f, duration, grid)
+    fun `when A and B are moved then they land exactly where asked, off any beat`() {
+        // 0.2137 and 0.2526 are between beats of the 120 bpm grid: nothing rounds them.
+        val movedStart = LoopMath.moveStart(LoopBounds(0.2f, 0.3f), 0.2137f, duration)
+        val movedEnd = LoopMath.moveEnd(LoopBounds(0.2f, 0.3f), 0.2526f, duration)
 
-        assertEquals(0.255f, moved.end, TOLERANCE)
+        assertEquals(0.2137f, movedStart.start, TOLERANCE)
+        assertEquals(0.2526f, movedEnd.end, TOLERANCE)
     }
 
     @Test
     fun `when halved then A stays and the length halves`() {
-        val halved = LoopMath.halve(LoopBounds(0.2f, 0.24f), duration, grid)!!
+        val halved = LoopMath.halve(LoopBounds(0.2f, 0.24f), duration)!!
 
         assertEquals(0.2f, halved.start)
         assertEquals(0.22f, halved.end, TOLERANCE)
@@ -60,7 +55,7 @@ class LoopMathTest {
 
     @Test
     fun `when the half would be shorter than the minimum then halving does not apply`() {
-        assertNull(LoopMath.halve(LoopBounds(0.2f, 0.209f), duration, grid = null))
+        assertNull(LoopMath.halve(LoopBounds(0.2f, 0.209f), duration))
     }
 
     @Test
@@ -77,41 +72,58 @@ class LoopMathTest {
     }
 
     @Test
-    fun `when nudged with a grid then the loop moves by one beat`() {
-        val nudged = LoopMath.nudge(LoopBounds(0.2f, 0.3f), direction = 1, duration, grid)!!
+    fun `when halved off a beat then the half is kept as it is`() {
+        // 0.2137..0.2437 is 6 beats: the half ends at 0.2287, between beats, and stays there.
+        val halved = LoopMath.halve(LoopBounds(0.2137f, 0.2437f), duration)!!
 
-        assertEquals(0.205f, nudged.start, TOLERANCE)
-        assertEquals(0.305f, nudged.end, TOLERANCE)
+        assertEquals(0.2287f, halved.end, TOLERANCE)
     }
 
     @Test
-    fun `when nudged without a grid then the loop moves by one second`() {
-        val nudged = LoopMath.nudge(LoopBounds(0.2f, 0.3f), direction = -1, duration, grid = null)!!
+    fun `when nudged then the loop moves by one second and keeps its length`() {
+        val nudged = LoopMath.nudge(LoopBounds(0.2f, 0.3f), direction = -1, duration)!!
 
         assertEquals(0.19f, nudged.start, TOLERANCE)
         assertEquals(0.29f, nudged.end, TOLERANCE)
     }
 
     @Test
-    fun `when nudged against the edge then it stops there and then no longer applies`() {
-        val atStart = LoopMath.nudge(LoopBounds(0.002f, 0.1f), direction = -1, duration, grid)!!
+    fun `when nudged then the step is one second of the track whatever its length`() {
+        // 1 s of a 20 s track is 5% of it; of a 400 s track, 0.25%.
+        val short = LoopMath.nudge(LoopBounds(0.2f, 0.3f), direction = 1, 20f)!!
+        val long = LoopMath.nudge(LoopBounds(0.2f, 0.3f), direction = 1, 400f)!!
 
-        assertEquals(0f, atStart.start, TOLERANCE)
-        assertEquals(0.098f, atStart.end, TOLERANCE)
-        assertNull(LoopMath.nudge(atStart, direction = -1, duration, grid))
+        assertEquals(0.25f, short.start, TOLERANCE)
+        assertEquals(0.2025f, long.start, TOLERANCE)
+        assertEquals(1f, LoopMath.NUDGE_SECONDS)
     }
 
     @Test
-    fun `when a loop is added at the playhead then it is 8 beats from the snapped playhead`() {
+    fun `when the direction is zero or nothing is open then nudging does not apply`() {
+        assertNull(LoopMath.nudge(LoopBounds(0.2f, 0.3f), direction = 0, duration))
+        assertNull(LoopMath.nudge(LoopBounds(0.2f, 0.3f), direction = 1, 0f))
+    }
+
+    @Test
+    fun `when nudged against the edge then it stops there and then no longer applies`() {
+        val atStart = LoopMath.nudge(LoopBounds(0.002f, 0.1f), direction = -1, duration)!!
+
+        assertEquals(0f, atStart.start, TOLERANCE)
+        assertEquals(0.098f, atStart.end, TOLERANCE)
+        assertNull(LoopMath.nudge(atStart, direction = -1, duration))
+    }
+
+    @Test
+    fun `when a loop is added at the playhead then it starts there and is 8 beats long`() {
         val loop = LoopMath.newLoopAt(0.4012f, duration, grid)
 
-        assertEquals(0.4f, loop.start, TOLERANCE)
-        assertEquals(0.44f, loop.end, TOLERANCE)
+        assertEquals(0.4012f, loop.start, TOLERANCE)
+        assertEquals(0.4412f, loop.end, TOLERANCE)
     }
 
     @Test
     fun `when a loop is added without a tempo then it is 8 seconds from the playhead`() {
-        val loop = LoopMath.newLoopAt(0.4012f, duration, grid = null)
+        val loop = LoopMath.newLoopAt(0.4012f, duration, tempo = null)
 
         assertEquals(0.4012f, loop.start, TOLERANCE)
         assertEquals(0.4812f, loop.end, TOLERANCE)
@@ -156,21 +168,17 @@ class LoopMathTest {
     }
 
     @Test
-    fun `when listing beats then bar starts are every fourth beat`() {
-        val beats = grid.beatsIn(0f, 0.021f)
-
-        assertEquals(listOf(0L, 1L, 2L, 3L, 4L), beats.map { it.index })
-        assertTrue(beats[0].isBarStart)
-        assertFalse(beats[1].isBarStart)
-        assertTrue(beats[4].isBarStart)
+    fun `when counting beats then a loop of 4 seconds at 120 bpm is 8 beats`() {
         assertEquals(8f, grid.beatsBetween(0.4f, 0.44f), TOLERANCE)
     }
 
     @Test
-    fun `when snapping is off or the tempo unknown then there is no snap grid`() {
-        assertNull(TrackLoops("a", bpm = 120f, snapToBeat = false).snapGrid(duration))
-        assertNull(TrackLoops("a", bpm = null, snapToBeat = true).snapGrid(duration))
-        assertNotNull(TrackLoops("a", bpm = 120f, snapToBeat = true).snapGrid(duration))
+    fun `when the user set a tempo then it wins over the detected one`() {
+        assertEquals(92f, TrackLoops("a", bpm = 92f, detectedBpm = 120f).effectiveBpm)
+        assertEquals(120f, TrackLoops("a", detectedBpm = 120f).effectiveBpm)
+        assertNull(TrackLoops("a").effectiveBpm)
+        assertNotNull(TrackLoops("a", detectedBpm = 120f).beatGrid(duration))
+        assertNull(TrackLoops("a").beatGrid(duration))
     }
 
     private companion object {

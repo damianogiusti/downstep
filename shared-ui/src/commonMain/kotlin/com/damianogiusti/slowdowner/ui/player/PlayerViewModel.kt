@@ -23,7 +23,6 @@ import com.damianogiusti.slowdowner.domain.loops.RecordLoopPassUseCase
 import com.damianogiusti.slowdowner.domain.loops.RenameLoopUseCase
 import com.damianogiusti.slowdowner.domain.loops.ResetLoopPassesUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetActiveLoopUseCase
-import com.damianogiusti.slowdowner.domain.loops.SetSnapToBeatUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetTrackBpmUseCase
 import com.damianogiusti.slowdowner.domain.loops.TrackLoops
 import com.damianogiusti.slowdowner.domain.loops.UpdateLoopNotesUseCase
@@ -200,8 +199,6 @@ class PlayerViewModel(
                 active = regions.firstOrNull { it.isActive },
                 isLoopOn = engine.isLoopOn,
                 zoomWindow = active?.let { LoopMath.zoomWindow(it.bounds, trackLoops.beatGrid(duration)) },
-                barLines = trackLoops?.snapGrid(duration)?.beatsIn(0f, 1f)?.filter { it.isBarStart }?.map { it.position }.orEmpty(),
-                snapGrid = trackLoops?.snapGrid(duration),
                 suggestions = analysis.suggestions,
                 enabled = enabled,
             )
@@ -211,7 +208,6 @@ class PlayerViewModel(
         val active = trackLoops?.activeLoop ?: return@combine null
         val duration = engine.durationSeconds
         val tempo = trackLoops.beatGrid(duration)
-        val snapGrid = trackLoops.snapGrid(duration)
         val window = LoopMath.zoomWindow(active.bounds, tempo)
         ZoomStripState(
             loopId = active.id,
@@ -222,9 +218,7 @@ class PlayerViewModel(
             window = window,
             durationSeconds = duration,
             peaks = peaks,
-            beatLines = snapGrid?.beatsIn(window.start, window.end)?.map { BeatLine(it.position, it.isBarStart) }.orEmpty(),
             beats = tempo?.beatsBetween(active.start, active.end),
-            snapGrid = snapGrid,
             enabled = enabled,
         )
     }.state(null)
@@ -245,15 +239,12 @@ class PlayerViewModel(
     val loopTools: StateFlow<LoopToolsState> = combine(trackLoops, engineState, controlsEnabled) { trackLoops, engine, enabled ->
         val duration = engine.durationSeconds
         val bounds = trackLoops?.activeLoop?.bounds
-        val grid = trackLoops?.snapGrid(duration)
         LoopToolsState(
             hasActiveLoop = bounds != null,
-            canHalve = bounds != null && LoopMath.halve(bounds, duration, grid) != null,
+            canHalve = bounds != null && LoopMath.halve(bounds, duration) != null,
             canDouble = bounds != null && LoopMath.double(bounds) != null,
-            canNudgeBack = bounds != null && LoopMath.nudge(bounds, -1, duration, grid) != null,
-            canNudgeForward = bounds != null && LoopMath.nudge(bounds, 1, duration, grid) != null,
-            snapToBeat = trackLoops?.snapToBeat ?: false,
-            canSnap = trackLoops?.bpm != null,
+            canNudgeBack = bounds != null && LoopMath.nudge(bounds, -1, duration) != null,
+            canNudgeForward = bounds != null && LoopMath.nudge(bounds, 1, duration) != null,
             enabled = enabled,
         )
     }.state(LoopToolsState())
@@ -436,12 +427,12 @@ class PlayerViewModel(
 
     // region Loops
 
-    /** `L` and "+ New loop": 8 beats (or 8 s without a BPM) from the playhead, snapped; it becomes active. */
+    /** `L` and "+ New loop": 8 beats (or 8 s without a BPM) from exactly the playhead; it becomes active. */
     fun onNewLoopAtPlayhead() {
         val playhead = engine.position
         editLoops { track, trackLoops ->
             val duration = engine.durationSeconds
-            val bounds = LoopMath.newLoopAt(playhead, duration, trackLoops.snapGrid(duration), trackLoops.beatGrid(duration))
+            val bounds = LoopMath.newLoopAt(playhead, duration, trackLoops.beatGrid(duration))
             lastTick = null
             loops.create(track.id, bounds)?.let { created -> awaitLoops { it.activeLoopId == created.id } }
         }
@@ -462,51 +453,50 @@ class PlayerViewModel(
     /** Delete from a chip's menu; if it was the active one, the first remaining loop takes over. */
     fun onLoopDeleted(loopId: Long) = editLoops { _, _ -> deleteLoop(loopId) }
 
-    fun onHalveLoop() = editActiveRegion { bounds, duration, grid -> LoopMath.halve(bounds, duration, grid) }
+    fun onHalveLoop() = editActiveRegion { bounds, duration -> LoopMath.halve(bounds, duration) }
 
-    fun onDoubleLoop() = editActiveRegion { bounds, _, _ -> LoopMath.double(bounds) }
+    fun onDoubleLoop() = editActiveRegion { bounds, _ -> LoopMath.double(bounds) }
 
-    /** ◀ / ▶: [direction] −1 or +1, one beat (snapped) or one second. */
-    fun onNudgeLoop(direction: Int) = editActiveRegion { bounds, duration, grid -> LoopMath.nudge(bounds, direction, duration, grid) }
+    /** ◀ / ▶: [direction] −1 or +1, a fixed [LoopMath.NUDGE_SECONDS] of track time. */
+    fun onNudgeLoop(direction: Int) = editActiveRegion { bounds, duration -> LoopMath.nudge(bounds, direction, duration) }
 
-    /** `A`: the active loop starts at the playhead (snapped). Without a loop, a new one starts there. */
+    /** `A`: the active loop starts at the playhead. Without a loop, a new one starts there. */
     fun onSetLoopStartAtPlayhead() {
         val playhead = engine.position
         editLoops { track, trackLoops ->
             val duration = engine.durationSeconds
             val active = trackLoops.activeLoop
             if (active == null) {
-                val bounds = LoopMath.newLoopAt(playhead, duration, trackLoops.snapGrid(duration), trackLoops.beatGrid(duration))
+                val bounds = LoopMath.newLoopAt(playhead, duration, trackLoops.beatGrid(duration))
                 loops.create(track.id, bounds)?.let { created -> awaitLoops { it.activeLoopId == created.id } }
             } else {
                 onIntervention()
-                updateRegion(active, LoopMath.moveStart(active.bounds, playhead, duration, trackLoops.snapGrid(duration)))
+                updateRegion(active, LoopMath.moveStart(active.bounds, playhead, duration))
             }
         }
     }
 
-    /** `B`: the active loop ends at the playhead (snapped). Without a loop, a new one ends there. */
+    /** `B`: the active loop ends at the playhead. Without a loop, a new one ends there. */
     fun onSetLoopEndAtPlayhead() {
         val playhead = engine.position
         editLoops { track, trackLoops ->
             val duration = engine.durationSeconds
-            val grid = trackLoops.snapGrid(duration)
             val active = trackLoops.activeLoop
             if (active == null) {
-                val length = LoopMath.newLoopAt(0f, duration, grid, trackLoops.beatGrid(duration)).length
-                val end = LoopMath.snap(playhead, grid)
+                val length = LoopMath.newLoopAt(0f, duration, trackLoops.beatGrid(duration)).length
+                val end = playhead.coerceIn(0f, 1f)
                 loops.create(track.id, LoopMath.between(end - length, end, duration))
                     ?.let { created -> awaitLoops { it.activeLoopId == created.id } }
             } else {
                 onIntervention()
-                updateRegion(active, LoopMath.moveEnd(active.bounds, playhead, duration, grid))
+                updateRegion(active, LoopMath.moveEnd(active.bounds, playhead, duration))
             }
         }
     }
 
     /**
-     * The end of an A or B drag on either waveform, with the bounds the drag showed (already snapped
-     * with [OverviewWaveformState.snapGrid]). Drags are drawn locally and committed once, here.
+     * The end of an A or B drag on either waveform, with the bounds the drag showed (free: A/B are
+     * never rounded to a beat). Drags are drawn locally and committed once, here.
      */
     fun onLoopBoundsChanged(loopId: Long, bounds: LoopBounds) = editLoops { _, trackLoops ->
         val loop = trackLoops.loops.firstOrNull { it.id == loopId } ?: return@editLoops
@@ -544,12 +534,6 @@ class PlayerViewModel(
                 _messages.send(UiMessage(Res.string.error_bpm_range, listOf(BeatGrid.MIN_BPM.toInt(), BeatGrid.MAX_BPM.toInt())))
             }
         }
-    }
-
-    fun onSnapToggled() {
-        val track = nowPlaying.value ?: return
-        val trackLoops = trackLoops.value ?: return
-        viewModelScope.launch { loops.setSnapToBeat(track.id, !trackLoops.snapToBeat) }
     }
 
     // endregion
@@ -739,11 +723,11 @@ class PlayerViewModel(
         }
     }
 
-    private fun editActiveRegion(change: (bounds: LoopBounds, durationSeconds: Float, grid: BeatGrid?) -> LoopBounds?) =
+    private fun editActiveRegion(change: (bounds: LoopBounds, durationSeconds: Float) -> LoopBounds?) =
         editLoops { _, trackLoops ->
             val active = trackLoops.activeLoop ?: return@editLoops
             val duration = engine.durationSeconds
-            val bounds = change(active.bounds, duration, trackLoops.snapGrid(duration)) ?: return@editLoops
+            val bounds = change(active.bounds, duration) ?: return@editLoops
             onIntervention()
             updateRegion(active, bounds)
         }
@@ -927,7 +911,6 @@ class LoopUseCases(
     val resetPasses: ResetLoopPassesUseCase,
     val updateProgression: UpdateLoopProgressionUseCase,
     val setBpm: SetTrackBpmUseCase,
-    val setSnapToBeat: SetSnapToBeatUseCase,
 )
 
 /** Features whose backend may be missing: each says whether it is available. */

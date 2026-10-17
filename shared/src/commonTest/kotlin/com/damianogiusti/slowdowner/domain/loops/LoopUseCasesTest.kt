@@ -288,12 +288,4 @@ class LoopUseCasesTest {
         assertTrue(setBpm("a", null))
         assertNull(repository.trackLoops("a").bpm)
     }
-
-    @Test
-    fun `when snap is turned off then it is remembered for the track`() = runTest {
-        SetSnapToBeatUseCase(repository)("a", false)
-
-        assertFalse(repository.trackLoops("a").snapToBeat)
-        assertTrue(repository.trackLoops("b").snapToBeat)
-    }
 }

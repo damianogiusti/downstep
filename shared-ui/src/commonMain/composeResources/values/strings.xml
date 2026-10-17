@@ -36,8 +36,8 @@
     <string name="loop_shift_forward">▶</string>
     <string name="loop_halve_description">Halve the loop</string>
     <string name="loop_double_description">Double the loop</string>
-    <string name="loop_shift_backward_description">Move the loop back</string>
-    <string name="loop_shift_forward_description">Move the loop forward</string>
+    <string name="loop_shift_backward_description">Move the loop back 1 s</string>
+    <string name="loop_shift_forward_description">Move the loop forward 1 s</string>
 
     <string name="mix_title">L / R balance</string>
     <string name="effects_subtitle">They apply to all tracks.</string>
@@ -259,7 +259,7 @@
     <string name="header_bpm_unset">BPM —</string>
     <string name="bpm_edit_description">Set the tempo of this track</string>
     <string name="bpm_dialog_title">Tempo of this track</string>
-    <string name="bpm_dialog_message">Downstep doesn’t detect the tempo yet. Enter it to snap loops to the beat (%1$d–%2$d BPM).</string>
+    <string name="bpm_dialog_message">Used for the metronome, the count-in and the length of new loops (%1$d–%2$d BPM).</string>
     <string name="bpm_label">BPM</string>
     <string name="bpm_clear">Clear</string>
     <string name="error_bpm_range">Enter a tempo between %1$d and %2$d BPM.</string>
@@ -301,9 +301,6 @@
     <!-- Transport and loop tools (H) -->
     <string name="loop_off">Loop off</string>
     <string name="loop_toggle_tooltip">Loop on/off (Shift+L)</string>
-    <string name="snap_to_beat">Snap to beat</string>
-    <string name="snap_tooltip">Snap A/B to beats</string>
-    <string name="snap_needs_bpm">Set the BPM of the track to snap to the beat</string>
     <string name="to_start_description">Start</string>
     <string name="next_loop_description">Next loop (])</string>
     <string name="pause">Pause</string>

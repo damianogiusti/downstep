@@ -59,8 +59,8 @@ import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * The active loop ± padding ([ZoomStripState.window]) at sub-beat precision: beat lines, A/B lines
- * draggable with the same snapping, header texts. [position] is read only inside draw code.
+ * The active loop ± padding ([ZoomStripState.window]) at sub-beat precision: A/B lines draggable
+ * freely, as on the overview, and header texts. [position] is read only inside draw code.
  */
 @Composable
 fun ZoomStrip(
@@ -109,7 +109,7 @@ fun ZoomStrip(
                     drag = drag,
                     reach = HANDLE_WIDTH.toPx() / 2,
                     axis = { size -> current.takeIf { it.enabled }?.let { zoomAxis(it.window, size.width.toFloat(), padding) } },
-                    target = { current.let { DragTarget(it.loopId, LoopBounds(it.start, it.end), it.durationSeconds, it.snapGrid) } },
+                    target = { current.let { DragTarget(it.loopId, LoopBounds(it.start, it.end), it.durationSeconds) } },
                     onSeek = actions.onSeek,
                     onCommit = actions.onLoopBoundsChanged,
                 )
@@ -128,15 +128,12 @@ fun ZoomStrip(
                 val b = measurer.measure("B", markerStyle.copy(color = colors.onTeal))
                 val px = 1.dp.toPx()
                 val border = bottomBorder(size.width, size.height, CORNER.toPx(), px)
-                val strongBeat = colors.fg.copy(alpha = 0.22f)
-                val beat = colors.fg.copy(alpha = 0.08f)
 
                 onDrawBehind {
                     val bounds = drag.shown(LoopBounds(state.start, state.end))
                     val startX = axis.x(bounds.start)
                     val endX = axis.x(bounds.end)
                     drawRect(loopColor.copy(alpha = 0.14f), Offset(startX, 0f), Size(endX - startX, size.height))
-                    for (line in state.beatLines) drawVerticalLine(if (line.isBarStart) strongBeat else beat, axis.x(line.position), px)
 
                     val playhead = position()
                     if (bars != null) {

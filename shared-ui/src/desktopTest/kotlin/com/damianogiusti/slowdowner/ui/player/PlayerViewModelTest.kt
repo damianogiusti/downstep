@@ -21,7 +21,6 @@ import com.damianogiusti.slowdowner.domain.loops.RecordLoopPassUseCase
 import com.damianogiusti.slowdowner.domain.loops.RenameLoopUseCase
 import com.damianogiusti.slowdowner.domain.loops.ResetLoopPassesUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetActiveLoopUseCase
-import com.damianogiusti.slowdowner.domain.loops.SetSnapToBeatUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetTrackBpmUseCase
 import com.damianogiusti.slowdowner.domain.loops.TrackLoops
 import com.damianogiusti.slowdowner.domain.loops.UpdateLoopNotesUseCase
@@ -386,7 +385,42 @@ class PlayerViewModelTest {
         viewModel.onBpmChanged(92f)
         runCurrent()
         assertEquals(92f, viewModel.header.value.bpm)
-        assertTrue(viewModel.loopTools.value.canSnap)
+    }
+
+    @Test
+    fun `with a BPM, A and B still land exactly on the playhead`() = runTest(main) {
+        val viewModel = openWithLoop()
+        viewModel.onBpmChanged(120f)
+        runCurrent()
+
+        engine.position = 0.2137f
+        viewModel.onSetLoopStartAtPlayhead()
+        runCurrent()
+        engine.position = 0.3561f
+        viewModel.onSetLoopEndAtPlayhead()
+        runCurrent()
+
+        assertEquals(LoopBounds(0.2137f, 0.3561f), loopRepository.loops.value.single().bounds)
+    }
+
+    @Test
+    fun `a nudge moves the loop by one second, with or without a BPM`() = runTest(main) {
+        val viewModel = openWithLoop()
+
+        viewModel.onNudgeLoop(1)
+        runCurrent()
+        // The fake track is 100 s long: one second is 1% of it.
+        val once = loopRepository.loops.value.single().bounds
+        assertEquals(0.21f, once.start, 1e-5f)
+        assertEquals(0.41f, once.end, 1e-5f)
+
+        viewModel.onBpmChanged(92f)
+        runCurrent()
+        viewModel.onNudgeLoop(-1)
+        runCurrent()
+        val back = loopRepository.loops.value.single().bounds
+        assertEquals(0.2f, back.start, 1e-5f)
+        assertEquals(0.4f, back.end, 1e-5f)
     }
 
     /** Opens [TRACK] with one loop 0.2..0.4, active and looping. */
@@ -447,7 +481,6 @@ class PlayerViewModelTest {
                 resetPasses = ResetLoopPassesUseCase(loopRepository, engine, nowPlaying),
                 updateProgression = UpdateLoopProgressionUseCase(loopRepository, engine, nowPlaying),
                 setBpm = SetTrackBpmUseCase(loopRepository),
-                setSnapToBeat = SetSnapToBeatUseCase(loopRepository),
             ),
             seams = PracticeSeams(AnalyzeSectionsUseCase(null), SetMetronomeUseCase(null), SetCountInUseCase(null)),
             exports = ExportUseCases(ExportTrackUseCase(engine, nowPlaying, exports), SaveExportUseCase(exports)),
