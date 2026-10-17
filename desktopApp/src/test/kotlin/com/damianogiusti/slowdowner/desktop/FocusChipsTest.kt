@@ -93,9 +93,15 @@ class FocusChipsTest {
 
     private fun PlayerScene.chip(text: String): Offset = assertNotNull(centreOfText(text), "no chip \"$text\" in focus mode")
 
+    // Event times of our own: on a slow machine the wall clock between two clicks can pass the
+    // double-click timeout, and the second click would start a new gesture.
+    private var eventMillis = 1_000L
+
     private fun PlayerScene.click(at: Offset) {
-        send { sendPointerEvent(PointerEventType.Press, at, button = PointerButton.Primary) }
-        send { sendPointerEvent(PointerEventType.Release, at, button = PointerButton.Primary) }
+        send { sendPointerEvent(PointerEventType.Press, at, timeMillis = eventMillis, button = PointerButton.Primary) }
+        eventMillis += 40
+        send { sendPointerEvent(PointerEventType.Release, at, timeMillis = eventMillis, button = PointerButton.Primary) }
+        eventMillis += 60
     }
 
     private fun PlayerScene.key(key: Key) {
