@@ -1,7 +1,6 @@
 package com.damianogiusti.slowdowner.ui.effects
 
 import com.damianogiusti.slowdowner.ui.common.formatSignedDecimal
-import com.damianogiusti.slowdowner.ui.common.formatDecimal
 import org.jetbrains.compose.resources.StringResource
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.background
@@ -38,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 import com.damianogiusti.slowdowner.domain.effects.EffectsSettings
+import com.damianogiusti.slowdowner.domain.effects.EqBand
+import com.damianogiusti.slowdowner.domain.effects.EqCurve
 import com.damianogiusti.slowdowner.domain.effects.ProcessingQuality
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine.Companion.SLIDER_MAX
 import com.damianogiusti.slowdowner.ui.common.ValueSlider
@@ -67,6 +68,7 @@ fun EffectsSheet(
                 onEqReset = viewModel::onEqReset,
                 onPreampChanged = viewModel::onPreampChanged,
                 onBandChanged = viewModel::onBandChanged,
+                onBandGainReset = viewModel::onBandGainReset,
                 onQualitySelected = viewModel::onQualitySelected,
             )
         }
@@ -81,7 +83,8 @@ fun EffectsSheetContent(
     onEqToggled: (Boolean) -> Unit,
     onEqReset: () -> Unit,
     onPreampChanged: (Float) -> Unit,
-    onBandChanged: (band: Int, gainDb: Float) -> Unit,
+    onBandChanged: (index: Int, band: EqBand) -> Unit,
+    onBandGainReset: (index: Int) -> Unit,
     onQualitySelected: (ProcessingQuality) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -95,7 +98,7 @@ fun EffectsSheetContent(
     ) {
         Text(stringResource(Res.string.effects), style = MaterialTheme.typography.titleLarge)
         Text(
-            stringResource(Res.string.effects_subtitle),
+            stringResource(if (state.trackId != null) Res.string.effects_subtitle else Res.string.effects_subtitle_default),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 16.dp),
@@ -120,7 +123,7 @@ fun EffectsSheetContent(
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = onEqReset) { Text(stringResource(Res.string.reset)) }
-            Switch(checked = settings.eqEnabled, onCheckedChange = onEqToggled)
+            Switch(checked = settings.eq.enabled, onCheckedChange = onEqToggled)
         }
         Column(
             modifier = Modifier
@@ -128,15 +131,13 @@ fun EffectsSheetContent(
                 .background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.medium)
                 .padding(horizontal = 12.dp, vertical = 4.dp),
         ) {
-            GainRow(stringResource(Res.string.eq_preamp), settings.preampDb, MaterialTheme.colorScheme.tertiary, onPreampChanged)
-            EffectsSettings.BAND_FREQUENCIES_HZ.forEachIndexed { index, hz ->
-                GainRow(
-                    label = formatFrequency(hz),
-                    gainDb = settings.bandGainsDb[index],
-                    accent = MaterialTheme.colorScheme.primary,
-                    onGainChanged = { onBandChanged(index, it) },
-                )
-            }
+            EqGraph(
+                curve = settings.eq,
+                onBandChanged = onBandChanged,
+                onBandGainReset = onBandGainReset,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+            )
+            GainRow(stringResource(Res.string.eq_preamp), settings.eq.preampDb, MaterialTheme.colorScheme.tertiary, onPreampChanged)
         }
 
         SectionLabel(stringResource(Res.string.quality_title), Modifier.padding(top = 20.dp))
@@ -214,10 +215,6 @@ private fun QualityChoice(
     }
 }
 
-@Composable
-private fun formatFrequency(hz: Int) =
-    if (hz >= 1000) stringResource(Res.string.khz_format, formatDecimal(hz / 1000f, stringResource(Res.string.decimal_separator))) else stringResource(Res.string.hz_format, hz)
-
 private val ProcessingQuality.label: StringResource
     get() = when (this) {
         ProcessingQuality.LOW -> Res.string.quality_low
@@ -226,13 +223,13 @@ private val ProcessingQuality.label: StringResource
         ProcessingQuality.VERY_HIGH -> Res.string.quality_very_high
     }
 
-// 0.1 dB per step over the engine's ±12 dB range.
+// 0.1 dB per step over the preamp's ±12 dB range.
 private const val GAIN_STEPS = 240
-private const val GAIN_RANGE_DB = EffectsSettings.MAX_GAIN_DB - EffectsSettings.MIN_GAIN_DB
+private const val GAIN_RANGE_DB = EqCurve.MAX_PREAMP_DB - EqCurve.MIN_PREAMP_DB
 
-private fun sliderToDb(position: Int) = EffectsSettings.MIN_GAIN_DB + position * GAIN_RANGE_DB / GAIN_STEPS
+private fun sliderToDb(position: Int) = EqCurve.MIN_PREAMP_DB + position * GAIN_RANGE_DB / GAIN_STEPS
 
-private fun dbToSlider(gainDb: Float) = ((gainDb - EffectsSettings.MIN_GAIN_DB) * GAIN_STEPS / GAIN_RANGE_DB).roundToInt()
+private fun dbToSlider(gainDb: Float) = ((gainDb - EqCurve.MIN_PREAMP_DB) * GAIN_STEPS / GAIN_RANGE_DB).roundToInt()
 
 @Preview(showBackground = true)
 @Composable
@@ -242,12 +239,11 @@ private fun EffectsSheetContentPreview() {
             EffectsSheetContent(
                 state = EffectsUiState(
                     settings = EffectsSettings(
-                        eqEnabled = true,
-                        preampDb = -2f,
-                        bandGainsDb = listOf(3f, 1.5f, 0f, -2f, 0f, 4.5f, 6f),
+                        eq = EqCurve.fromLegacyGains(enabled = true, preampDb = -2f, gainsDb = listOf(3f, 1.5f, 0f, -2f, 0f, 4.5f, 6f)),
                     ),
                     mixSlider = SLIDER_MAX / 2,
                     mixRightPercent = 50,
+                    trackId = "preview",
                 ),
                 onMixChanged = {},
                 onMixReset = {},
@@ -255,6 +251,7 @@ private fun EffectsSheetContentPreview() {
                 onEqReset = {},
                 onPreampChanged = {},
                 onBandChanged = { _, _ -> },
+                onBandGainReset = {},
                 onQualitySelected = {},
             )
         }

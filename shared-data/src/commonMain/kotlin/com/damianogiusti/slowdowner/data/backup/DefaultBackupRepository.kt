@@ -263,6 +263,7 @@ class DefaultBackupRepository(
                         name = name,
                         settings = BackupManifestMapper.toColumns(preset.settings),
                         createdAt = time,
+                        eqCurve = BackupManifestMapper.toEqColumn(preset.eq),
                     ),
                 )
             }

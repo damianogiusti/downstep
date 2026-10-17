@@ -38,7 +38,7 @@
     <string name="loop_shift_forward_description">Sposta il loop avanti di 1 s</string>
 
     <string name="mix_title">Bilanciamento L / R</string>
-    <string name="effects_subtitle">Valgono per tutti i brani.</string>
+    <string name="effects_subtitle">L'equalizzatore è salvato con questo brano; il mix vale per questa sessione.</string>
     <string name="mix_format">Sinistra %1$d / Destra %2$d</string>
     <string name="reset">Reset</string>
     <string name="eq_title">Equalizzatore</string>
@@ -383,4 +383,9 @@
     <string name="export_saved_many">Salvati %1$s in %2$s.</string>
     <string name="error_export_save_many">Impossibile salvare tutti i file in %1$s.</string>
     <string name="error_export_no_loops">Questo brano non ha loop da esportare.</string>
+    <!-- eq: bell-curve EQ graph, saved per track -->
+    <string name="effects_subtitle_default">Nessun brano aperto: questo equalizzatore vale per i brani che non ne hanno uno proprio.</string>
+    <string name="eq_graph_hint">Trascina un punto: in orizzontale la frequenza, in verticale il guadagno. Rotellina, o trascina con Maiusc o Alt, per l'ampiezza. Doppio clic per 0 dB.</string>
+    <string name="eq_band_readout">%1$s · %2$s · Q %3$s</string>
+    <string name="eq_graph_description">Curva dell'equalizzatore</string>
 </resources>

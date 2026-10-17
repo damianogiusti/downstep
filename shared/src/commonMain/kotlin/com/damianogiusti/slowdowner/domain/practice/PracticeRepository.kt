@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.domain.practice
 
+import com.damianogiusti.slowdowner.domain.effects.EqCurve
 import kotlinx.coroutines.flow.Flow
 
 /** Per-track practice settings: the last state used, plus named presets. */
@@ -9,7 +10,7 @@ interface PracticeRepository {
     /** Last state of every track that has one, keyed by track id. */
     fun observeLastStates(): Flow<Map<String, PracticeSettings>>
     fun observePresets(trackId: String): Flow<List<PracticePreset>>
-    /** Returns [SavePresetResult.Saved] or [SavePresetResult.NameTaken]. */
-    suspend fun savePreset(trackId: String, name: String, settings: PracticeSettings): SavePresetResult
+    /** Returns [SavePresetResult.Saved] or [SavePresetResult.NameTaken]. [eq] null saves no EQ with it. */
+    suspend fun savePreset(trackId: String, name: String, settings: PracticeSettings, eq: EqCurve? = null): SavePresetResult
     suspend fun deletePreset(presetId: Long)
 }

@@ -87,12 +87,22 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         api.setEqEnabled.invokeExact(handle, if (enabled) 1 else 0)
     }
 
-    fun setEqBand(band: Int, gainDb: Double) {
-        api.setEqBand.invokeExact(handle, band, gainDb)
+    /** Band [band] (0 until [EQ_MAX_BANDS]) becomes a bell at [frequencyHz], [gainDb] and [q], together. */
+    fun setEqBandParams(band: Int, frequencyHz: Double, gainDb: Double, q: Double) {
+        api.setEqBandParams.invokeExact(handle, band, frequencyHz, gainDb, q)
+    }
+
+    fun setEqBandCount(count: Int) {
+        api.setEqBandCount.invokeExact(handle, count)
     }
 
     fun setPreamp(gainDb: Double) {
         api.setPreamp.invokeExact(handle, gainDb)
+    }
+
+    /** Isolate: bit 0 low, bit 1 mid, bit 2 high; 0 = the full mix. */
+    fun setIsolation(mask: Int) {
+        api.setIsolation.invokeExact(handle, mask)
     }
 
     fun setOutputGain(gain: Double) {
@@ -168,7 +178,7 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
 
     companion object {
         const val EVENT_REACHED_END = 1
-        const val EQ_BANDS = 7
+        const val EQ_MAX_BANDS = 8
 
         /** System property with the path of `libsdengine`. Set by Gradle for tests. */
         const val LIBRARY_PROPERTY = "slowdowner.engine.library"
@@ -227,8 +237,12 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         )
         val setMix = function("sd_engine_set_mix", null, ADDRESS, JAVA_DOUBLE, critical = true)
         val setEqEnabled = function("sd_engine_set_eq_enabled", null, ADDRESS, JAVA_INT, critical = true)
-        val setEqBand = function("sd_engine_set_eq_band", null, ADDRESS, JAVA_INT, JAVA_DOUBLE, critical = true)
+        val setEqBandParams = function(
+            "sd_engine_set_eq_band_params", null, ADDRESS, JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE, JAVA_DOUBLE, critical = true,
+        )
+        val setEqBandCount = function("sd_engine_set_eq_band_count", null, ADDRESS, JAVA_INT, critical = true)
         val setPreamp = function("sd_engine_set_preamp", null, ADDRESS, JAVA_DOUBLE, critical = true)
+        val setIsolation = function("sd_engine_set_isolation", null, ADDRESS, JAVA_INT, critical = true)
         val setOutputGain = function("sd_engine_set_output_gain", null, ADDRESS, JAVA_DOUBLE, critical = true)
         // Not critical: it takes a (short, uncontended) lock.
         val peaks = function("sd_engine_peaks", JAVA_INT, ADDRESS, JAVA_DOUBLE, JAVA_DOUBLE, ADDRESS, JAVA_INT)

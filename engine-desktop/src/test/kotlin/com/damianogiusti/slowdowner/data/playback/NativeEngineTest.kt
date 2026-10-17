@@ -46,8 +46,10 @@ class NativeEngineTest {
         native.setPitch(0.0)
         native.setMix(0.5)
         native.setEqEnabled(true)
-        repeat(NativeEngine.EQ_BANDS) { native.setEqBand(it, 0.0) }
+        repeat(NativeEngine.EQ_MAX_BANDS) { native.setEqBandParams(it, 1000.0, 0.0, 1.0) }
+        native.setEqBandCount(NativeEngine.EQ_MAX_BANDS)
         native.setPreamp(0.0)
+        native.setIsolation(0)
         native.setOutputGain(1.0)
         native.setLoop(0.0, 1.0, enabled = false)
         native.seek(0.25)

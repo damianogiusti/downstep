@@ -14,7 +14,13 @@ constexpr double kFadeSeconds = 0.010;
 } // namespace
 
 Player::Player(int outputRate, int maxBlockFrames) : outputRate_(outputRate), maxBlockFrames_(maxBlockFrames) {
-    for (auto &gain : eqGainsDb_) gain.store(0.0);
+    for (int b = 0; b < Equalizer::kMaxBands; ++b) {
+        eqFrequencyHz_[size_t(b)].store(1000.0);
+        eqGainDb_[size_t(b)].store(0.0);
+        eqQ_[size_t(b)].store(1.0);
+    }
+    equalizer_.setSampleRate(outputRate);
+    isolation_.setSampleRate(outputRate);
 }
 
 bool Player::open(const std::string &path) {
@@ -55,6 +61,7 @@ bool Player::open(std::shared_ptr<const PcmBuffer> decoded, const std::string &p
         sourceSampleRate_.store(source_->sampleRate);
         stretcher_.prepare(*source_, outputRate_, maxBlockFrames_);
         equalizer_.reset();
+        isolation_.reset();
         sourceFrames_.store(source_->frames);
         durationSeconds_.store(source_->seconds());
         positionFrames_.store(0.0);
@@ -89,7 +96,9 @@ Player::Settings Player::settings() const {
     s.pitch = pitch_.load();
     s.mix = mix_.load();
     s.eqEnabled = eqEnabled_.load();
-    for (int b = 0; b < Equalizer::kBands; ++b) s.eqGainsDb[size_t(b)] = eqGainsDb_[size_t(b)].load();
+    s.eqBandCount = eqBandCount_.load();
+    for (int b = 0; b < Equalizer::kMaxBands; ++b)
+        s.eqBands[size_t(b)] = {eqFrequencyHz_[size_t(b)].load(), eqGainDb_[size_t(b)].load(), eqQ_[size_t(b)].load()};
     s.preampDb = preampDb_.load();
     return s;
 }
@@ -98,7 +107,11 @@ void Player::applySettings(const Settings &settings) {
     setSpeed(settings.speed);
     setPitch(settings.pitch);
     setMix(settings.mix);
-    for (int b = 0; b < Equalizer::kBands; ++b) setEqBand(b, settings.eqGainsDb[size_t(b)]);
+    for (int b = 0; b < Equalizer::kMaxBands; ++b) {
+        const EqBandParams &band = settings.eqBands[size_t(b)];
+        setEqBandParams(b, band.frequencyHz, band.gainDb, band.q);
+    }
+    setEqBandCount(settings.eqBandCount);
     setPreamp(settings.preampDb);
     setEqEnabled(settings.eqEnabled);
 }
@@ -130,20 +143,40 @@ void Player::setLoop(double start, double end, bool enabled, double seek) {
     if (seek >= 0) positionFrames_.store(std::clamp(seek, 0.0, 1.0) * double(sourceFrames_.load()));
 }
 
-void Player::setEqEnabled(bool enabled) {
-    eqEnabled_.store(enabled);
-    eqVersion_.fetch_add(1);
+template <typename Write> void Player::writeEq(Write write) {
+    eqVersion_.fetch_add(1, std::memory_order_relaxed); // odd: being written
+    // Keeps the writes below after the odd version: a reader that sees any of them must also see it
+    // when it checks the version again (pairs with the acquire fence in applyControls).
+    std::atomic_thread_fence(std::memory_order_release);
+    write();
+    eqVersion_.fetch_add(1, std::memory_order_release);
 }
 
-void Player::setEqBand(int band, double gainDb) {
-    if (band < 0 || band >= Equalizer::kBands) return;
-    eqGainsDb_[size_t(band)].store(std::clamp(gainDb, -12.0, 12.0));
-    eqVersion_.fetch_add(1);
+void Player::setEqEnabled(bool enabled) {
+    writeEq([&] { eqEnabled_.store(enabled, std::memory_order_relaxed); });
+}
+
+void Player::setEqBandParams(int band, double frequencyHz, double gainDb, double q) {
+    if (band < 0 || band >= Equalizer::kMaxBands) return;
+    if (!std::isfinite(frequencyHz) || !std::isfinite(gainDb) || !std::isfinite(q)) return;
+    writeEq([&] {
+        eqFrequencyHz_[size_t(band)].store(std::clamp(frequencyHz, 20.0, 20000.0), std::memory_order_relaxed);
+        eqGainDb_[size_t(band)].store(std::clamp(gainDb, -12.0, 12.0), std::memory_order_relaxed);
+        eqQ_[size_t(band)].store(std::clamp(q, 0.3, 10.0), std::memory_order_relaxed);
+    });
+}
+
+void Player::setEqBandCount(int count) {
+    writeEq([&] { eqBandCount_.store(std::clamp(count, 0, Equalizer::kMaxBands), std::memory_order_relaxed); });
 }
 
 void Player::setPreamp(double gainDb) {
-    preampDb_.store(gainDb);
-    eqVersion_.fetch_add(1);
+    if (!std::isfinite(gainDb)) return;
+    writeEq([&] { preampDb_.store(gainDb, std::memory_order_relaxed); });
+}
+
+void Player::setIsolation(int mask) {
+    writeEq([&] { isolationMask_.store(mask & 7, std::memory_order_relaxed); });
 }
 
 double Player::applyControls() {
@@ -167,14 +200,25 @@ double Player::applyControls() {
         }
     }
 
-    const unsigned version = eqVersion_.load();
-    if (version != appliedEqVersion_) {
-        appliedEqVersion_ = version;
-        std::array<double, Equalizer::kBands> gains{};
-        const bool enabled = eqEnabled_.load();
-        for (int b = 0; b < Equalizer::kBands; ++b) gains[size_t(b)] = enabled ? eqGainsDb_[size_t(b)].load() : 0.0;
-        equalizer_.configure(outputRate_, gains);
-        preampGain_ = enabled ? float(std::pow(10.0, preampDb_.load() / 20.0)) : 1.f;
+    const unsigned eqBefore = eqVersion_.load(std::memory_order_acquire);
+    if ((eqBefore & 1u) == 0 && eqBefore != appliedEqVersion_) {
+        EqParams eq;
+        eq.enabled = eqEnabled_.load(std::memory_order_relaxed);
+        eq.preampDb = preampDb_.load(std::memory_order_relaxed);
+        eq.bandCount = eqBandCount_.load(std::memory_order_relaxed);
+        for (int b = 0; b < Equalizer::kMaxBands; ++b)
+            eq.bands[size_t(b)] = {eqFrequencyHz_[size_t(b)].load(std::memory_order_relaxed),
+                                   eqGainDb_[size_t(b)].load(std::memory_order_relaxed),
+                                   eqQ_[size_t(b)].load(std::memory_order_relaxed)};
+        const int mask = isolationMask_.load(std::memory_order_relaxed);
+        std::atomic_thread_fence(std::memory_order_acquire);
+        if (eqVersion_.load(std::memory_order_relaxed) == eqBefore) { // else: retry next block
+            appliedEqVersion_ = eqBefore;
+            // Glide only what is heard: while stopped (a new player, the export's, or a file just
+            // opened) the settings are simply in place when playback starts.
+            equalizer_.setTarget(eq, !isRunning_);
+            isolation_.setMask(mask, !isRunning_);
+        }
     }
     return loopSeek;
 }
@@ -194,12 +238,14 @@ int Player::render(float *const *out, int frames) {
     if (seek >= 0) {
         stretcher_.seek(seek * double(source_->frames));
         equalizer_.reset();
+        isolation_.reset();
         needsFadeIn_ = true;
     }
     if (wantsPlaying && !isRunning_) {
         // Start from where the user is, with a fresh grain history.
         if (seek < 0) stretcher_.seek(positionFrames_.load());
         equalizer_.reset();
+        isolation_.reset();
         isRunning_ = true;
         needsFadeIn_ = true;
     }
@@ -210,8 +256,9 @@ int Player::render(float *const *out, int frames) {
     }
 
     const int rendered = stretcher_.render(out, frames);
-    equalizer_.process(out, frames);
-    const float gain = preampGain_ * float(outputGain_.load());
+    equalizer_.process(out, frames); // with the preamp
+    isolation_.process(out, frames);
+    const float gain = float(outputGain_.load());
     if (gain != 1.f) {
         for (int c = 0; c < 2; ++c)
             for (int i = 0; i < frames; ++i) out[c][i] *= gain;

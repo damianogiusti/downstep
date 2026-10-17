@@ -42,6 +42,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.unit.Density
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 import com.damianogiusti.slowdowner.data.effects.EffectsSettingsDto
+import com.damianogiusti.slowdowner.data.effects.LegacyEqDto
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
 import com.damianogiusti.slowdowner.domain.effects.ProcessingQuality
 import com.damianogiusti.slowdowner.domain.practice.ObservePracticeStatesUseCase
@@ -110,7 +111,8 @@ class DesktopFlowTest {
 
     @Test
     fun `at start the saved effects reach the engine`() = runBlocking<Unit> {
-        effectsStore.write(EffectsSettingsDto(eqEnabled = true, preampDb = -3f, bandGainsDb = List(7) { 2f }, qualityName = "LOW"))
+        // The first EQ's settings, as an older version left them: migrated on the way.
+        effectsStore.write(EffectsSettingsDto(eqCurveJson = null, qualityName = "LOW", legacyEq = LegacyEqDto(true, -3f, List(7) { 2f })))
         val scope = CoroutineScope(Dispatchers.Default)
         startAppWork(koin, scope)
         waitUntil { koin.get<EffectsEngine>().quality == ProcessingQuality.LOW }
