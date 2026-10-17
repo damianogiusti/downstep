@@ -365,4 +365,22 @@
     <string name="progression_step_value">speed step</string>
     <string name="progression_every_value">passes per step</string>
     <!-- Group D additions -->
+    <!-- export: full track / loops / both, one batch, saving many files -->
+    <string name="export_options_title">Export to MP3</string>
+    <string name="export_options_text">Speed, pitch, mix and EQ are applied. The metronome, the count-in and Isolate are left out.</string>
+    <string name="export_scope_full">Full track</string>
+    <string name="export_scope_loops">Loops, one file each</string>
+    <string name="export_scope_both">Full track and loops</string>
+    <string name="export_scope_no_loops">This track has no loops yet</string>
+    <plurals name="export_files_count">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <string name="export_running_many">Exporting %1$s to MP3… %2$d%%</string>
+    <string name="export_ready_text_many">%1$s are ready. Speed, pitch and effects are applied.</string>
+    <string name="export_ready_more">…and %1$d more</string>
+    <string name="export_save_folder">Save to folder…</string>
+    <string name="export_saved_many">Saved %1$s to %2$s.</string>
+    <string name="error_export_save_many">Cannot save every file to %1$s.</string>
+    <string name="error_export_no_loops">This track has no loops to export.</string>
 </resources>

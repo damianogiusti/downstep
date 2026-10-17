@@ -7,6 +7,7 @@ import java.awt.Desktop
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
+import javax.swing.JFileChooser
 
 /**
  * The desktop side of [ActivityActions]: native macOS file dialogs instead of the Android pickers,
@@ -24,8 +25,16 @@ class DesktopActions(
         onPlayStop = viewModels.player::onPlayStopClicked,
         // No foreground service on desktop: the process plays while the window is open.
         onPlaybackStarted = {},
-        onShareExport = { reveal(File(it.path)) },
-        onSaveExport = { file -> saveAs(file.name)?.let { viewModels.player.onExportSaveTargetPicked(it.path) } },
+        // The whole batch sits in one folder: showing the first file shows them all.
+        onShareExport = { files -> files.firstOrNull()?.let { reveal(File(it.path)) } },
+        onSaveExport = { files ->
+            val single = files.singleOrNull()
+            if (single != null) {
+                saveAs(single.name)?.let { viewModels.player.onExportSaveTargetPicked(it.path) }
+            } else {
+                pickFolder()?.let { viewModels.player.onExportSaveFolderPicked(it.path) }
+            }
+        },
         onPickBackup = { pickFile(setOf(BACKUP_EXTENSION, "zip"))?.let { viewModels.backup.onRestorePicked(it.path) } },
         onShareBackup = { reveal(File(it.path)) },
         onSaveBackup = { file -> saveAs(file.name)?.let { viewModels.backup.onSaveTargetPicked(it.path) } },
@@ -48,6 +57,24 @@ class DesktopActions(
         return dialog.selectedFile()
     }
 
+    /** A folder for a batch of exported files: the native folder picker on macOS, Swing's elsewhere. */
+    private fun pickFolder(): File? {
+        if (isMacOs) {
+            // AWT's dialog picks folders only while this property is set.
+            System.setProperty(MAC_FOLDER_DIALOG, "true")
+            try {
+                return FileDialog(window, null, FileDialog.LOAD).apply { isVisible = true }.selectedFile()
+            } finally {
+                System.clearProperty(MAC_FOLDER_DIALOG)
+            }
+        }
+        val chooser = JFileChooser().apply {
+            fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+            isAcceptAllFileFilterUsed = false
+        }
+        return if (chooser.showSaveDialog(window) == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
+    }
+
     private fun reveal(file: File) {
         // A failure here only means the Finder does not open: the file is already written.
         runCatching {
@@ -65,5 +92,6 @@ class DesktopActions(
     private companion object {
         val AUDIO_EXTENSIONS = setOf("m4a", "mp3", "wav", "aac", "flac", "aif", "aiff", "caf", "mp4")
         const val BACKUP_EXTENSION = "sldbackup"
+        const val MAC_FOLDER_DIALOG = "apple.awt.fileDialogForDirectories"
     }
 }

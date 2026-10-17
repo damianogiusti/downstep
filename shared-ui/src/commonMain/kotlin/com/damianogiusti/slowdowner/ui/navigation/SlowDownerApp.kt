@@ -48,6 +48,7 @@ import com.damianogiusti.slowdowner.ui.player.ExportUiState
 import com.damianogiusti.slowdowner.ui.player.PlayerNavigation
 import com.damianogiusti.slowdowner.ui.player.PlayerScreen
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
+import com.damianogiusti.slowdowner.ui.player.components.ExportOptionsDialog
 import com.damianogiusti.slowdowner.ui.player.components.ExportReadyDialog
 import com.damianogiusti.slowdowner.ui.playlists.AddToPlaylistSheet
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistNavigation
@@ -65,8 +66,10 @@ class ActivityActions(
     /** Wraps play/stop to ask for the notification permission first. */
     val onPlayStop: () -> Unit,
     val onPlaybackStarted: () -> Unit,
-    val onShareExport: (ExportedFile) -> Unit,
-    val onSaveExport: (ExportedFile) -> Unit,
+    /** Every file of the export batch (one or more). */
+    val onShareExport: (List<ExportedFile>) -> Unit,
+    /** One file: a save-as picker. More: a folder picker, and they are saved next to each other. */
+    val onSaveExport: (List<ExportedFile>) -> Unit,
     val onPickBackup: () -> Unit,
     val onShareBackup: (BackupFile) -> Unit,
     val onSaveBackup: (BackupFile) -> Unit,
@@ -202,15 +205,25 @@ private fun ProgressBanners(importViewModel: ImportViewModel, backupViewModel: B
 @Composable
 private fun ExportReadyHost(playerViewModel: PlayerViewModel, activity: ActivityActions) {
     val export by playerViewModel.export.collectAsStateWithLifecycle()
+    (export as? ExportUiState.Choosing)?.let { choosing ->
+        ExportOptionsDialog(
+            scope = choosing.scope,
+            loopCount = choosing.loopCount,
+            onScopeChange = playerViewModel::onExportScopeChanged,
+            onConfirm = playerViewModel::onExportConfirmed,
+            onDismiss = playerViewModel::onExportDismissed,
+        )
+    }
     (export as? ExportUiState.Ready)?.let { ready ->
         ExportReadyDialog(
-            file = ready.file,
+            files = ready.files,
             onShare = {
-                activity.onShareExport(ready.file)
+                activity.onShareExport(ready.files)
                 playerViewModel.onExportDismissed()
             },
-            // The dialog stays until a target is picked: see PlayerViewModel.onExportSaveTargetPicked.
-            onSave = { activity.onSaveExport(ready.file) },
+            // The dialog stays until a target is picked: see PlayerViewModel.onExportSaveTargetPicked
+            // and onExportSaveFolderPicked.
+            onSave = { activity.onSaveExport(ready.files) },
             onDismiss = playerViewModel::onExportDismissed,
         )
     }

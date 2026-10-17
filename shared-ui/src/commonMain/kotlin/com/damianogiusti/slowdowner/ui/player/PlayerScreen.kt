@@ -254,7 +254,12 @@ private fun LoadingHost(viewModel: PlayerViewModel) {
 private fun ExportBannerHost(viewModel: PlayerViewModel) {
     val export by viewModel.export.collectAsStateWithLifecycle()
     (export as? ExportUiState.Running)?.let {
-        ExportBanner(it.fraction, viewModel::onExportCancelClicked, Modifier.padding(horizontal = DownstepDimens.gutter, vertical = 8.dp))
+        ExportBanner(
+            it.fraction,
+            viewModel::onExportCancelClicked,
+            Modifier.padding(horizontal = DownstepDimens.gutter, vertical = 8.dp),
+            fileCount = it.fileCount,
+        )
     }
 }
 

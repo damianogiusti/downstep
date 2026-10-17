@@ -363,4 +363,22 @@
     <string name="progression_step_value">incremento di velocità</string>
     <string name="progression_every_value">passaggi per incremento</string>
     <!-- Group D additions -->
+    <!-- export: full track / loops / both, one batch, saving many files -->
+    <string name="export_options_title">Esporta in MP3</string>
+    <string name="export_options_text">Velocità, intonazione, mix ed EQ sono applicati. Metronomo, conteggio e Isola restano fuori.</string>
+    <string name="export_scope_full">Brano intero</string>
+    <string name="export_scope_loops">Loop, un file per ciascuno</string>
+    <string name="export_scope_both">Brano intero e loop</string>
+    <string name="export_scope_no_loops">Questo brano non ha ancora loop</string>
+    <plurals name="export_files_count">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d file</item>
+    </plurals>
+    <string name="export_running_many">Esporto %1$s in MP3… %2$d%%</string>
+    <string name="export_ready_text_many">%1$s pronti. Velocità, intonazione ed effetti sono applicati.</string>
+    <string name="export_ready_more">…e altri %1$d</string>
+    <string name="export_save_folder">Salva in una cartella…</string>
+    <string name="export_saved_many">Salvati %1$s in %2$s.</string>
+    <string name="error_export_save_many">Impossibile salvare tutti i file in %1$s.</string>
+    <string name="error_export_no_loops">Questo brano non ha loop da esportare.</string>
 </resources>
