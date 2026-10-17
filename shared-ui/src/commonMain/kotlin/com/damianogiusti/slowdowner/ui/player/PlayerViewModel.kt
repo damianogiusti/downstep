@@ -362,6 +362,19 @@ class PlayerViewModel(
         engine.seekTo(position.coerceIn(0f, 1f))
     }
 
+    /**
+     * A click on the overview, off any loop's top bar. Inside the loop being looped it seeks there and
+     * keeps looping; anywhere else (another loop's body included) it turns the loop off and seeks, so
+     * the track plays on from there. Playing or paused stays as it was.
+     */
+    fun onOverviewClicked(position: Float) = control {
+        val target = position.coerceIn(0f, 1f)
+        onIntervention()
+        // The engine's own region: the one being heard, even while a switch of loop is in flight.
+        if (engine.isLoopOn && (target < engine.loopStart || target > engine.loopEnd)) engine.setLoopOn(false)
+        engine.seekTo(target)
+    }
+
     /** ↺ −5 s, ↻ +5 s and the arrow keys. */
     fun onSeekBy(seconds: Float) = control {
         val duration = engine.durationSeconds
@@ -495,13 +508,46 @@ class PlayerViewModel(
     }
 
     /**
-     * The end of an A or B drag on either waveform, with the bounds the drag showed (free: A/B are
-     * never rounded to a beat). Drags are drawn locally and committed once, here.
+     * The end of a drag on either waveform (A, B or the whole loop by its top bar), with the bounds the
+     * drag showed (free: never rounded to a beat). Drags are drawn locally and committed once, here. A
+     * dragged loop is the active one: if its grab ([onLoopGrabbed]) did not land, it is activated now.
      */
-    fun onLoopBoundsChanged(loopId: Long, bounds: LoopBounds) = editLoops { _, trackLoops ->
+    fun onLoopBoundsChanged(loopId: Long, bounds: LoopBounds) = editLoops { track, trackLoops ->
         val loop = trackLoops.loops.firstOrNull { it.id == loopId } ?: return@editLoops
-        if (loop.id == trackLoops.activeLoopId) onIntervention()
+        if (loop.id == trackLoops.activeLoopId) {
+            onIntervention()
+        } else {
+            activateInPlace(track, loop.id)
+        }
         updateRegion(loop, bounds)
+    }
+
+    /**
+     * A drag on the overview picked up a loop that is not the active one: it becomes active at once,
+     * so the zoom strip follows the drag. The playhead stays and looping stays on or off; with
+     * looping on, the engine then loops the grabbed loop (from its start if the playhead is outside).
+     */
+    fun onLoopGrabbed(loopId: Long) = editLoops { track, trackLoops ->
+        if (trackLoops.activeLoopId == loopId || trackLoops.loops.none { it.id == loopId }) return@editLoops
+        activateInPlace(track, loopId)
+    }
+
+    /**
+     * A click (no drag) on a loop's top bar: "play this loop". It becomes active, looping, from its
+     * start, and plays, also when paused. On the loop already playing in a loop the click is just a
+     * click inside it: it seeks to [position] there.
+     */
+    fun onLoopBarClicked(loopId: Long, position: Float) = editLoops { track, trackLoops ->
+        val loop = trackLoops.loops.firstOrNull { it.id == loopId } ?: return@editLoops
+        if (loop.id == trackLoops.activeLoopId && engine.isLoopOn && engine.isPlaying) {
+            onIntervention()
+            engine.seekTo(position.coerceIn(loop.start, loop.end))
+            return@editLoops
+        }
+        lastTick = null
+        loops.setActive(track.id, loop.id)
+        if (!engine.isPlaying) engine.togglePlayStop()
+        awaitLoops { it.activeLoopId == loop.id }
     }
 
     fun onLoopRenamed(loopId: Long, name: String) {
@@ -731,6 +777,13 @@ class PlayerViewModel(
             onIntervention()
             updateRegion(active, bounds)
         }
+
+    /** [loopId] becomes active where the playhead is, keeping looping on or off. */
+    private suspend fun activateInPlace(track: LibraryTrack, loopId: Long) {
+        lastTick = null
+        loops.setActive(track.id, loopId, seekToStart = false, loopOn = engine.isLoopOn)
+        awaitLoops { it.activeLoopId == loopId }
+    }
 
     private suspend fun deleteLoop(loopId: Long) {
         loops.delete(loopId)

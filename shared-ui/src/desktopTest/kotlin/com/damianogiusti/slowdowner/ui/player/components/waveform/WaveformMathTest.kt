@@ -136,16 +136,33 @@ class WaveformMathTest {
         val drag = LoopDragState()
         val committed = LoopBounds(0.2f, 0.4f)
 
-        drag.begin(committed)
+        drag.begin(7, committed)
         drag.move(LoopBounds(0.25f, 0.4f))
-        drag.settle()
-        assertEquals(LoopBounds(0.25f, 0.4f), drag.shown(committed))
+        drag.settle(7, LoopBounds(0.25f, 0.4f))
+        assertEquals(LoopBounds(0.25f, 0.4f), drag.shown(7, committed), "kept while dragging")
 
         drag.end(moved = true)
-        assertEquals(LoopBounds(0.25f, 0.4f), drag.shown(committed))
+        drag.settle(7, committed)
+        assertEquals(LoopBounds(0.25f, 0.4f), drag.shown(7, committed), "the commit has not landed yet")
 
-        drag.settle()
-        assertEquals(committed, drag.shown(committed))
+        drag.settle(7, LoopBounds(0.25f, 0.4f))
+        assertEquals(committed, drag.shown(7, committed))
+    }
+
+    @Test
+    fun `the drag preview belongs to the dragged loop only`() {
+        val drag = LoopDragState()
+
+        drag.begin(7, LoopBounds(0.2f, 0.4f))
+        drag.move(LoopBounds(0.3f, 0.5f))
+        drag.end(moved = true)
+
+        assertEquals(LoopBounds(0.3f, 0.5f), drag.shown(7, LoopBounds(0.2f, 0.4f)))
+        assertEquals(LoopBounds(0.6f, 0.7f), drag.shown(8, LoopBounds(0.6f, 0.7f)))
+        drag.settle(8, LoopBounds(0.9f, 1f))
+        assertEquals(LoopBounds(0.3f, 0.5f), drag.shown(7, LoopBounds(0.2f, 0.4f)), "another loop changing leaves it")
+        drag.settle(7, null)
+        assertNull(drag.bounds, "the dragged loop is gone")
     }
 
     @Test
@@ -153,9 +170,10 @@ class WaveformMathTest {
         val drag = LoopDragState()
         val committed = LoopBounds(0.2f, 0.4f)
 
-        drag.begin(committed)
+        drag.begin(7, committed)
         drag.end(moved = false)
 
         assertNull(drag.bounds)
+        assertNull(drag.loopId)
     }
 }

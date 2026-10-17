@@ -41,8 +41,10 @@ import com.damianogiusti.slowdowner.ui.common.formatTimecode
 import com.damianogiusti.slowdowner.ui.player.WaveformActions
 import com.damianogiusti.slowdowner.ui.player.ZoomStripState
 import com.damianogiusti.slowdowner.ui.player.components.waveform.BarColors
-import com.damianogiusti.slowdowner.ui.player.components.waveform.DragTarget
+import com.damianogiusti.slowdowner.ui.player.components.waveform.DRAG_THRESHOLD
+import com.damianogiusti.slowdowner.ui.player.components.waveform.HitRegion
 import com.damianogiusti.slowdowner.ui.player.components.waveform.LoopDragState
+import com.damianogiusti.slowdowner.ui.player.components.waveform.LoopGestureActions
 import com.damianogiusti.slowdowner.ui.player.components.waveform.WaveformAxis
 import com.damianogiusti.slowdowner.ui.player.components.waveform.barShapes
 import com.damianogiusti.slowdowner.ui.player.components.waveform.barsIn
@@ -61,6 +63,9 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * The active loop ± padding ([ZoomStripState.window]) at sub-beat precision: A/B lines draggable
  * freely, as on the overview, and header texts. [position] is read only inside draw code.
+ *
+ * [drag] is the overview's: a drag there (a resize, or the whole loop moved by its top bar) is drawn
+ * here live too, against the window of the committed loop, which follows once the drag is committed.
  */
 @Composable
 fun ZoomStrip(
@@ -68,13 +73,13 @@ fun ZoomStrip(
     position: () -> Float,
     actions: WaveformActions,
     modifier: Modifier = Modifier,
+    drag: LoopDragState = remember { LoopDragState() },
 ) {
     val colors = SlowDownerTheme.colors
     val type = SlowDownerTheme.type
     val measurer = rememberTextMeasurer()
-    val drag = remember { LoopDragState() }
     val current by rememberUpdatedState(state)
-    LaunchedEffect(state.loopId, state.start, state.end) { drag.settle() }
+    LaunchedEffect(state.loopId, state.start, state.end) { drag.settle(state.loopId, LoopBounds(state.start, state.end)) }
     val width = remember { mutableIntStateOf(0) }
 
     val separator = stringResource(Res.string.decimal_separator)
@@ -103,15 +108,23 @@ fun ZoomStrip(
             // No playhead here: semantics would then be rebuilt on every frame of playback.
             .semantics { contentDescription = description }
             .pointerHoverIcon(PointerIcon.Crosshair)
-            .pointerInput(actions) {
+            .pointerInput(actions, drag) {
                 val padding = INNER_PADDING.toPx()
                 loopGestures(
                     drag = drag,
                     reach = HANDLE_WIDTH.toPx() / 2,
+                    // No top bar here: the strip is all about A and B.
+                    barHeight = 0f,
+                    threshold = DRAG_THRESHOLD.toPx(),
+                    durationSeconds = { current.durationSeconds },
                     axis = { size -> current.takeIf { it.enabled }?.let { zoomAxis(it.window, size.width.toFloat(), padding) } },
-                    target = { current.let { DragTarget(it.loopId, LoopBounds(it.start, it.end), it.durationSeconds) } },
-                    onSeek = actions.onSeek,
-                    onCommit = actions.onLoopBoundsChanged,
+                    regions = { current.let { listOf(HitRegion(it.loopId, LoopBounds(it.start, it.end), isActive = true)) } },
+                    actions = LoopGestureActions(
+                        onSeek = actions.onSeek,
+                        onBarClick = { _, position -> actions.onSeek(position) },
+                        onGrab = {},
+                        onCommit = actions.onLoopBoundsChanged,
+                    ),
                 )
             }
             .drawWithCache {
@@ -130,7 +143,7 @@ fun ZoomStrip(
                 val border = bottomBorder(size.width, size.height, CORNER.toPx(), px)
 
                 onDrawBehind {
-                    val bounds = drag.shown(LoopBounds(state.start, state.end))
+                    val bounds = drag.shown(state.loopId, LoopBounds(state.start, state.end))
                     val startX = axis.x(bounds.start)
                     val endX = axis.x(bounds.end)
                     drawRect(loopColor.copy(alpha = 0.14f), Offset(startX, 0f), Size(endX - startX, size.height))
@@ -172,17 +185,17 @@ fun ZoomStrip(
             maxLines = 1,
             modifier = Modifier.align(Alignment.TopEnd).padding(end = INNER_PADDING, top = 5.dp),
         )
-        val start = state.start
-        val end = state.end
+        val loopId = state.loopId
+        val committed = LoopBounds(state.start, state.end)
         val window = state.window
         HandleTarget(
             description = stringResource(Res.string.marker_a_description),
-            x = { zoomAxis(window, width.intValue.toFloat(), INNER_PADDING.toPx()).x(drag.shown(LoopBounds(start, end)).start) },
+            x = { zoomAxis(window, width.intValue.toFloat(), INNER_PADDING.toPx()).x(drag.shown(loopId, committed).start) },
             width = HANDLE_WIDTH,
         )
         HandleTarget(
             description = stringResource(Res.string.marker_b_description),
-            x = { zoomAxis(window, width.intValue.toFloat(), INNER_PADDING.toPx()).x(drag.shown(LoopBounds(start, end)).end) },
+            x = { zoomAxis(window, width.intValue.toFloat(), INNER_PADDING.toPx()).x(drag.shown(loopId, committed).end) },
             width = HANDLE_WIDTH,
         )
     }

@@ -56,6 +56,7 @@ import com.damianogiusti.slowdowner.ui.player.components.ProgressionCard
 import com.damianogiusti.slowdowner.ui.player.components.SpeedCard
 import com.damianogiusti.slowdowner.ui.player.components.TransportRow
 import com.damianogiusti.slowdowner.ui.player.components.ZoomStrip
+import com.damianogiusti.slowdowner.ui.player.components.waveform.LoopDragState
 import com.damianogiusti.slowdowner.ui.theme.DownstepDimens
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import com.damianogiusti.slowdowner.ui.theme.ThemeViewModel
@@ -97,6 +98,8 @@ fun PlayerScreen(
     val positionState = viewModel.position.collectAsStateWithLifecycle()
     val position = remember(positionState) { positionState.reader() }
     val layout by viewModel.layout.collectAsStateWithLifecycle()
+    // One loop drag for both waveforms: the zoom strip draws a drag on the overview live, and back.
+    val loopDrag = remember { LoopDragState() }
 
     // A click outside Notes (or the drawer's search) ends typing: the shortcuts work again.
     Box(modifier = Modifier.fillMaxSize().background(SlowDownerTheme.colors.bg).clearsFocusOnPress()) {
@@ -109,8 +112,8 @@ fun PlayerScreen(
                 ExportBannerHost(viewModel)
                 ChipsHost(viewModel, actions.chips)
             }
-            OverviewHost(viewModel, position, actions.waveform, if (layout.isFocusMode) DownstepDimens.waveformFocus else DownstepDimens.waveform)
-            ZoomHost(viewModel, position, actions.waveform)
+            OverviewHost(viewModel, position, actions.waveform, if (layout.isFocusMode) DownstepDimens.waveformFocus else DownstepDimens.waveform, loopDrag)
+            ZoomHost(viewModel, position, actions.waveform, loopDrag)
             TransportHost(viewModel, actions, layout.isFocusMode)
             if (!layout.isFocusMode) {
                 Row(
@@ -176,7 +179,13 @@ private fun playerActions(
         onSuggestionAccepted = viewModel::onSuggestionAccepted,
         onSuggestionDismissed = viewModel::onSuggestionDismissed,
     ),
-    waveform = WaveformActions(onSeek = viewModel::onSeek, onLoopBoundsChanged = viewModel::onLoopBoundsChanged),
+    waveform = WaveformActions(
+        onSeek = viewModel::onSeek,
+        onLoopBoundsChanged = viewModel::onLoopBoundsChanged,
+        onOverviewClick = viewModel::onOverviewClicked,
+        onLoopBarClick = viewModel::onLoopBarClicked,
+        onLoopGrabbed = viewModel::onLoopGrabbed,
+    ),
     transport = TransportActions(
         onPlayPause = navigation.onPlayStop,
         onToStart = viewModel::onToStartClicked,
@@ -275,15 +284,21 @@ private fun FocusHeaderHost(viewModel: PlayerViewModel, onExitFocus: () -> Unit)
 }
 
 @Composable
-private fun OverviewHost(viewModel: PlayerViewModel, position: () -> Float, actions: WaveformActions, height: androidx.compose.ui.unit.Dp) {
+private fun OverviewHost(
+    viewModel: PlayerViewModel,
+    position: () -> Float,
+    actions: WaveformActions,
+    height: androidx.compose.ui.unit.Dp,
+    drag: LoopDragState,
+) {
     val state by viewModel.overview.collectAsStateWithLifecycle()
-    OverviewWaveform(state, position, actions, height = height)
+    OverviewWaveform(state, position, actions, height = height, drag = drag)
 }
 
 @Composable
-private fun ZoomHost(viewModel: PlayerViewModel, position: () -> Float, actions: WaveformActions) {
+private fun ZoomHost(viewModel: PlayerViewModel, position: () -> Float, actions: WaveformActions, drag: LoopDragState) {
     val state by viewModel.zoom.collectAsStateWithLifecycle()
-    state?.let { ZoomStrip(it, position, actions) }
+    state?.let { ZoomStrip(it, position, actions, drag = drag) }
 }
 
 @Composable

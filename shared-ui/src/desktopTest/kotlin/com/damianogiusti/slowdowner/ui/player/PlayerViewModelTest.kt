@@ -362,6 +362,135 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `a click on the overview outside the active loop turns the loop off and plays on from there`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val solo = loopRepository.loops.value.single()
+        engine.isPlaying = true
+
+        viewModel.onOverviewClicked(0.7f)
+        runCurrent()
+
+        assertFalse(engine.isLoopOn)
+        assertEquals(0.7f, engine.position)
+        assertTrue(engine.isPlaying)
+        assertFalse(viewModel.transport.value.isLoopOn)
+        assertEquals(solo.id, loopRepository.trackLoops(TRACK.id).activeLoopId, "the loop stays selected, just off")
+    }
+
+    @Test
+    fun `a click in another loop's body while paused turns the loop off and stays paused`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val solo = loopRepository.loops.value.single()
+        assertNotNull(loopRepository.create(TRACK.id, "Later", LoopBounds(0.6f, 0.8f)))
+        runCurrent()
+
+        viewModel.onOverviewClicked(0.7f)
+        runCurrent()
+
+        assertFalse(engine.isLoopOn)
+        assertEquals(0.7f, engine.position)
+        assertFalse(engine.isPlaying)
+        assertEquals(solo.id, loopRepository.trackLoops(TRACK.id).activeLoopId)
+    }
+
+    @Test
+    fun `a click inside the active loop seeks there and keeps looping`() = runTest(main) {
+        val viewModel = openWithLoop()
+        engine.isPlaying = true
+
+        viewModel.onOverviewClicked(0.33f)
+        runCurrent()
+
+        assertTrue(engine.isLoopOn)
+        assertEquals(0.33f, engine.position)
+        assertTrue(engine.isPlaying)
+    }
+
+    @Test
+    fun `a click on another loop's top bar plays that loop from its start, also when paused`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val later = assertNotNull(loopRepository.create(TRACK.id, "Later", LoopBounds(0.6f, 0.8f)))
+        runCurrent()
+        assertFalse(engine.isPlaying)
+
+        viewModel.onLoopBarClicked(later.id, 0.75f)
+        runCurrent()
+
+        assertEquals(later.id, loopRepository.trackLoops(TRACK.id).activeLoopId)
+        assertEquals(later.id, viewModel.loopChips.value.chips.single { it.isActive }.id)
+        assertEquals(LoopRegion(0.6f, 0.8f, isOn = true), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+        assertEquals(0.6f, engine.position)
+        assertTrue(engine.isPlaying)
+        assertTrue(viewModel.transport.value.isPlaying)
+    }
+
+    @Test
+    fun `a click on the bar of the loop playing in a loop seeks within it`() = runTest(main) {
+        val viewModel = openWithLoop()
+        engine.isPlaying = true
+        tick(0.25f)
+
+        viewModel.onLoopBarClicked(loopRepository.loops.value.single().id, 0.35f)
+        runCurrent()
+
+        assertEquals(0.35f, engine.position)
+        assertTrue(engine.isLoopOn)
+        assertTrue(engine.isPlaying)
+    }
+
+    @Test
+    fun `a click on the active loop's bar with the loop off plays it again from A`() = runTest(main) {
+        val viewModel = openWithLoop()
+        engine.isPlaying = true
+        viewModel.onOverviewClicked(0.7f)
+        runCurrent()
+        assertFalse(engine.isLoopOn)
+
+        viewModel.onLoopBarClicked(loopRepository.loops.value.single().id, 0.3f)
+        runCurrent()
+
+        assertTrue(engine.isLoopOn)
+        assertEquals(0.2f, engine.position)
+        assertTrue(engine.isPlaying)
+    }
+
+    @Test
+    fun `grabbing another loop makes it active in place, then its drag is saved and looped`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val later = assertNotNull(loopRepository.create(TRACK.id, "Later", LoopBounds(0.6f, 0.8f)))
+        runCurrent()
+        engine.isPlaying = true
+        tick(0.3f)
+
+        viewModel.onLoopGrabbed(later.id)
+        viewModel.onLoopBoundsChanged(later.id, LoopBounds(0.65f, 0.85f))
+        runCurrent()
+
+        assertEquals(later.id, loopRepository.trackLoops(TRACK.id).activeLoopId)
+        assertEquals(LoopBounds(0.65f, 0.85f), loopRepository.loops.value.first { it.id == later.id }.bounds)
+        assertEquals(LoopRegion(0.65f, 0.85f, isOn = true), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+        assertTrue(engine.isPlaying)
+        assertEquals(LoopBounds(0.65f, 0.85f), viewModel.zoom.value?.let { LoopBounds(it.start, it.end) }, "the zoom strip follows")
+    }
+
+    @Test
+    fun `a dragged loop becomes active even without its grab, and looping stays off`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val later = assertNotNull(loopRepository.create(TRACK.id, "Later", LoopBounds(0.6f, 0.8f)))
+        viewModel.onLoopToggled()
+        runCurrent()
+        assertFalse(engine.isLoopOn)
+        engine.position = 0.1f
+
+        viewModel.onLoopBoundsChanged(later.id, LoopBounds(0.5f, 0.7f))
+        runCurrent()
+
+        assertEquals(later.id, loopRepository.trackLoops(TRACK.id).activeLoopId)
+        assertEquals(LoopRegion(0.5f, 0.7f, isOn = false), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+        assertEquals(0.1f, engine.position, "a drag never moves the playhead")
+    }
+
+    @Test
     fun `Esc closes the drawer first, then focus mode`() = runTest(main) {
         val viewModel = viewModel()
         viewModel.onFocusToggled()
