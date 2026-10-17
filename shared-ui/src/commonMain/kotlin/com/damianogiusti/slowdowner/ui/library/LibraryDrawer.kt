@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.library
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -50,6 +51,8 @@ fun LibraryDrawer(
     val onTabSelected = remember { { selected: LibraryTab -> tab = selected } }
     Box(modifier = modifier.fillMaxSize()) {
         AnimatedVisibility(visible = isOpen, enter = fadeIn(tween(DURATION_MS)), exit = fadeOut(tween(DURATION_MS))) {
+            // The scrim covers the header: a click there closes the drawer, it does not move the window.
+            TitleBarOverlay()
             Box(
                 modifier = Modifier
                     .fillMaxSize()

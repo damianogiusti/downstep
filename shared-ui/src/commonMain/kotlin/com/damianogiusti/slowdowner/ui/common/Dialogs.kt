@@ -48,6 +48,7 @@ fun TextInputDialog(
     }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    TitleBarOverlay()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(texts.title) },
@@ -78,6 +79,7 @@ fun TextInputDialog(
 
 @Composable
 fun ConfirmDialog(text: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    TitleBarOverlay()
     AlertDialog(
         onDismissRequest = onDismiss,
         text = { Text(text) },

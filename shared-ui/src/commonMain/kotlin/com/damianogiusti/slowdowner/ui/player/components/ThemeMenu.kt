@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.player.components
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -100,6 +101,7 @@ internal fun ThemeMenuButton(selection: ThemeSelection, actions: HeaderActions) 
             container = colors.surface1,
         )
         DropdownMenu(expanded = expanded, onDismissRequest = close, containerColor = colors.surface2) {
+            TitleBarOverlay()
             ThemeMenuContent(
                 selection = selection,
                 onPreview = actions.onThemePreview,

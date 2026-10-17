@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.support
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -73,6 +74,7 @@ internal fun SupportPromptDialog(
     onClose: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    TitleBarOverlay()
     BasicAlertDialog(
         onDismissRequest = { if (state.canClose) onDismiss() },
         properties = DialogProperties(dismissOnBackPress = state.canClose, dismissOnClickOutside = state.canClose),

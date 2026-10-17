@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.playlists
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -55,6 +56,7 @@ fun AddToPlaylistSheet(track: LibraryTrack, snackbarHostState: SnackbarHostState
     CollectMessages(viewModel.messages, snackbarHostState)
     var showNewPlaylist by rememberSaveable { mutableStateOf(false) }
 
+    TitleBarOverlay()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),

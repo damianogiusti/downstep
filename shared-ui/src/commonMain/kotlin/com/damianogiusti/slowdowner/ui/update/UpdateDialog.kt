@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.update
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -113,6 +114,7 @@ internal fun UpdateDialog(
     onLater: () -> Unit,
 ) {
     val isBusy = state.install is UpdateInstallState.Downloading || state.install == UpdateInstallState.Restarting
+    TitleBarOverlay()
     BasicAlertDialog(
         onDismissRequest = onLater,
         properties = DialogProperties(dismissOnBackPress = !isBusy, dismissOnClickOutside = !isBusy),

@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.player.components
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -229,6 +230,7 @@ private fun LoopChip(
             )
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, containerColor = colors.surface2) {
+            TitleBarOverlay()
             DropdownMenuItem(
                 text = { Text(stringResource(Res.string.loop_rename)) },
                 leadingIcon = { Icon(painterResource(Res.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(18.dp)) },

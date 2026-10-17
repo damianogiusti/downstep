@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.library
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import com.damianogiusti.slowdowner.ui.common.isDesktop
 import org.jetbrains.compose.resources.DrawableResource
 import com.damianogiusti.slowdowner.ui.resources.*
@@ -38,6 +39,7 @@ fun ImportSheet(
     onRestoreBackup: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    TitleBarOverlay()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),

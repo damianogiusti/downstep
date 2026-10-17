@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -40,6 +41,11 @@ import com.damianogiusti.slowdowner.domain.click.ClickSettings
 import com.damianogiusti.slowdowner.domain.practice.PracticePreset
 import com.damianogiusti.slowdowner.domain.theme.ThemeSelection
 import com.damianogiusti.slowdowner.ui.common.IconPill
+import com.damianogiusti.slowdowner.ui.common.LocalWindowTitleBar
+import com.damianogiusti.slowdowner.ui.common.WindowTitleBar
+import com.damianogiusti.slowdowner.ui.common.titleBarCaption
+import com.damianogiusti.slowdowner.ui.common.titleBarControl
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import com.damianogiusti.slowdowner.ui.common.Pill
 import com.damianogiusti.slowdowner.ui.common.PillToggle
 import com.damianogiusti.slowdowner.ui.common.SegmentedPill
@@ -82,18 +88,47 @@ fun PlayerHeader(
     isFullscreen: Boolean = false,
 ) {
     val colors = SlowDownerTheme.colors
+    // Windows: the header is the window's title bar, with the window buttons at its right end.
+    val titleBar = LocalWindowTitleBar.current
+    Box(modifier = modifier.fillMaxWidth().then(if (titleBar != null) Modifier.titleBarCaption() else Modifier)) {
+        HeaderRow(state, trackCount, features, analysis, clicks, presets, theme, actions, isFullscreen, titleBar)
+        if (titleBar != null) {
+            Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.matchParentSize()) {
+                titleBar.WindowButtons(Modifier.fillMaxHeight())
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderRow(
+    state: HeaderState,
+    trackCount: Int,
+    features: PlayerFeatures,
+    analysis: AnalysisStatus,
+    clicks: ClickUiState,
+    presets: PresetsState,
+    theme: ThemeSelection,
+    actions: HeaderActions,
+    isFullscreen: Boolean,
+    titleBar: WindowTitleBar?,
+) {
+    val colors = SlowDownerTheme.colors
+    // Beside the window buttons, a little less than the gutter: they have their own room.
+    val end = titleBar?.buttonsWidth?.takeIf { it > 0.dp }?.let { it + WINDOW_BUTTONS_GAP } ?: DownstepDimens.gutter
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(start = DownstepDimens.gutter, end = DownstepDimens.gutter, top = 18.dp, bottom = 6.dp),
+            .padding(start = DownstepDimens.gutter, end = end, top = 18.dp, bottom = 6.dp),
     ) {
         Pill(
             onClick = actions.onOpenLibrary,
             container = colors.surface1,
             contentPadding = PaddingValues(start = 12.dp, end = 14.dp),
             tooltip = stringResource(Res.string.library_open_description),
+            modifier = Modifier.titleBarControl(),
         ) {
             Icon(painterResource(Res.drawable.ic_h_menu), contentDescription = null, modifier = Modifier.size(18.dp))
             Text(stringResource(Res.string.library), maxLines = 1)
@@ -102,7 +137,7 @@ fun PlayerHeader(
         TitleBlock(state, actions, Modifier.weight(1f))
         AnalyzePill(state.isOpen && !state.isLoading, features.canAnalyze, analysis, actions)
         ClickToggles(features, clicks, actions)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.titleBarControl()) {
             actions.onFullscreenToggled?.let { FullscreenToggle(isFullscreen, it) }
             ThemeMenuButton(theme, actions)
             // Not in the design, which has no way to the Effects sheet: kept so the EQ is not lost.
@@ -158,6 +193,7 @@ private fun TitleBlock(state: HeaderState, actions: HeaderActions, modifier: Mod
                         color = if (state.canEditBpm && state.bpm == null) colors.fg else colors.fg2,
                         maxLines = 1,
                         modifier = Modifier
+                            .titleBarControl()
                             .clip(RoundedBpm)
                             .clickable(enabled = state.canEditBpm, role = Role.Button, onClick = actions.onEditBpm),
                     )
@@ -183,6 +219,7 @@ private fun AnalyzePill(isOpen: Boolean, canAnalyze: Boolean, analysis: Analysis
         border = if (running) colors.amber else colors.surface3,
         contentPadding = PaddingValues(start = 12.dp, end = 16.dp),
         tooltip = stringResource(if (canAnalyze) Res.string.analyze_tooltip else Res.string.analyze_unavailable),
+        modifier = Modifier.titleBarControl(),
     ) {
         Icon(painterResource(Res.drawable.ic_h_sparkle), contentDescription = null, modifier = Modifier.size(16.dp))
         Text(
@@ -200,7 +237,7 @@ private fun AnalyzePill(isOpen: Boolean, canAnalyze: Boolean, analysis: Analysis
 
 @Composable
 private fun ClickToggles(features: PlayerFeatures, clicks: ClickUiState, actions: HeaderActions) {
-    SegmentedPill(padding = 4.dp) {
+    SegmentedPill(padding = 4.dp, modifier = Modifier.titleBarControl()) {
         PillToggle(
             checked = clicks.isMetronomeOn,
             onClick = actions.onMetronomeToggled,
@@ -236,6 +273,7 @@ private fun ClickMenuButton(clicks: ClickUiState, actions: HeaderActions) {
             border = null,
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, containerColor = colors.surface2) {
+            TitleBarOverlay()
             Column(Modifier.width(240.dp).padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Text(stringResource(Res.string.click_volume), style = SlowDownerTheme.type.meta, color = colors.fg2)
                 // Moves locally while dragging; saved (and heard) once, at the end of the drag.
@@ -321,6 +359,7 @@ private fun PresetsMenuButton(isOpen: Boolean, presets: PresetsState, actions: H
             onDismissRequest = { expanded = false },
             containerColor = SlowDownerTheme.colors.surface2,
         ) {
+            TitleBarOverlay()
             DropdownMenuItem(
                 text = { Text(stringResource(Res.string.preset_save_title) + "…") },
                 leadingIcon = { Icon(painterResource(Res.drawable.ic_h_bookmark), contentDescription = null, modifier = Modifier.size(18.dp)) },
@@ -402,6 +441,9 @@ private fun PresetItem(preset: PracticePreset, isActive: Boolean, enabled: Boole
 }
 
 private const val SEPARATOR = " · "
+
+/** Between the header's last icon and the window buttons. */
+private val WINDOW_BUTTONS_GAP = 12.dp
 
 /** Fill of the Analyze pill while it runs: the prototype's amber + "22". */
 private const val RUNNING_FILL_ALPHA = 0.13f

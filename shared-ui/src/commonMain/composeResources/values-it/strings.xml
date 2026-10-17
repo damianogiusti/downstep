@@ -221,6 +221,11 @@
     <string name="menu_window">Finestra</string>
     <string name="menu_close_window">Chiudi finestra</string>
     <string name="menu_minimize">Contrai</string>
+    <!-- Windows: the window buttons at the header's right end, which replaces the title bar. -->
+    <string name="window_minimize">Riduci a icona</string>
+    <string name="window_maximize">Ingrandisci</string>
+    <string name="window_restore">Ripristina giù</string>
+    <string name="window_close">Chiudi</string>
     <string name="menu_enter_fullscreen">Attiva modalità a tutto schermo</string>
     <string name="menu_exit_fullscreen">Esci da modalità a tutto schermo</string>
     <string name="menu_help">Aiuto</string>

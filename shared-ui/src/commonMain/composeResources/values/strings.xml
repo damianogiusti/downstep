@@ -223,6 +223,11 @@
     <string name="menu_window">Window</string>
     <string name="menu_close_window">Close Window</string>
     <string name="menu_minimize">Minimize</string>
+    <!-- Windows: the window buttons at the header's right end, which replaces the title bar. -->
+    <string name="window_minimize">Minimize</string>
+    <string name="window_maximize">Maximize</string>
+    <string name="window_restore">Restore Down</string>
+    <string name="window_close">Close</string>
     <string name="menu_enter_fullscreen">Enter Full Screen</string>
     <string name="menu_exit_fullscreen">Exit Full Screen</string>
     <string name="menu_help">Help</string>
