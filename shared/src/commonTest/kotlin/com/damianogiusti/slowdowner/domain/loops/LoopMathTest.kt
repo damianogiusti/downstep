@@ -46,6 +46,34 @@ class LoopMathTest {
     }
 
     @Test
+    fun `when the whole loop is moved then A and B shift together and the length stays`() {
+        val moved = LoopMath.move(LoopBounds(0.2f, 0.3f), 0.1537f)
+
+        assertEquals(0.3537f, moved.start, TOLERANCE)
+        assertEquals(0.4537f, moved.end, TOLERANCE)
+        assertEquals(0.1f, moved.length, TOLERANCE)
+    }
+
+    @Test
+    fun `when the whole loop is moved past an edge then it stops there keeping its length`() {
+        val late = LoopMath.move(LoopBounds(0.7f, 0.9f), 0.5f)
+        val early = LoopMath.move(LoopBounds(0.1f, 0.3f), -0.5f)
+
+        assertEquals(1f, late.end)
+        assertEquals(0.2f, late.length, TOLERANCE)
+        assertEquals(0f, early.start)
+        assertEquals(0.2f, early.length, TOLERANCE)
+    }
+
+    @Test
+    fun `when the whole loop is moved by nothing then it is the same loop`() {
+        val loop = LoopBounds(0.2f, 0.3f)
+
+        assertEquals(loop, LoopMath.move(loop, 0f))
+        assertEquals(LoopBounds(0f, 1f), LoopMath.move(LoopBounds(0f, 1f), 0.3f))
+    }
+
+    @Test
     fun `when halved then A stays and the length halves`() {
         val halved = LoopMath.halve(LoopBounds(0.2f, 0.24f), duration)!!
 

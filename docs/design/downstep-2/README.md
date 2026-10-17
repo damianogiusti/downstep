@@ -78,19 +78,23 @@ OS‑style strip with the real Downstep icon (`assets/icons/downstep-app-icon.sv
 One chip per loop, in time order: colour dot · name · length · **pass badge**. The active chip is inverted
 (light fill on dark, dark fill on light) with an amber pass badge. Suggested loops from Analyze appear as
 dashed amber chips with ✓ / ✕. The strip ends with a dashed **+ New loop `L`** chip. Scrolls horizontally when long.
+A double click on a chip renames the loop in place (see §7.2).
 
 ### 2.4 Overview waveform (full width)
 - Bars: played = light grey, unplayed = dark grey; inside the active loop they take the loop colour (played solid, unplayed 50%).
-- Every loop draws a tinted region, a 3px top rule and 1px edge lines in its colour; the active one is brighter.
+- Every loop draws a tinted region, a 7px rounded **top bar** (a grab handle with three grip dots; it grows to 11px
+  and turns opaque under the mouse or in a drag) and 1px edge lines in its colour; the active one is brighter.
+  Any loop's bar and edges can be dragged (§3, §7.2).
 - No bar or beat lines: loop edges are free (Snap to beat was removed after 2.0, see §7.1).
 - **A / B pills** at the bottom with timecodes to 0.1s; a faint bracket shows the zoom window.
-- **Playhead**: 2px line with a glow and a floating timecode pill at the top.
+- **Playhead**: 2px line with a glow and a floating timecode pill at the top, just under the loops' top bars.
 - Dashed amber outlines + labels for Analyze suggestions.
 
 ### 2.5 Zoom strip
 Attached under the overview, inset to the gutter. Shows the active loop plus ~35% padding each side (minimum 4 beats).
 No beat lines. Header text: `ZOOM · <loop> · <window from–to>` and `<n> beats · <n> bars` for the loop
-(the length in seconds without a BPM). A/B lines are draggable here, freely, as on the overview.
+(the length in seconds without a BPM). A/B lines are draggable here, freely, as on the overview. A drag on the
+overview (an edge or the whole loop) is drawn here live as well; the window re‑frames when the drag is dropped.
 
 ### 2.6 Transport row
 - **Left:** loop toggle pill (amber when looping, shows the active loop name or *Loop off*) · active‑loop tool
@@ -123,16 +127,21 @@ list with artwork tile, title, meta (source · loop count); the current track is
 ### Pointer
 | Target | Gesture | Result |
 |---|---|---|
-| Overview or zoom waveform | click | seek playhead |
-| A or B line (either waveform) | drag | move loop edge freely (no beat grid); A can't cross B (min 0.5% apart) |
+| Overview waveform | click inside the looping loop | seek there, keep looping |
+| Overview waveform | click anywhere else (another loop's body too) | Loop off, seek there; playing or paused stays as it was |
+| Loop top bar (overview) | click (no drag) | play this loop: active, Loop on, from its A, playing (on the loop already being looped: seek within it, playing or paused as it was) |
+| Loop top bar (overview) | drag | move the whole loop, keeping its length, clamped to the track; a loop that is not active becomes active |
+| Zoom waveform | click | seek playhead |
+| A or B line (either waveform; any loop on the overview) | drag | move loop edge freely (no beat grid); A can't cross B (min 0.5% apart, at least 1 s); a loop that is not active becomes active |
 | Loop chip | click | make active, jump playhead to its start, loop on |
+| Loop chip | double‑click | rename in place: Enter or clicking away saves, Esc cancels, an empty name keeps the old one |
 | Suggested chip ✓ / ✕ | click | accept (becomes a real loop, active) / dismiss |
 | ½ / ×2 | click | halve / double the loop keeping A fixed |
 | ◀ ▶ nudge | click | shift the whole loop by a fixed 1 s of track time |
 | ✕ in tool group | click | delete active loop; the first remaining loop becomes active |
 | Progression steppers | click | ±5% (from/to), ±1% (step), ±1 (every) |
 
-### Keyboard (ignored while typing in Notes)
+### Keyboard (ignored while typing: Notes, BPM, a loop's name, search)
 | Key | Action |
 |---|---|
 | `Space` | play / pause |
@@ -261,3 +270,35 @@ mode. The triangle's centroid, not its bounding box, now sits on the button's ce
 centroid was 2.17 units (2.5 dp) right of centre; the bounding box now leans 1.83 units right, which is the optical
 compensation. `PlayerRenderTest` measures the rendered icon's ink centroid against the button in the dark, light
 and focus renders (within 0.6 dp; it measured 2.52 dp off before the change).
+
+### 7.2 Loops edited on the overview, renamed in their chip
+
+**Every loop on the overview is directly editable**, not only the active one:
+- Each loop has a **top bar** (7px, rounded, three grip dots) instead of the 3px rule. Its grab zone is the top 16px
+  of the waveform over the loop. Under the mouse the bar grows to 11px and turns opaque, and the cursor becomes a
+  move cursor; over an edge (8px each side, any height) it is a horizontal‑resize cursor; elsewhere the crosshair.
+- **Dragging the top bar moves the whole loop** by the pointer's travel, keeping its length; it stops at the start
+  and end of the track. **Dragging an edge resizes** it; A can't cross B (the usual minimum length).
+- Grabbing a loop that is not active makes it active as the drag starts, where the playhead is and with Loop on or
+  off as it was. With Loop on the engine then loops the grabbed loop, so a playhead outside it goes to its A: you
+  hear the loop you are editing. The zoom strip follows it and draws the drag live; its window re‑frames on drop.
+- Where loops overlap, the active one is grabbed first, then the shortest; on a loop too narrow for a bar and two
+  edges, the middle third is the bar.
+- The drag is drawn locally and committed once on release, through the same use case as the A/B keys; the loop is
+  saved at once and the practice state (the engine's region) by the debounced auto‑save.
+
+**Click or drag**: a press that travels more than 4 dp sideways (a finger: the platform's touch slop) is a drag;
+less is a click. On the overview a click means:
+- inside the loop being looped: seek there, keep looping;
+- anywhere else, including another loop's body below its top bar: **Loop off** and seek there (the loop stays
+  selected); playback goes on if it was playing and stays paused if it was paused;
+- on a loop's **top bar**: *play this loop*: it becomes active, Loop on, the playhead jumps to its A and playback
+  starts (also when paused). On the loop that is already being looped it is a click inside it: seek there, and
+  playing or paused stays as it was (when paused, only another loop's bar starts playback);
+- on an edge of the active loop: a seek kept inside the loop (a click just outside B does not turn the loop off).
+
+**Rename in place**: a double click on a loop chip (or *Rename* in its menu) turns the name into a text field with
+the name selected. Enter or clicking away saves (trimmed, at most 40 characters), Esc cancels, and an empty or
+unchanged name keeps the old one. The first click of the double click still selects the loop. While the field has
+the focus the window's shortcuts are off, so Space, `L`, `A`, `B`, `F` and Esc go to the field. The rename dialog is
+gone.

@@ -48,8 +48,14 @@ class LoopChipActions(
 class WaveformActions(
     /** A click: seek there (0..1 of the file). */
     val onSeek: (position: Float) -> Unit,
-    /** The end of an A/B drag, once: the bounds shown at release (free, never rounded to a beat). */
+    /** The end of an A/B or top-bar drag, once: the bounds shown at release (free, never rounded to a beat). */
     val onLoopBoundsChanged: (loopId: Long, bounds: LoopBounds) -> Unit,
+    /** A click on the overview off any loop's top bar: seek, turning the loop off outside it. */
+    val onOverviewClick: (position: Float) -> Unit = onSeek,
+    /** A click on a loop's top bar on the overview: "play this loop". */
+    val onLoopBarClick: (loopId: Long, position: Float) -> Unit = { _, _ -> },
+    /** A drag on the overview picked up a loop that is not the active one. */
+    val onLoopGrabbed: (loopId: Long) -> Unit = {},
 )
 
 /** Transport row centre and loop pill (README §2.6). */

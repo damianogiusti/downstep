@@ -53,6 +53,21 @@ object LoopMath {
         return bounds.copy(end = position.coerceIn(earliest, 1f))
     }
 
+    /**
+     * The whole loop shifted by [delta] (a fraction of the file, + later), as the drag of its top bar
+     * does: it keeps its length and stops at the edges of the file.
+     */
+    fun move(bounds: LoopBounds, delta: Float): LoopBounds {
+        val shift = delta.coerceIn(-bounds.start, (1f - bounds.end).coerceAtLeast(-bounds.start))
+        if (shift == 0f) return bounds
+        // Pinned to an edge exactly, so a loop pushed against the end stays as long as it was.
+        return when {
+            shift == -bounds.start -> LoopBounds(0f, bounds.length)
+            shift == 1f - bounds.end -> LoopBounds(1f - bounds.length, 1f)
+            else -> LoopBounds(bounds.start + shift, bounds.end + shift)
+        }
+    }
+
     /** Half as long, A fixed. Null when the half would be shorter than [minLength]. */
     fun halve(bounds: LoopBounds, durationSeconds: Float): LoopBounds? {
         val half = bounds.length / 2

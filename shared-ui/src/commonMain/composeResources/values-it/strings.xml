@@ -363,4 +363,6 @@
     <string name="progression_step_value">incremento di velocità</string>
     <string name="progression_every_value">passaggi per incremento</string>
     <!-- Group D additions -->
+    <!-- loops: editable loops on the overview (top bar), inline chip rename -->
+    <string name="loop_move_description">Barra del loop: trascina per spostarlo, clicca per riprodurlo</string>
 </resources>

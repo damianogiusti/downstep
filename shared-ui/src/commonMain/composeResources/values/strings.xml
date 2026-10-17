@@ -365,4 +365,6 @@
     <string name="progression_step_value">speed step</string>
     <string name="progression_every_value">passes per step</string>
     <!-- Group D additions -->
+    <!-- loops: editable loops on the overview (top bar), inline chip rename -->
+    <string name="loop_move_description">Loop top bar: drag to move the loop, click to play it</string>
 </resources>

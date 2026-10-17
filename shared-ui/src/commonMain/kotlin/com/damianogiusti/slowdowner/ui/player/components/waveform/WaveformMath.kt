@@ -84,7 +84,8 @@ internal fun barsIn(start: Float, end: Float, from: Float, to: Float, count: Int
     return first until endExclusive
 }
 
-internal enum class LoopHandle { Start, End }
+/** What a press on a loop holds: its A edge, its B edge, or its top bar (the whole loop). */
+internal enum class LoopHandle { Start, End, Bar }
 
 /** The A or B handle within [reach] pixels of [x]; the nearer one when both are (a very short loop). */
 internal fun hitHandle(x: Float, startX: Float, endX: Float, reach: Float): LoopHandle? {
@@ -100,9 +101,19 @@ internal fun hitHandle(x: Float, startX: Float, endX: Float, reach: Float): Loop
     }
 }
 
-/** The loop while [handle] is dragged to [position]: free (no beat grid), and A never crosses B. */
-internal fun dragLoop(handle: LoopHandle, bounds: LoopBounds, position: Float, durationSeconds: Float): LoopBounds =
+/**
+ * The loop while [handle] is dragged to [position]: free (no beat grid), and A never crosses B. The top
+ * bar moves the whole loop by the pointer's travel from [grabbedAt], keeping its length within the file.
+ */
+internal fun dragLoop(
+    handle: LoopHandle,
+    bounds: LoopBounds,
+    position: Float,
+    durationSeconds: Float,
+    grabbedAt: Float = position,
+): LoopBounds =
     when (handle) {
         LoopHandle.Start -> LoopMath.moveStart(bounds, position, durationSeconds)
         LoopHandle.End -> LoopMath.moveEnd(bounds, position, durationSeconds)
+        LoopHandle.Bar -> LoopMath.move(bounds, position - grabbedAt)
     }
