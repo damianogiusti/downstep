@@ -697,10 +697,17 @@ class PlayerViewModel(
         viewModelScope.launch { clickTrack.updateSettings(change) }
     }
 
-    /** The first time a track is opened: its tempo, from the audio; cached with the track afterwards. */
+    /**
+     * The first time a track is opened: its tempo, from the audio; cached with the track afterwards.
+     * Later opens only find the beats of a tempo set while the track was last open, if another track
+     * opened before they were found.
+     */
     private suspend fun detectTempo(track: LibraryTrack) {
         val detect = clickTrack.detectTempo
-        if (!detect.isPending(track.id)) return
+        if (!detect.isPending(track.id)) {
+            if (detect.needsAlignment(track.id)) withContext(background) { detect.alignBeats(track.id) }
+            return
+        }
         detectingTempo.value = track.id
         try {
             withContext(background) { detect(track.id) }

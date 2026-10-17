@@ -42,16 +42,26 @@ class FakeClickEngine : ClickTrackEngine {
     }
 }
 
-/** Answers with [estimate] (or, given a hint, that tempo with [hintedOffset]); counts the analyses. */
+/**
+ * Answers with [estimate] (or, given a hint, that tempo with [hintedOffset], or null when it
+ * [findsHinted] nothing); counts the analyses. [during] runs while one analyses, with its hint.
+ */
 class FakeTempoDetector(
     var estimate: TempoEstimate? = TempoEstimate(120f, 0.25f, 0.9f),
     var hintedOffset: Float = 0.1f,
 ) : TempoDetector {
     val requests = mutableListOf<Float?>()
+    var findsHinted = true
+    var during: (hintBpm: Float?) -> Unit = {}
 
     override suspend fun detect(hintBpm: Float?): TempoEstimate? {
         requests += hintBpm
-        return if (hintBpm == null) estimate else TempoEstimate(hintBpm, hintedOffset, 0.5f)
+        during(hintBpm)
+        return when {
+            hintBpm == null -> estimate
+            findsHinted -> TempoEstimate(hintBpm, hintedOffset, 0.5f)
+            else -> null
+        }
     }
 }
 

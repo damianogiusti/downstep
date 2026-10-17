@@ -53,7 +53,9 @@ class FakeLoopRepository(private val existingTrackIds: Set<String> = setOf("a", 
 
     override suspend fun setActiveLoop(trackId: String, loopId: Long?) = editSettings(trackId) { it.copy(activeLoopId = loopId) }
 
-    override suspend fun setBpm(trackId: String, bpm: Float?) = editSettings(trackId) { it.copy(bpm = bpm) }
+    override suspend fun setBpm(trackId: String, bpm: Float?) = editSettings(trackId) {
+        if (it.bpm == bpm) it else it.copy(bpm = bpm, beatOffsetSeconds = null)
+    }
 
     override suspend fun setDetectedTempo(trackId: String, estimate: TempoEstimate?, analysisVersion: Int) =
         editSettings(trackId) {

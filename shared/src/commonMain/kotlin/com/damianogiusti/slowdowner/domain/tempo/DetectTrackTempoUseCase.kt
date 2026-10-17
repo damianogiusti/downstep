@@ -31,10 +31,22 @@ class DetectTrackTempoUseCase(
         val estimate = detector.detect()?.takeIf { BeatGrid.isValidBpm(it.bpm) }
         if (!isOpen(trackId)) return false
         repository.setDetectedTempo(trackId, estimate, ANALYSIS_VERSION)
-        // A tempo the user typed before the analysis keeps its own beats.
-        if (repository.trackLoops(trackId).bpm != null) alignBeats(trackId)
+        // A tempo the user typed before the analysis keeps its own beats: the detected ones are not
+        // its, so none are saved until they are found (or, if another track opens first, owed).
+        if (repository.trackLoops(trackId).bpm != null) {
+            repository.setBeatOffset(trackId, null)
+            alignBeats(trackId)
+        }
         return true
     }
+
+    /**
+     * Whether [trackId] has a tempo whose beats were never found: a new tempo clears them
+     * ([LoopRepository.setBpm]), and the alignment that follows gives up when another track opens
+     * before it ends. Then [alignBeats] is owed, the next time the track is open.
+     */
+    suspend fun needsAlignment(trackId: String): Boolean =
+        detector != null && repository.trackLoops(trackId).let { it.effectiveBpm != null && it.beatOffsetSeconds == null }
 
     /**
      * Finds where the beats of the track's effective tempo fall, after the user typed or tapped one
@@ -46,7 +58,9 @@ class DetectTrackTempoUseCase(
         val bpm = repository.trackLoops(trackId).effectiveBpm
         val offset = bpm?.let { detector.detect(hintBpm = it)?.beatOffsetSeconds }
         if (!isOpen(trackId) || repository.trackLoops(trackId).effectiveBpm != bpm) return false
-        repository.setBeatOffset(trackId, offset)
+        // Nothing found for a tempo: the grid starts at 0, as it would anyway, and saying so keeps
+        // the track from being aligned again on every open.
+        repository.setBeatOffset(trackId, if (bpm == null) null else offset ?: 0f)
         return true
     }
 

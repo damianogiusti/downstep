@@ -122,6 +122,50 @@ class DetectTrackTempoUseCaseTest {
     }
 
     @Test
+    fun `when another track opens before a new tempo's beats are found then they are owed until it is open again`() = runTest {
+        nowPlaying.set(song)
+        detect("a")
+        repository.setBpm("a", 96f)
+        assertNull(repository.trackLoops("a").beatOffsetSeconds, "the old tempo's beats are not the new one's")
+        detector.during = { hint -> if (hint != null) nowPlaying.set(other) }
+
+        assertFalse(detect.alignBeats("a"))
+        assertNull(repository.trackLoops("a").beatOffsetSeconds)
+        assertTrue(detect.needsAlignment("a"))
+
+        detector.during = {}
+        nowPlaying.set(song)
+        assertTrue(detect.alignBeats("a"))
+        assertEquals(0.1f, repository.trackLoops("a").beatOffsetSeconds)
+        assertFalse(detect.needsAlignment("a"))
+    }
+
+    @Test
+    fun `when the first analysis finds a typed tempo's beats too late then they are owed, not the detected ones`() = runTest {
+        nowPlaying.set(song)
+        repository.setBpm("a", 96f)
+        detector.during = { hint -> if (hint != null) nowPlaying.set(other) }
+
+        detect("a")
+
+        assertNull(repository.trackLoops("a").beatOffsetSeconds, "0.25 s belongs to the detected 120 BPM")
+        assertTrue(detect.needsAlignment("a"))
+    }
+
+    @Test
+    fun `when a tempo's beats cannot be found then the grid starts at 0 and they are not looked for again`() = runTest {
+        nowPlaying.set(song)
+        detect("a")
+        repository.setBpm("a", 96f)
+        detector.findsHinted = false
+
+        assertTrue(detect.alignBeats("a"))
+
+        assertEquals(0f, repository.trackLoops("a").beatOffsetSeconds)
+        assertFalse(detect.needsAlignment("a"))
+    }
+
+    @Test
     fun `when there is no tempo at all then the first beat is unknown`() = runTest {
         nowPlaying.set(song)
         repository.setBeatOffset("a", 0.3f)

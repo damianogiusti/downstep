@@ -498,6 +498,7 @@ class PlayerViewModelTest {
         clickSettings.settings.value = ClickSettings(isMetronomeOn = true)
         loopRepository.setBpm(OTHER.id, 100f)
         loopRepository.setDetectedTempo(OTHER.id, null, DetectTrackTempoUseCase.ANALYSIS_VERSION)
+        loopRepository.setBeatOffset(OTHER.id, 0f) // its beats were found too
         runCurrent()
         assertEquals(TrackTempo(120f, 0.25f), clicks.tempo)
 
@@ -510,6 +511,30 @@ class PlayerViewModelTest {
         assertTrue(clicks.isMetronomeOn)
         // OTHER was analysed before: only TRACK's first open ran the analysis.
         assertEquals(listOf<Float?>(null), detector.requests)
+    }
+
+    @Test
+    fun `a typed tempo whose beats were not found before another track opened gets them on the next open`() = runTest(main) {
+        val clicks = FakeClickEngine().also { clickEngine = it }
+        val detector = FakeTempoDetector(TempoEstimate(120f, 0.25f, 0.9f), hintedOffset = 0.1f).also { tempoDetector = it }
+        val viewModel = openWithLoop()
+        // Another track opens while the typed tempo's beats are being found: they are not saved.
+        detector.during = { hint -> if (hint != null) nowPlaying.set(OTHER) }
+        viewModel.onBpmChanged(96f)
+        runCurrent()
+        assertEquals(96f, loopRepository.trackLoops(TRACK.id).bpm)
+        assertNull(loopRepository.trackLoops(TRACK.id).beatOffsetSeconds)
+
+        detector.during = {}
+        viewModel.onTrackSelected(TRACK)
+        runCurrent()
+        decodeScheduler.runCurrent()
+        runCurrent()
+
+        assertEquals(0.1f, loopRepository.trackLoops(TRACK.id).beatOffsetSeconds)
+        assertEquals(TrackTempo(96f, 0.1f), clicks.tempo)
+        // TRACK analysed, its beats looked for, OTHER analysed meanwhile, TRACK's beats found on reopening.
+        assertEquals(listOf(null, 96f, null, 96f), detector.requests)
     }
 
     @Test

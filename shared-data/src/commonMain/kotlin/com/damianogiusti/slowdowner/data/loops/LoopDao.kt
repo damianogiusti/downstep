@@ -113,7 +113,11 @@ interface LoopDao {
     @Query("UPDATE track_practice_state SET active_loop_id = :loopId WHERE track_id = :trackId")
     suspend fun setActiveLoop(trackId: String, loopId: Long?)
 
-    @Query("UPDATE track_practice_state SET bpm = :bpm WHERE track_id = :trackId")
+    /** A new tempo also clears the first beat: it belonged to the old one (see LoopRepository.setBpm). */
+    @Query(
+        "UPDATE track_practice_state SET bpm = :bpm, " +
+            "beat_offset_seconds = CASE WHEN bpm IS :bpm THEN beat_offset_seconds ELSE NULL END WHERE track_id = :trackId",
+    )
     suspend fun setBpm(trackId: String, bpm: Float?)
 
     /**

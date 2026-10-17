@@ -166,6 +166,26 @@ class DefaultLoopRepositoryTest {
     }
 
     @Test
+    fun `when the tempo changes then its old beats are cleared, and kept when it is set again unchanged`() = runTest {
+        addTrack("t")
+        repository.setDetectedTempo("t", TempoEstimate(128f, 0.25f, 0.9f), analysisVersion = 1)
+
+        repository.setBpm("t", 128f)
+        assertNull("a typed tempo, even the detected one, is aligned anew", repository.trackLoops("t").beatOffsetSeconds)
+
+        repository.setBeatOffset("t", 0.5f)
+        repository.setBpm("t", 128f)
+        assertEquals(0.5f, repository.trackLoops("t").beatOffsetSeconds)
+
+        repository.setBpm("t", 96f)
+        assertNull(repository.trackLoops("t").beatOffsetSeconds)
+
+        repository.setBeatOffset("t", 0.1f)
+        repository.setBpm("t", null)
+        assertNull("back to the detected tempo: aligned anew", repository.trackLoops("t").beatOffsetSeconds)
+    }
+
+    @Test
     fun `when the active loop is deleted then the stale id reads as no active loop`() = runTest {
         addTrack("t")
         val loop = repository.create("t", "Loop 1", LoopBounds(0.1f, 0.2f))!!
