@@ -42,12 +42,14 @@ object ExportFileNames {
     /**
      * [text] made safe for a file name: characters Windows, macOS or Linux reject become "_", runs
      * of white space (a pasted line break) become one space, and the result is trimmed, at most
-     * [maxLength] long and never ends in a dot (Windows drops it). Empty becomes [fallback].
+     * [maxLength] long, never starts with a dot (a hidden file on macOS and Linux) and never ends in
+     * one (Windows drops it). Empty becomes [fallback].
      */
     fun sanitize(text: String, maxLength: Int, fallback: String): String =
         text.replace(WHITESPACE, " ")
             .replace(UNSAFE_CHARS, "_")
             .trim()
+            .trimStart('.', ' ')
             .take(maxLength)
             .trimEnd('.', ' ')
             .ifEmpty { fallback }

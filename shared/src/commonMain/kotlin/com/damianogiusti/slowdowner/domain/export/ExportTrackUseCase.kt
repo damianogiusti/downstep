@@ -20,7 +20,8 @@ class ExportTrackUseCase(
         // Spotify tracks have no library entry and cannot be rendered offline.
         val track = nowPlaying.observe().value
         if (track == null || !engine.isOpen) return ExportResult.NothingOpen
-        val trackLoops = if (scope.includesLoops) loops.trackLoops(track.id).loops else emptyList()
+        // The chip strip's order (by start), whatever order the repository returns them in.
+        val trackLoops = if (scope.includesLoops) loops.trackLoops(track.id).loops.sortedWith(LOOP_ORDER) else emptyList()
         val items = items(scope, track.title, engine.speedPercent, engine.pitchSemitones, trackLoops)
         if (items.isEmpty()) return ExportResult.NoLoops
         // The offline render drives the same native player: never run it under live playback.
@@ -29,6 +30,8 @@ class ExportTrackUseCase(
     }
 
     internal companion object {
+        private val LOOP_ORDER = compareBy<Loop>({ it.start }, { it.id })
+
         /** "Title 75%.mp3", plus the pitch when it is not zero: "Title 75% -2st.mp3". */
         fun fileName(title: String, speedPercent: Float, pitchSemitones: Float): String =
             ExportFileNames.fullTrack(title, speedPercent, pitchSemitones)

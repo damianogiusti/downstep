@@ -36,6 +36,12 @@ class ExportFileNamesTest {
     }
 
     @Test
+    fun `a title never starts with a dot, which would hide the file`() {
+        assertEquals("And Justice for All 100%.mp3", ExportFileNames.fullTrack("...And Justice for All", 100f, 0f))
+        assertEquals("hidden - 01 Loop.mp3", ExportFileNames.loop(". hidden", 1, 1, "Loop"))
+    }
+
+    @Test
     fun `an empty title or loop name falls back to a placeholder`() {
         assertEquals("audio - 01 Loop.mp3", ExportFileNames.loop(" ", 1, 1, "   "))
         assertEquals("audio - 01 Loop.mp3", ExportFileNames.loop("", 1, 1, "..."))
