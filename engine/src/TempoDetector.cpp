@@ -19,6 +19,10 @@ constexpr double kMinConfidence = 0.12;
 constexpr double kMinSeconds = 4.0;
 constexpr double kSilence = 1e-8; // mean square, about -80 dBFS
 constexpr double kLocalMeanSeconds = 0.25;
+// The smallest rise of the log energy from one hop to the next that counts (about 0.4 dB): a steady
+// tone's energy wobbles a little with the hop, and that must not become a very regular "beat".
+constexpr double kMinRise = 0.1;
+constexpr double kEnvelopeLeadHops = 0.8; // measured: see the end of detectTempo
 
 /** The value between hops, linearly. */
 double at(const std::vector<double> &x, double index) {
@@ -76,22 +80,27 @@ bool detectTempo(const PcmBuffer &pcm, double hintBpm, TempoEstimate &out) {
     const double envelopeRate = double(pcm.sampleRate) / hop;
     const size_t hops = size_t(pcm.frames / hop);
 
-    // Energy per hop of the mono mix, and of its first difference: the attacks stand out there.
-    std::vector<double> energy(hops), attack(hops);
+    // Energy per hop of the mono mix, and of its first difference: the attacks stand out there. Each
+    // frame is two hops wide, triangle-weighted around the middle of its hop: with plain hop-long
+    // frames a steady tone's energy ripples with the hop, as regularly as a beat.
     const float *left = pcm.channelData(0);
     const float *right = pcm.channelData(1);
-    float previous = 0.f;
+    const auto mono = [&](int64_t i) { return i < 0 ? 0.0 : 0.5 * (double(left[i]) + double(right[i])); };
+    std::vector<double> energy(hops), attack(hops);
     for (size_t k = 0; k < hops; ++k) {
-        double e = 0, a = 0;
-        for (size_t i = k * size_t(hop), end = i + size_t(hop); i < end; ++i) {
-            const float x = 0.5f * (left[i] + right[i]);
-            const float d = x - previous;
-            e += double(x) * x;
-            a += double(d) * d;
-            previous = x;
+        const int64_t centre = int64_t(k) * hop + hop / 2;
+        double e = 0, a = 0, weights = 0;
+        for (int j = -hop + 1; j < hop; ++j) {
+            const int64_t i = centre + j;
+            if (i < 0 || i >= pcm.frames) continue;
+            const double w = 1.0 - std::abs(j) / double(hop);
+            const double x = mono(i), d = x - mono(i - 1);
+            e += w * x * x;
+            a += w * d * d;
+            weights += w;
         }
-        energy[k] = e / hop;
-        attack[k] = a / hop;
+        energy[k] = weights > 0 ? e / weights : 0;
+        attack[k] = weights > 0 ? a / weights : 0;
     }
     const double meanEnergy = std::accumulate(energy.begin(), energy.end(), 0.0) / double(hops);
     if (!(meanEnergy > kSilence)) return false;
@@ -105,7 +114,7 @@ bool detectTempo(const PcmBuffer &pcm, double hintBpm, TempoEstimate &out) {
         double last = std::log(floor + (*band)[0]);
         for (size_t k = 1; k < hops; ++k) {
             const double now = std::log(floor + (*band)[k]);
-            onset[k] += std::max(0.0, now - last);
+            onset[k] += std::max(0.0, now - last - kMinRise);
             last = now;
         }
     }
@@ -189,8 +198,10 @@ bool detectTempo(const PcmBuffer &pcm, double hintBpm, TempoEstimate &out) {
 
     const double confidence = (autocorrelation(onset, fit.period) - mean) / (zero - mean);
     out.bpm = hintBpm > 0 ? hintBpm : envelopeRate * 60.0 / fit.period;
-    // A hop's energy rises with an attack inside it: hop k starts at k · hop frames.
-    out.beatOffsetSeconds = std::fmod(fit.phase / envelopeRate, 60.0 / out.bpm);
+    // Frame k's window reaches an attack about a hop before its middle, and its rise spreads over two
+    // frames: on sharp clicks the envelope leads the attack by 0.8 hop, whatever the tempo.
+    const double beat = 60.0 / out.bpm;
+    out.beatOffsetSeconds = std::fmod((fit.phase + kEnvelopeLeadHops) / envelopeRate, beat);
     out.confidence = std::clamp(confidence, 0.0, 1.0);
     return std::isfinite(out.bpm) && out.bpm > 0;
 }

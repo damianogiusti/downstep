@@ -833,6 +833,8 @@ void detectsTheTempoOfAClickTrack() {
         CHECK(circularDistance(offset, c.offset, period) <= 0.010, "%.0f BPM: offset %.4f, beats at %.4f", c.bpm, offset,
               std::fmod(c.offset, period));
         CHECK(confidence > 0.3, "%.0f BPM: confidence %.3f", c.bpm, confidence);
+        std::printf("     %.0f BPM: %.3f BPM, offset %+.1f ms, confidence %.2f\n", c.bpm, bpm,
+                    1000 * (std::fmod(offset - c.offset + 10 * period + period / 2, period) - period / 2), confidence);
         // A typed tempo keeps its value: only the phase is found.
         double typed = c.bpm;
         CHECK(sd_engine_detect_tempo(e, &typed, &offset, &confidence) == 1 && typed == c.bpm, "typed %.0f gave %.3f",
@@ -850,12 +852,19 @@ void noTempoInSilenceOrNoise() {
             seed = seed * 1664525u + 1013904223u;
             x = float(0.3 * (double(seed >> 8) / double(1u << 24) - 0.5));
         }
-    for (auto *pcm : {&noise}) {
+    const PcmBuffer tone = toneOnTheLeft(20);
+    // As a 16-bit file decodes: both sides, quantised.
+    PcmBuffer quantised = silence(10);
+    for (int64_t i = 0; i < quantised.frames; ++i)
+        quantised.data[0][size_t(i)] = quantised.data[1][size_t(i)] =
+            float(int(16000 * std::sin(2 * M_PI * 441 * double(i) / kRate))) / 32768.f;
+    for (const auto &[name, pcm] : {std::pair<const char *, const PcmBuffer *>{"noise", &noise}, {"a steady tone", &tone},
+                                    {"a 16-bit tone", &quantised}}) {
         SdEngine *e = openInMemory(*pcm);
         double bpm = 0, offset = 0, confidence = 0;
-        CHECK(sd_engine_detect_tempo(e, &bpm, &offset, &confidence) == 0, "noise: %.2f BPM (confidence %.3f)", bpm,
+        CHECK(sd_engine_detect_tempo(e, &bpm, &offset, &confidence) == 0, "%s: %.2f BPM (confidence %.3f)", name, bpm,
               confidence);
-        CHECK(bpm == 0 && offset == 0 && confidence == 0, "outputs not cleared");
+        CHECK(bpm == 0 && offset == 0 && confidence == 0, "%s: outputs not cleared", name);
         sd_engine_destroy(e);
     }
     SdEngine *quiet = openInMemory(silence(20));
