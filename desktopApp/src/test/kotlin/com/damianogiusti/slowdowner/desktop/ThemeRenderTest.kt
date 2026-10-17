@@ -170,6 +170,41 @@ class ThemeRenderTest {
         assertEquals(null, themeStore.readThemeId())
     }
 
+    @Test
+    fun `the pointer's theme wins over the keyboard's, leaving falls back to it, and Enter applies what shows`() {
+        openPlayer()
+        click(THEME_BUTTON)
+        frames(3)
+        // Keyboard on Midnight (two down from the checked Downstep), pointer on Forest: Forest shows.
+        key(Key.DirectionDown)
+        key(Key.DirectionDown)
+        frames(2)
+        hover(rowCentre(FOREST_ROW))
+        val hovered = frames(3)
+        assertColorNear(hovered, 4, hovered.height - 4, themeById("forest").dark.bg.rgb(), "background with the pointer on Forest")
+
+        // Off the menu with the focus still inside: the focused Midnight, not the chosen Downstep.
+        hover(Offset(200f * SCALE, 600f * SCALE))
+        val left = frames(3, "theme-menu-pointer-left-keyboard-stays.png")
+        assertColorNear(left, 4, left.height - 4, themeById("midnight").dark.bg.rgb(), "background after the pointer left")
+
+        // A key moves the preview even under the pointer (Up: Graphite), the pointer moving takes it back.
+        hover(rowCentre(FOREST_ROW))
+        frames(2)
+        key(Key.DirectionUp)
+        val keyed = frames(3)
+        assertColorNear(keyed, 4, keyed.height - 4, themeById("graphite").dark.bg.rgb(), "background after Up under the pointer")
+        hover(rowCentre(FOREST_ROW) + Offset(4f, 0f))
+        frames(2)
+
+        // Enter applies Forest, which shows, though the focus is on Graphite.
+        key(Key.Enter)
+        hover(Offset(200f * SCALE, 600f * SCALE))
+        val applied = frames(4)
+        assertColorNear(applied, 4, applied.height - 4, themeById("forest").dark.bg.rgb(), "background after Enter")
+        assertEquals("forest", themeStore.readThemeId())
+    }
+
     /** A 30 s track with three loops, as PlayerRenderTest, in a scene whose root follows the ThemeViewModel. */
     private fun openPlayer() {
         val audio = File(Files.createTempDirectory("downstep-theme-audio").toFile(), "Easy Blues.wav")
