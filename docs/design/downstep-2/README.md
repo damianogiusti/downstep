@@ -295,10 +295,11 @@ editor. §6 lists the EQ as outside the prototype; this is its design.
 - **Saved per track:** an edit is saved (after a 500 ms pause) with the track it was made on
   (`track_practice_state.eq_curve`, JSON); a track without its own plays the **global EQ** (the preferences), which
   is also what is edited when no track is open and the EQ of a track outside the library. Switching tracks loads the
-  new track's EQ; an edit still waiting is saved to its own track first. The sheet's subtitle says which one is being
+  new track's EQ; an edit still waiting is saved to its own track first. Only a changed curve becomes the track's
+  own: a quality change alone leaves a track on the global EQ. The sheet's subtitle says which one is being
   edited.
 - **Presets** save the track's EQ with them (`practice_presets.eq_curve`); applying one makes it the track's EQ, as
-  an edit would. Presets saved before keep no EQ and leave it alone.
+  an edit would (also when applied while the track's EQ is still loading). Presets saved before keep no EQ and leave it alone.
 - **Migration:** the first EQ's preferences (seven gains, preamp, switch) become the global curve on first read: the
   five middle bands map exactly (they were Q 1 bells); the end shelves become broad bells (Q 0.7) at 60 Hz and 15 kHz,
   which keep the gain at their frequency (below 60 Hz and above 15 kHz the old shelf held its gain where the bell
