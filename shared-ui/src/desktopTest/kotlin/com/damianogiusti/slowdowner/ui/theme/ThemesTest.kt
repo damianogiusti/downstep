@@ -27,6 +27,20 @@ class ThemesTest {
     }
 
     @Test
+    fun `Downstep keeps the design's accents but for the light ones darkened to AA`() {
+        // Dark: palette.json as it is.
+        assertEquals(Color(0xFFF2A541), DarkTokens.amber)
+        assertEquals(Color(0xFFFFB85A), DarkTokens.amberHover)
+        assertEquals(Color(0xFF62B6B0), DarkTokens.teal)
+        // Light: palette.json's A86400, 8F5500 and 2D7C77 were not AA as small text (ThemeContrastTest).
+        assertEquals(Color(0xFF935100), LightTokens.amber)
+        assertEquals(Color(0xFF7B4200), LightTokens.amberHover)
+        assertEquals(Color(0xFF23746F), LightTokens.teal)
+        assertEquals(listOf(Color(0xFF935100), Color(0xFF23746F), Color(0xFFB0533A), Color(0xFF3F7A5A)), LightTokens.loopColors)
+        assertEquals(Color(0xFF935100).copy(alpha = 0.28f), LightTokens.amberGlow)
+    }
+
+    @Test
     fun `an unknown id falls back to Downstep`() {
         assertSame(DownstepTheme, themeById("from-a-newer-version"))
         assertSame(DownstepTheme, themeById(""))
@@ -59,12 +73,12 @@ class ThemesTest {
         assertEquals(Color(0xFFFF6B6B), dark.error)
         assertEquals(Color(0xFF410002), dark.onError)
         assertEquals(Color(0xFFFFDAD6), dark.onErrorContainer)
-        assertEquals(Color(0xFFA86400), dark.inversePrimary)
+        assertEquals(Color(0xFF935100), dark.inversePrimary)
         assertEquals(Color(0xFF3B424C), dark.surfaceBright)
         assertEquals(Color(0xFF0B0D10), dark.surfaceContainerLowest)
 
         val light = DownstepTheme.material(ThemeMode.Light)
-        assertEquals(Color(0xFFA86400), light.primary)
+        assertEquals(Color(0xFF935100), light.primary)
         assertEquals(Color.White, light.onSecondary)
         assertEquals(Color(0xFFCDEEEA), light.tertiaryContainer)
         assertEquals(Color(0xFF00201E), light.onTertiaryContainer)
