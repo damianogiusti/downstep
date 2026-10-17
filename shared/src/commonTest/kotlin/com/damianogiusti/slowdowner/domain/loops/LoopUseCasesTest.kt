@@ -238,6 +238,21 @@ class LoopUseCasesTest {
     }
 
     @Test
+    fun `when a loop is grabbed on the waveform then it becomes active keeping the playhead and looping off`() = runTest {
+        nowPlaying.set(song)
+        createLoop("a", LoopBounds(0.1f, 0.2f))
+        val second = createLoop("a", LoopBounds(0.5f, 0.6f))!!
+        engine.setLoopOn(false)
+        engine.seekTo(0.3f)
+
+        setActive("a", second.id, seekToStart = false, loopOn = false)
+
+        assertEquals(second.id, repository.trackLoops("a").activeLoopId)
+        assertEquals(0.3f, engine.position)
+        assertEquals(LoopRegion(0.5f, 0.6f, isOn = false), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+    }
+
+    @Test
     fun `when no loop is activated then looping turns off`() = runTest {
         nowPlaying.set(song)
         createLoop("a", LoopBounds(0.1f, 0.2f))
