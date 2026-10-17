@@ -534,12 +534,13 @@ class PlayerViewModel(
 
     /**
      * A click (no drag) on a loop's top bar: "play this loop". It becomes active, looping, from its
-     * start, and plays, also when paused. On the loop already playing in a loop the click is just a
-     * click inside it: it seeks to [position] there.
+     * start, and plays, also when paused. On the loop already being looped the click is just a click
+     * inside it: it seeks to [position] there and, as any click inside the loop, leaves playing or
+     * paused as it was (README §7.2: when paused, only another loop's bar starts playback).
      */
     fun onLoopBarClicked(loopId: Long, position: Float) = editLoops { track, trackLoops ->
         val loop = trackLoops.loops.firstOrNull { it.id == loopId } ?: return@editLoops
-        if (loop.id == trackLoops.activeLoopId && engine.isLoopOn && engine.isPlaying) {
+        if (loop.id == trackLoops.activeLoopId && engine.isLoopOn) {
             onIntervention()
             engine.seekTo(position.coerceIn(loop.start, loop.end))
             return@editLoops

@@ -439,6 +439,21 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `a click on the bar of the looped loop while paused seeks within it and stays paused`() = runTest(main) {
+        val viewModel = openWithLoop()
+        assertTrue(engine.isLoopOn)
+        assertFalse(engine.isPlaying)
+
+        viewModel.onLoopBarClicked(loopRepository.loops.value.single().id, 0.35f)
+        runCurrent()
+
+        assertEquals(0.35f, engine.position)
+        assertTrue(engine.isLoopOn)
+        assertFalse(engine.isPlaying, "when paused only another loop's bar starts playback")
+        assertFalse(viewModel.transport.value.isPlaying)
+    }
+
+    @Test
     fun `a click on the active loop's bar with the loop off plays it again from A`() = runTest(main) {
         val viewModel = openWithLoop()
         engine.isPlaying = true

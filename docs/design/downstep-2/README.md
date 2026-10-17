@@ -129,7 +129,7 @@ list with artwork tile, title, meta (source · loop count); the current track is
 |---|---|---|
 | Overview waveform | click inside the looping loop | seek there, keep looping |
 | Overview waveform | click anywhere else (another loop's body too) | Loop off, seek there; playing or paused stays as it was |
-| Loop top bar (overview) | click (no drag) | play this loop: active, Loop on, from its A, playing (on the loop already playing in a loop: seek within it) |
+| Loop top bar (overview) | click (no drag) | play this loop: active, Loop on, from its A, playing (on the loop already being looped: seek within it, playing or paused as it was) |
 | Loop top bar (overview) | drag | move the whole loop, keeping its length, clamped to the track; a loop that is not active becomes active |
 | Zoom waveform | click | seek playhead |
 | A or B line (either waveform; any loop on the overview) | drag | move loop edge freely (no beat grid); A can't cross B (min 0.5% apart, at least 1 s); a loop that is not active becomes active |
@@ -293,7 +293,8 @@ less is a click. On the overview a click means:
 - anywhere else, including another loop's body below its top bar: **Loop off** and seek there (the loop stays
   selected); playback goes on if it was playing and stays paused if it was paused;
 - on a loop's **top bar**: *play this loop*: it becomes active, Loop on, the playhead jumps to its A and playback
-  starts (also when paused). On the loop that is already playing in a loop it is a click inside it (seek there);
+  starts (also when paused). On the loop that is already being looped it is a click inside it: seek there, and
+  playing or paused stays as it was (when paused, only another loop's bar starts playback);
 - on an edge of the active loop: a seek kept inside the loop (a click just outside B does not turn the loop off).
 
 **Rename in place**: a double click on a loop chip (or *Rename* in its menu) turns the name into a text field with

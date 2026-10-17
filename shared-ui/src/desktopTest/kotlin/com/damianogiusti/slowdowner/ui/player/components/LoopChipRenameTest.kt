@@ -128,6 +128,25 @@ class LoopChipRenameTest {
     }
 
     @Test
+    fun `when Rename is chosen in the chip's menu then the name is edited in place`() = scene {
+        sendPointerEvent(PointerEventType.Press, ON_SOLO, button = PointerButton.Secondary)
+        next()
+        sendPointerEvent(PointerEventType.Release, ON_SOLO, button = PointerButton.Secondary)
+        next()
+        next()
+        click(ON_MENU_RENAME)
+        next()
+
+        assertTrue(selects.isEmpty(), "the right click opens the menu, it does not select")
+        assertTrue(typing.isTyping, "the field has the focus once the menu is gone")
+        // The menu fades out first: until it is gone it holds the keyboard.
+        repeat(MENU_EXIT_FRAMES) { next() }
+        type("Riff")
+        key(Key.Enter)
+        assertEquals(listOf(1L to "Riff"), renames)
+    }
+
+    @Test
     fun `when a name is saved then it is trimmed, capped, and an empty or unchanged one is kept`() {
         assertEquals("Riff", loopNameEdit("Solo", "  Riff ", save = true))
         assertEquals(Loop.MAX_NAME_LENGTH, loopNameEdit("Solo", "x".repeat(60), save = true)?.length)
@@ -204,5 +223,8 @@ class LoopChipRenameTest {
         val ON_SOLO = Offset(50f, 29f)
         val IN_FIELD = Offset(60f, 29f)
         val OUTSIDE = Offset(300f, 250f)
+        // The menu opens under the chip; Rename is its first item (8 px padding, 48 px rows).
+        val ON_MENU_RENAME = Offset(60f, 46f + 8f + 24f)
+        const val MENU_EXIT_FRAMES = 40
     }
 }
