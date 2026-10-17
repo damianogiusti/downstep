@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.desktop.windows
 
 import androidx.compose.ui.unit.IntRect
+import java.awt.Dimension
 
 /** An edge of the screen, where an auto-hide taskbar may wait. */
 enum class ScreenEdge { Left, Top, Right, Bottom }
@@ -42,3 +43,16 @@ fun captionlessClientArea(
 
 /** Left free on an auto-hide taskbar's edge, for the pointer to reach it: as Windows' own frame leaves. */
 const val AUTO_HIDE_GAP = 2
+
+/**
+ * The smallest window size Windows lets the user drag to (MINMAXINFO's ptMinTrackSize), from
+ * [current] (what the window procedure before ours answered) and [minimum] in AWT units, like dp:
+ * [minimum] at [dpi], or [current] where that is larger.
+ */
+fun minimumTrackSize(current: Dimension, minimum: Dimension, dpi: Int): Dimension = Dimension(
+    maxOf(current.width, (minimum.width * dpi + DEFAULT_DPI / 2) / DEFAULT_DPI),
+    maxOf(current.height, (minimum.height * dpi + DEFAULT_DPI / 2) / DEFAULT_DPI),
+)
+
+/** Windows' 100 %. */
+const val DEFAULT_DPI = 96

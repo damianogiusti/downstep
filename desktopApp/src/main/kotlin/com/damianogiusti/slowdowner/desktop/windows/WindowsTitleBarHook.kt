@@ -14,6 +14,7 @@ import com.sun.jna.platform.win32.WinDef.WPARAM
 import com.sun.jna.platform.win32.WinUser.MONITORINFO
 import com.sun.jna.platform.win32.WinUser.WNDENUMPROC
 import com.sun.jna.platform.win32.WinUser.WindowProc
+import java.awt.Dimension
 import java.awt.EventQueue
 import java.util.concurrent.ConcurrentHashMap
 
@@ -73,6 +74,10 @@ class WindowsTitleBarHook private constructor(
 
     @Volatile
     override var listener: CaptionlessWindow.Listener? = null
+
+    /** The window's minimum size in AWT units (dp), held at the window's DPI whatever AWT asks for. */
+    @Volatile
+    var minimumSize: Dimension? = null
 
     private val user32 = User32Api.INSTANCE
 
@@ -208,6 +213,12 @@ class WindowsTitleBarHook private constructor(
                     extendFrame()
                     return result
                 }
+                // AWT (JDK 17) passes its minimum size on in pixels: at 125% the window would shrink to 80% of it.
+                Win32.WM_GETMINMAXINFO -> {
+                    val result = callPrevious(h, message, wParam, lParam)
+                    minimumSize?.let { minimum -> raiseMinimumTrackSize(Pointer(lParam.toLong()), minimum, dpiOf(h)) }
+                    return result
+                }
                 // Fullscreen covers its monitor whatever moves or sizes the window (Win+Shift+arrows,
                 // a DPI change and AWT's suggested rect, AWT itself).
                 Win32.WM_WINDOWPOSCHANGING -> if (isFullscreen && !user32.IsIconic(h)) coverMonitor(h, Pointer(lParam.toLong()))
@@ -297,6 +308,20 @@ class WindowsTitleBarHook private constructor(
             resizeBorder = resizeBorder(hwnd),
         )
         return titleBarHitTest(inContent.x, inContent.y, regions, state, fromTop = inWindow.y, fromLeft = inWindow.x)
+    }
+
+    private fun dpiOf(h: HWND): Int = try {
+        user32.GetDpiForWindow(h).takeIf { it > 0 } ?: DEFAULT_DPI
+    } catch (_: UnsatisfiedLinkError) {
+        DEFAULT_DPI
+    }
+
+    /** MINMAXINFO's ptMinTrackSize, after ptReserved, ptMaxSize and ptMaxPosition, raised to [minimum] at [dpi]. */
+    private fun raiseMinimumTrackSize(info: Pointer, minimum: Dimension, dpi: Int) {
+        val current = Dimension(info.getInt(24), info.getInt(28))
+        val raised = minimumTrackSize(current, minimum, dpi)
+        info.setInt(24, raised.width)
+        info.setInt(28, raised.height)
     }
 
     /** The system's resize border at the window's DPI: the top edge's thickness, and a maximized window's overhang. */

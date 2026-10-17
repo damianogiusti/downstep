@@ -347,11 +347,9 @@ Open in the app (§7.7–§7.10), checked by tests and on one Windows 11 machine
   has no snap layouts flyout; only Windows 11 was used.
 - **macOS and Linux** fullscreen and title bars are covered by the tests; the screenshots of this round are from
   Windows only.
-- **The minimum size is not scaled on Windows.** At 125% the window resizes, by its border too, down to
-  1000 × 600 *pixels* (800 × 480 dp, 984 × 592 px visible), not the 1000 × 600 dp `MinimumWindowSize` asks for: the
-  minimum set on the AWT window acts in device pixels here. Seen in the real app while taking the fit shots; not
-  checked whether `main` (without the title bar hook) does the same. `fit-minimum.png` is taken at the intended
-  1000 × 600 dp.
+- **The minimum size drag not tried by hand after its fix.** The window reports 1250 × 750 px as its smallest drag
+  size at 125% (`WM_GETMINMAXINFO`, §7.10), which Windows' own resize loop holds; a drag of the border could not be
+  sent from the automation used here. Without the hook (fallback, error screen) AWT's minimum stays in pixels.
 
 ---
 
@@ -702,6 +700,9 @@ On Windows the app's header is the window's title bar (§2.1). The design of `wi
 - **Safety:** nothing escapes a window procedure (an exception would crash the JVM): it is logged once and Windows'
   own answer is used. The hook stays referenced until `WM_NCDESTROY`, where the window gets its previous procedure
   back: a JNA callback collected while Windows can still call it would crash.
+- **Minimum size:** AWT (JDK 17) hands Windows its minimum size in device pixels, so at 125% the window could be
+  dragged down to 800 × 480 dp. The hook raises `WM_GETMINMAXINFO`'s minimum track size to `MinimumWindowSize` at the
+  window's DPI (`minimumTrackSize`, `CaptionlessFrameTest`), so the minimum holds in dp on any monitor.
 - **Fallback:** if the hook cannot be installed (no native window, a failed call), the failure is logged and the
   window keeps Windows' title bar and AWT's fullscreen, as before. The "engine not available" screen has no header,
   so it keeps the system title bar too.

@@ -128,6 +128,7 @@ internal object Win32 {
     const val WM_MOUSEMOVE = 0x0200
     const val WM_SYSCOMMAND = 0x0112
     const val WM_DPICHANGED = 0x02E0
+    const val WM_GETMINMAXINFO = 0x0024
     const val WM_WINDOWPOSCHANGING = 0x0046
     const val WM_DISPLAYCHANGE = 0x007E
     const val WM_TIMER = 0x0113

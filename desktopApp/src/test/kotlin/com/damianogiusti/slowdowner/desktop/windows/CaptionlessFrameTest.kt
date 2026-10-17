@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.desktop.windows
 
 import androidx.compose.ui.unit.IntRect
+import java.awt.Dimension
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -61,5 +62,19 @@ class CaptionlessFrameTest {
         val monitor = IntRect(0, 0, 1920, 1080)
         assertEquals(monitor, captionlessClientArea(monitor, IntRect(0, 0, 1920, 1080), isMaximized = false, isFullscreen = true, maximizedTopInset = 8))
         assertEquals(monitor, captionlessClientArea(monitor, IntRect(8, 31, 1912, 1072), isMaximized = true, isFullscreen = true, maximizedTopInset = 8))
+    }
+
+    @Test
+    fun `the minimum size holds in dp at any scale`() {
+        val minimum = Dimension(1000, 600)
+        assertEquals(Dimension(1000, 600), minimumTrackSize(Dimension(1000, 600), minimum, dpi = 96))
+        // 125 %: AWT asked for its dp as pixels.
+        assertEquals(Dimension(1250, 750), minimumTrackSize(Dimension(1000, 600), minimum, dpi = 120))
+        assertEquals(Dimension(1500, 900), minimumTrackSize(Dimension(136, 39), minimum, dpi = 144))
+    }
+
+    @Test
+    fun `a larger minimum from before stays`() {
+        assertEquals(Dimension(1300, 800), minimumTrackSize(Dimension(1300, 800), Dimension(1000, 600), dpi = 120))
     }
 }

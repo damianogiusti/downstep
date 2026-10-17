@@ -145,6 +145,7 @@ fun main() {
             LaunchedEffect(Unit) {
                 // From the screen the window opens on: restored bounds may be on a smaller one than the primary.
                 window.minimumSize = minimumWindowSize(initialBounds, screens)
+                titleBarHook?.minimumSize = window.minimumSize
                 window.useTransparentTitleBar()
                 window.useAppIcon()
                 // A key held while switching away is released in the other app: forget it.
