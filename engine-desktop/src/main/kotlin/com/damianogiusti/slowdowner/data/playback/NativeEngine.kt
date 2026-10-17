@@ -181,6 +181,36 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
             if (exporter == MemorySegment.NULL) null else NativeExport(api, exporter)
         }
 
+    /**
+     * The current sound settings, frozen for a batch of exports: each [beginExport] given them sounds
+     * the same, whatever changes meanwhile. Null if out of memory. [ExportSettings.close] frees them.
+     */
+    fun captureExportSettings(): ExportSettings? {
+        val settings = api.exportCaptureSettings.invokeExact(handle) as MemorySegment
+        return if (settings == MemorySegment.NULL) null else ExportSettings(api, settings)
+    }
+
+    /** As [beginExport] for [start]..[end], with [settings] taken earlier instead of the current ones. */
+    fun beginExport(path: String, start: Double, end: Double, settings: ExportSettings, bitrateKbps: Int = 192): NativeExport? =
+        Arena.ofConfined().use { arena ->
+            check(!settings.isClosed) { "export settings already freed" }
+            val utf8Path: MemorySegment = arena.allocateFrom(path)
+            val exporter = api.exportBeginRangeWith.invokeExact(handle, utf8Path, bitrateKbps, start, end, settings.segment) as MemorySegment
+            if (exporter == MemorySegment.NULL) null else NativeExport(api, exporter)
+        }
+
+    /** Sound settings taken by [captureExportSettings]. */
+    class ExportSettings internal constructor(private val api: Api, internal val segment: MemorySegment) : AutoCloseable {
+        internal var isClosed = false
+            private set
+
+        override fun close() {
+            if (isClosed) return
+            isClosed = true
+            api.exportSettingsFree.invokeExact(segment)
+        }
+    }
+
     /** One MP3 export in progress. Call [next] until it returns null, then [finish]. */
     class NativeExport internal constructor(private val api: Api, private val exporter: MemorySegment) {
         private var isFinished = false
@@ -296,6 +326,10 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         val render = function("sd_engine_render", JAVA_INT, ADDRESS, ADDRESS, JAVA_INT)
         val exportBegin = function("sd_export_begin", ADDRESS, ADDRESS, ADDRESS, JAVA_INT)
         val exportBeginRange = function("sd_export_begin_range", ADDRESS, ADDRESS, ADDRESS, JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE)
+        val exportCaptureSettings = function("sd_export_capture_settings", ADDRESS, ADDRESS)
+        val exportSettingsFree = function("sd_export_settings_free", null, ADDRESS)
+        val exportBeginRangeWith =
+            function("sd_export_begin_range_with", ADDRESS, ADDRESS, ADDRESS, JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE, ADDRESS)
         val exportNext = function("sd_export_next", JAVA_DOUBLE, ADDRESS)
         val exportEnd = function("sd_export_end", JAVA_INT, ADDRESS)
 

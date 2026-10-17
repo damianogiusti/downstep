@@ -41,6 +41,11 @@ class DefaultExportRepository(
         var current: File? = null
         var isComplete = false
         try {
+            // One sound for the whole batch: an EQ or mix change while it runs reaches no file of it.
+            if (!renderer.beginBatch()) {
+                logger.e("Export failed", properties = properties + ("stage" to "settings"))
+                return@withContext ExportResult.Failure(IOException("Cannot start export"))
+            }
             var done = 0f
             items.forEachIndexed { index, item ->
                 val target = File(exportDir, item.fileName)
@@ -79,6 +84,7 @@ class DefaultExportRepository(
             logger.failure("Export failed", e, properties + ("stage" to "render"))
             return@withContext ExportResult.Failure(e)
         } finally {
+            renderer.endBatch()
             // All or nothing: a cancelled or failed batch leaves no file behind.
             if (!isComplete) {
                 current?.delete()

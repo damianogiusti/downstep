@@ -177,6 +177,40 @@ class DefaultExportRepositoryTest {
     }
 
     @Test
+    fun `when a batch exports then the sound settings are taken once for all its files and let go`() = runTest {
+        repository().exportOpenTrack(listOf(ExportItem("A.mp3"), ExportItem("B.mp3", 0f, 0.5f), ExportItem("C.mp3", 0.5f, 1f))) {}
+
+        assertEquals(1, renderer.batches)
+        assertEquals(listOf(true, true, true), renderer.beginsInBatch)
+        assertFalse(renderer.isInBatch)
+    }
+
+    @Test
+    fun `when a batch fails or is cancelled then its settings are let go too`() = runTest {
+        renderer.canBegin = { index -> index == 0 }
+        repository().exportOpenTrack(listOf(ExportItem("A.mp3"), ExportItem("B.mp3", 0f, 0.5f))) {}
+        assertFalse(renderer.isInBatch)
+
+        renderer.canBegin = { true }
+        renderer.error = { CancellationException("cancelled") }
+        runCatching { repository().exportOpenTrack(single("A.mp3")) {} }
+        assertEquals(2, renderer.batches)
+        assertFalse(renderer.isInBatch)
+    }
+
+    @Test
+    fun `when the sound settings cannot be taken then nothing is rendered`() = runTest {
+        renderer.canBeginBatch = false
+
+        val result = repository().exportOpenTrack(single("Song.mp3")) {}
+
+        assertTrue(result is ExportResult.Failure)
+        assertTrue(renderer.begins.isEmpty())
+        assertFalse(renderer.isInBatch)
+        assertEquals("settings", logger.at('E').single().properties["stage"])
+    }
+
+    @Test
     fun `when the copy fails then saving returns false`() = runTest {
         documents.error = IOException("denied")
 
@@ -219,13 +253,29 @@ class DefaultExportRepositoryTest {
         var completes: (Int) -> Boolean = { true }
         val begins = mutableListOf<Triple<String, Float, Float>>()
         var ends = 0
+        var canBeginBatch = true
+        var batches = 0
+        var isInBatch = false
+        /** For each [begin]: whether it rendered with a batch's settings. */
+        val beginsInBatch = mutableListOf<Boolean>()
         val isEnded get() = ends > 0
         private var output: File? = null
         private val steps = ArrayDeque<Float>()
 
+        override fun beginBatch(): Boolean {
+            batches++
+            isInBatch = canBeginBatch
+            return canBeginBatch
+        }
+
+        override fun endBatch() {
+            isInBatch = false
+        }
+
         override fun begin(outputPath: String, start: Float, end: Float): Boolean {
             val index = begins.size
             begins += Triple(outputPath, start, end)
+            beginsInBatch += isInBatch
             output = File(outputPath)
             steps.clear()
             steps += listOf(0.5f, 1f)

@@ -161,6 +161,29 @@ class NativeEngineTest {
     }
 
     @Test
+    fun `a batch's settings are taken once and outlast a change`() {
+        NativeEngine.manual(RATE).use { native ->
+            assertTrue(native.open(file.path))
+            native.setSpeed(1.0)
+            val renderer = NativeOfflineRenderer(native)
+            assertTrue(renderer.beginBatch())
+            native.setSpeed(0.5) // during the batch: none of its files hears it
+            val output = File.createTempFile("native-export-batch", ".mp3")
+            assertTrue(renderer.begin(output.path, 0.25f, 0.75f))
+            while (renderer.renderNext() != null) Unit
+            assertTrue(renderer.end())
+            renderer.endBatch()
+            renderer.endBatch() // twice is harmless
+            NativeEngine.manual(RATE).use { reader ->
+                assertTrue(reader.open(output.path))
+                // Half of a 2 s file at the speed the batch took (100%): 1 s, not 2 s.
+                assertEquals(1.0, reader.durationSeconds, 0.1)
+            }
+            output.delete()
+        }
+    }
+
+    @Test
     fun `an empty range exports nothing`() {
         NativeEngine.manual(RATE).use { native ->
             assertTrue(native.open(file.path))

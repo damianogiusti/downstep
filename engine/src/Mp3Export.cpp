@@ -37,6 +37,10 @@ void fadeOut(float *const *out, int frames, int length) {
 
 } // namespace
 
+struct SdExportSettings {
+    Player::Settings settings;
+};
+
 struct SdExport {
     std::unique_ptr<Player> player;
     lame_t lame = nullptr;
@@ -70,8 +74,24 @@ SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitr
     return sd_export_begin_range(engine, utf8OutputPath, bitrateKbps, 0.0, 1.0);
 }
 
+SdExportSettings *sd_export_capture_settings(SdEngine *engine) try {
+    return new SdExportSettings{sdEnginePlayer(engine)->settings()};
+} catch (...) {
+    return nullptr;
+}
+
+void sd_export_settings_free(SdExportSettings *settings) { delete settings; }
+
 SdExport *sd_export_begin_range(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps, double start,
-                                double end) try {
+                                double end) {
+    // A file on its own: the settings as they are now.
+    const SdExportSettings now{sdEnginePlayer(engine)->settings()};
+    return sd_export_begin_range_with(engine, utf8OutputPath, bitrateKbps, start, end, &now);
+}
+
+SdExport *sd_export_begin_range_with(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps, double start,
+                                     double end, const SdExportSettings *frozen) try {
+    if (!frozen) return nullptr;
     start = std::clamp(start, 0.0, 1.0);
     end = std::clamp(end, 0.0, 1.0);
     if (!(end > start)) return nullptr;
@@ -90,8 +110,9 @@ SdExport *sd_export_begin_range(SdEngine *engine, const char *utf8OutputPath, in
     if (!exporter->player->open(std::move(open.source), open.path)) return nullptr;
     // The sound settings only: the loop and the practice aids the live player plays on top of the
     // music (metronome, count-in, Isolate) never reach the export's player. They are not in
-    // Player::Settings, and a new player starts with no tempo, no metronome and no count-in.
-    const Player::Settings settings = source->settings();
+    // Player::Settings, and a new player starts with no tempo, no metronome and no count-in. They
+    // were taken once for the whole batch: every file of it sounds the same.
+    const Player::Settings settings = frozen->settings;
     exporter->player->applySettings(settings);
 
     // The export's player runs at the file's rate, so the output lasts the range's frames over the

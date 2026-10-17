@@ -326,9 +326,11 @@ choice is offered again until the app quits.
   and no trailing dot, the title capped
   at 80 characters and the loop name at 40), and a name that still repeats another, ignoring case, gets " (2)".
 - **Sound.** A loop file is its A→B slice with exactly the full export's processing: speed, pitch, L/R mix, EQ
-  curve and preamp. It lasts (B − A) / speed, starts with the player's 10 ms fade-in and ends with a 10 ms fade-out,
-  so the cut never clicks. The engine renders every file of the batch from the one decoded buffer already in
-  memory (`sd_export_begin_range`): nothing is decoded again.
+  curve and preamp. It starts at A itself (the time stretcher's run-in before A is dropped), lasts (B − A) / speed,
+  starts with the player's 10 ms fade-in and ends with a 10 ms fade-out, so the cut never clicks. The sound
+  settings are taken once, when the batch starts (`sd_export_capture_settings`): an EQ or mix change made while it
+  runs reaches none of its files, so every file of a batch sounds the same. The engine renders every file of the
+  batch from the one decoded buffer already in memory (`sd_export_begin_range_with`): nothing is decoded again.
 - **Not exported, by decision:** the metronome, the count-in and Isolate. They are practice aids, not part of the
   music: a click or a count-in baked into a file cannot be taken out again, and a count-in would move A away from
   the start of a loop file. The dialog says so.

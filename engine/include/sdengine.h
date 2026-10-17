@@ -146,6 +146,17 @@ SD_API SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, i
  */
 SD_API SdExport *sd_export_begin_range(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps, double start,
                                        double end);
+/**
+ * The engine's current sound settings (speed, pitch, mix, EQ, preamp), frozen: a batch of exports
+ * takes them once and passes them to each file, so a change made while the batch runs reaches none
+ * of its files. NULL if out of memory. Free it with sd_export_settings_free.
+ */
+typedef struct SdExportSettings SdExportSettings;
+SD_API SdExportSettings *sd_export_capture_settings(SdEngine *engine);
+SD_API void sd_export_settings_free(SdExportSettings *settings);
+/** As sd_export_begin_range, with `settings` (from sd_export_capture_settings) instead of the engine's own. */
+SD_API SdExport *sd_export_begin_range_with(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps,
+                                            double start, double end, const SdExportSettings *settings);
 /** Encodes the next chunk. Returns the progress 0..1 within the range, or -1 once everything is encoded. */
 SD_API double sd_export_next(SdExport *exporter);
 /** Finishes the file and frees the exporter. 1 = complete file, 0 = failed or cut short. */

@@ -1011,6 +1011,34 @@ void sliceHoldsTheRangeAndNothingElse() {
     std::filesystem::remove(source);
 }
 
+void aBatchKeepsTheSettingsItTook(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    sd_engine_set_speed(e, 1.0);
+    SdExportSettings *frozen = sd_export_capture_settings(e);
+    CHECK(frozen != nullptr, "cannot take the settings");
+    // Changed while the batch runs: no file of the batch hears it.
+    sd_engine_set_speed(e, 0.5);
+    sd_engine_set_mix(e, 1.0);
+    const auto output = tempPath("sdengine-slice-frozen.mp3");
+    SdExport *exporter = sd_export_begin_range_with(e, output.c_str(), 192, 0.2, 0.5, frozen);
+    CHECK(exporter != nullptr, "cannot start the slice");
+    if (exporter) {
+        while (sd_export_next(exporter) >= 0) {
+        }
+        CHECK(sd_export_end(exporter) == 1, "slice export incomplete");
+        PcmBuffer decoded;
+        std::string error;
+        CHECK(decodeFile(output, decoded, error), "cannot read the MP3: %s", error.c_str());
+        CHECK(std::fabs(decoded.seconds() - 3.0) < 0.1, "slice lasts %f s, not 3 s at the speed taken", decoded.seconds());
+        if (decoded.data.size() == 2)
+            CHECK(rms(decoded.data[0]) > 0.1, "the left side is gone: the mix changed after the settings were taken");
+    }
+    CHECK(sd_export_begin_range_with(e, output.c_str(), 192, 0.2, 0.5, nullptr) == nullptr, "began with no settings");
+    sd_export_settings_free(frozen);
+    std::filesystem::remove(output);
+    sd_engine_destroy(e);
+}
+
 void sliceExportsShareTheDecodedAudio(const std::string &path) {
     SdEngine *e = openEngine(path);
     const auto shared = sdEnginePlayer(e)->source();
@@ -1542,6 +1570,7 @@ int main() {
         {"slice progress rises within the range", [&] { sliceProgressRisesWithinTheRange(path); }},
         {"a slice holds the range and nothing else", [] { sliceHoldsTheRangeAndNothingElse(); }},
         {"a slice starts at A itself", [] { aSliceStartsAtAItself(); }},
+        {"a batch keeps the settings it took", [&] { aBatchKeepsTheSettingsItTook(path); }},
         {"slice exports share the decoded audio", [&] { sliceExportsShareTheDecodedAudio(path); }},
         {"an empty range exports nothing", [&] { anEmptyRangeExportsNothing(path); }},
         {"metronome clicks on the beat at any speed", [] { metronomeClicksOnTheBeatAtAnySpeed(); }},
