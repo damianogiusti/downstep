@@ -8,6 +8,7 @@ import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
 import javax.swing.JFileChooser
+import javax.swing.UIManager
 
 /**
  * The desktop side of [ActivityActions]: native macOS file dialogs instead of the Android pickers,
@@ -68,11 +69,21 @@ class DesktopActions(
                 System.clearProperty(MAC_FOLDER_DIALOG)
             }
         }
-        val chooser = JFileChooser().apply {
-            fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
-            isAcceptAllFileFilterUsed = false
+        // AWT has no folder dialog there. The chooser takes the system look when it is built (the
+        // Windows one, not Swing's Metal); the app's own look is restored right after.
+        val appLook = UIManager.getLookAndFeel()
+        val chooser = try {
+            runCatching { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()) }
+            JFileChooser().apply {
+                fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+                isAcceptAllFileFilterUsed = false
+            }
+        } finally {
+            runCatching { UIManager.setLookAndFeel(appLook) }
         }
-        return if (chooser.showSaveDialog(window) == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
+        if (chooser.showSaveDialog(window) != JFileChooser.APPROVE_OPTION) return null
+        // Approved from inside a folder with nothing selected: that folder.
+        return chooser.selectedFile ?: chooser.currentDirectory
     }
 
     private fun reveal(file: File) {
