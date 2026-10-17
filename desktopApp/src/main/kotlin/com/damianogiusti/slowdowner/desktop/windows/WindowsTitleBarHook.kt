@@ -152,16 +152,27 @@ class WindowsTitleBarHook private constructor(
                     return LRESULT(hitTest(lParam).toLong())
                 }
                 Win32.WM_NCMOUSEMOVE -> {
+                    stopHoverWatch()
                     trackNonClientLeave()
                     setMaxHovered(wParam.toInt() == HitCode.MAXBUTTON)
                     if (wParam.toInt() != HitCode.MAXBUTTON) setMaxPressed(false)
                 }
                 Win32.WM_NCMOUSELEAVE -> {
                     trackingLeave = false
-                    setMaxHovered(false)
                     setMaxPressed(false)
+                    // The snap layouts flyout opening is a leave too, the pointer still on the button:
+                    // the highlight stays, as on Windows' own button, until the pointer is off it.
+                    if (maxHovered && isCursorOnMaximizeButton()) startHoverWatch() else setMaxHovered(false)
+                }
+                Win32.WM_TIMER -> if (wParam.toLong() == HOVER_TIMER_ID) {
+                    if (!isCursorOnMaximizeButton()) {
+                        stopHoverWatch()
+                        setMaxHovered(false)
+                    }
+                    return LRESULT(0)
                 }
                 Win32.WM_MOUSEMOVE -> {
+                    stopHoverWatch()
                     setMaxHovered(false)
                     setMaxPressed(false)
                 }
@@ -208,6 +219,7 @@ class WindowsTitleBarHook private constructor(
                 }
                 // The window's last message: its procedure goes back to what it was, and the hook may go.
                 Win32.WM_NCDESTROY -> {
+                    stopHoverWatch()
                     val previous = previousProc
                     if (previous != null) user32.SetWindowLongPtrW(h, Win32.GWLP_WNDPROC, previous)
                     // After this callback returns: until then its native code must stay.
@@ -231,6 +243,7 @@ class WindowsTitleBarHook private constructor(
                 // maximize button), the child steps aside so that Windows asks the window.
                 Win32.WM_NCHITTEST -> if (hitTest(lParam) != HitCode.CLIENT) return LRESULT(HitCode.TRANSPARENT.toLong())
                 Win32.WM_MOUSEMOVE -> {
+                    stopHoverWatch()
                     setMaxHovered(false)
                     setMaxPressed(false)
                 }
@@ -266,9 +279,11 @@ class WindowsTitleBarHook private constructor(
     }
 
     /** The hit code for the screen point in [lParam]: see [titleBarHitTest]. */
-    private fun hitTest(lParam: LPARAM): Int {
-        val x = lParam.toInt().toShort().toInt()
-        val y = (lParam.toInt() shr 16).toShort().toInt()
+    private fun hitTest(lParam: LPARAM): Int =
+        hitTest(lParam.toInt().toShort().toInt(), (lParam.toInt() shr 16).toShort().toInt())
+
+    /** The hit code for the screen point ([x], [y]). */
+    private fun hitTest(x: Int, y: Int): Int {
         val inWindow = POINT(x, y)
         if (!user32.ScreenToClient(hwnd, inWindow)) return HitCode.CLIENT
         // Compose's pixels are those of the child it draws in; the window's client area starts at the window's top.
@@ -317,6 +332,27 @@ class WindowsTitleBarHook private constructor(
             hwndTrack = hwnd
         }
         trackingLeave = user32.TrackMouseEvent(event)
+    }
+
+    private fun isCursorOnMaximizeButton(): Boolean {
+        val cursor = POINT()
+        return user32.GetCursorPos(cursor) && hitTest(cursor.x, cursor.y) == HitCode.MAXBUTTON
+    }
+
+    // Toolkit thread only.
+    private var hoverWatch = false
+
+    /** Polls the pointer while it is on the maximize button but no longer tracked (the snap layouts flyout). */
+    private fun startHoverWatch() {
+        if (hoverWatch) return
+        hoverWatch = user32.SetTimer(hwnd, Pointer(HOVER_TIMER_ID), HOVER_WATCH_MILLIS, null) != null
+        if (!hoverWatch) setMaxHovered(false)
+    }
+
+    private fun stopHoverWatch() {
+        if (!hoverWatch) return
+        hoverWatch = false
+        user32.KillTimer(hwnd, Pointer(HOVER_TIMER_ID))
     }
 
     private fun setMaxHovered(hovered: Boolean) {
@@ -506,6 +542,10 @@ class WindowsTitleBarHook private constructor(
 
         /** Posted to the window to cover its monitor again, once a display change settled. */
         private const val WM_REFIT = Win32.WM_APP + 1
+
+        /** The timer that watches the pointer on the maximize button, and how often. */
+        private const val HOVER_TIMER_ID = 0x5D57L
+        private const val HOVER_WATCH_MILLIS = 100
 
         // WINDOWPOS: two handles, then x, y, cx, cy and flags.
         private val WINDOWPOS_X = 2L * com.sun.jna.Native.POINTER_SIZE
