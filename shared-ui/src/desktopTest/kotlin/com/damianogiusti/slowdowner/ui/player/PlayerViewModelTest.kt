@@ -3,8 +3,14 @@ package com.damianogiusti.slowdowner.ui.player
 import androidx.lifecycle.ViewModelStore
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.domain.analysis.AnalyzeSectionsUseCase
+import com.damianogiusti.slowdowner.domain.click.ClickSettings
+import com.damianogiusti.slowdowner.domain.click.ClickTrackEngine
+import com.damianogiusti.slowdowner.domain.click.ObserveClickSettingsUseCase
 import com.damianogiusti.slowdowner.domain.click.SetCountInUseCase
 import com.damianogiusti.slowdowner.domain.click.SetMetronomeUseCase
+import com.damianogiusti.slowdowner.domain.click.TrackTempo
+import com.damianogiusti.slowdowner.domain.click.UpdateClickSettingsUseCase
+import com.damianogiusti.slowdowner.domain.effects.ActiveEq
 import com.damianogiusti.slowdowner.domain.export.ExportItem
 import com.damianogiusti.slowdowner.domain.export.ExportRepository
 import com.damianogiusti.slowdowner.domain.export.ExportResult
@@ -12,7 +18,6 @@ import com.damianogiusti.slowdowner.domain.export.ExportScope
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.ExportedFile
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
-import com.damianogiusti.slowdowner.domain.effects.ActiveEq
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.loops.CreateLoopUseCase
 import com.damianogiusti.slowdowner.domain.loops.DeleteLoopUseCase
@@ -44,10 +49,26 @@ import com.damianogiusti.slowdowner.domain.practice.SavePracticeStateUseCase
 import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
+import com.damianogiusti.slowdowner.domain.tempo.DetectTrackTempoUseCase
+import com.damianogiusti.slowdowner.domain.tempo.TempoDetector
+import com.damianogiusti.slowdowner.domain.tempo.TempoEstimate
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
+import com.damianogiusti.slowdowner.fake.FakeClickEngine
+import com.damianogiusti.slowdowner.fake.FakeClickSettingsRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
 import com.damianogiusti.slowdowner.fake.FakeLoopRepository
 import com.damianogiusti.slowdowner.fake.FakePracticeRepository
+import com.damianogiusti.slowdowner.fake.FakeTempoDetector
+import com.damianogiusti.slowdowner.ui.resources.Res
+import com.damianogiusti.slowdowner.ui.resources.error_click_needs_bpm
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -65,14 +86,6 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerViewModelTest {
@@ -87,6 +100,10 @@ class PlayerViewModelTest {
     /** The decode runs here: nothing advances it until a test does. */
     private val decodeScheduler = TestCoroutineScheduler()
     private val store = ViewModelStore()
+    private val clickSettings = FakeClickSettingsRepository()
+    /** Null: the platform has no click and no tempo detection, as in most tests. */
+    private var clickEngine: ClickTrackEngine? = null
+    private var tempoDetector: TempoDetector? = null
 
     @BeforeTest
     fun setUp() {
@@ -438,6 +455,86 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `with a click engine the detected tempo, metronome and count-in reach the engine`() = runTest(main) {
+        val clicks = FakeClickEngine().also { clickEngine = it }
+        tempoDetector = FakeTempoDetector(TempoEstimate(120f, 0.25f, 0.9f), hintedOffset = 0.1f)
+        val viewModel = openWithLoop()
+
+        assertEquals(PlayerFeatures(canAnalyze = false, hasMetronome = true, hasCountIn = true), viewModel.features)
+        // Detected when the track opened, cached with it, and given to the engine.
+        assertEquals(120f, loopRepository.trackLoops(TRACK.id).detectedBpm)
+        assertEquals(TrackTempo(120f, 0.25f), clicks.tempo)
+        assertEquals(120f, viewModel.header.value.bpm)
+        assertTrue(viewModel.header.value.isBpmDetected)
+        assertFalse(clicks.isMetronomeOn)
+
+        viewModel.onMetronomeToggled()
+        viewModel.onCountInToggled()
+        viewModel.onCountInBeatsChanged(8)
+        viewModel.onCountInEveryLoopToggled()
+        viewModel.onClickVolumeChanged(0.4f)
+        runCurrent()
+        assertTrue(clicks.isMetronomeOn)
+        assertEquals(0.4f, clicks.volume)
+        assertEquals(8, clicks.countInBeats)
+        assertTrue(clicks.countInEveryLoop)
+        assertEquals(ClickUiState(true, true, 0.4f, 8, true), viewModel.clicks.value)
+        assertEquals(ClickSettings(true, 0.4f, true, 8, true), clickSettings.settings.value)
+
+        // A typed tempo wins, and its beats are found in the audio with it as the hint.
+        viewModel.onBpmChanged(92f)
+        runCurrent()
+        assertEquals(TrackTempo(92f, 0.1f), clicks.tempo)
+        assertFalse(viewModel.header.value.isBpmDetected)
+        assertEquals(92f, viewModel.header.value.typedBpm)
+        assertEquals(120f, viewModel.header.value.detectedBpm)
+    }
+
+    @Test
+    fun `the tempo goes with the track and is analysed once`() = runTest(main) {
+        val clicks = FakeClickEngine().also { clickEngine = it }
+        val detector = FakeTempoDetector(TempoEstimate(120f, 0.25f, 0.9f)).also { tempoDetector = it }
+        val viewModel = openWithLoop()
+        clickSettings.settings.value = ClickSettings(isMetronomeOn = true)
+        loopRepository.setBpm(OTHER.id, 100f)
+        loopRepository.setDetectedTempo(OTHER.id, null, DetectTrackTempoUseCase.ANALYSIS_VERSION)
+        runCurrent()
+        assertEquals(TrackTempo(120f, 0.25f), clicks.tempo)
+
+        viewModel.onTrackSelected(OTHER)
+        runCurrent()
+        decodeScheduler.runCurrent()
+        runCurrent()
+
+        assertEquals(TrackTempo(100f, 0f), clicks.tempo)
+        assertTrue(clicks.isMetronomeOn)
+        // OTHER was analysed before: only TRACK's first open ran the analysis.
+        assertEquals(listOf<Float?>(null), detector.requests)
+    }
+
+    @Test
+    fun `the metronome asks for a tempo when the track has none`() = runTest(main) {
+        val clicks = FakeClickEngine().also { clickEngine = it }
+        tempoDetector = FakeTempoDetector(estimate = null)
+        val viewModel = openWithLoop()
+        val messages = mutableListOf<Any>()
+        backgroundScope.launch { viewModel.messages.collect { messages += it.text } }
+
+        viewModel.onMetronomeToggled()
+        runCurrent()
+
+        assertFalse(viewModel.clicks.value.isMetronomeOn)
+        assertFalse(clicks.isMetronomeOn)
+        assertEquals(listOf<Any>(Res.string.error_click_needs_bpm), messages)
+        assertNull(viewModel.header.value.bpm)
+
+        // Count-in needs no tempo: it counts at 120 BPM.
+        viewModel.onCountInToggled()
+        runCurrent()
+        assertEquals(ClickSettings.DEFAULT_COUNT_IN_BEATS, clicks.countInBeats)
+    }
+
+    @Test
     fun `next and previous loop go round in time order`() = runTest(main) {
         val viewModel = openWithLoop()
         val second = assertNotNull(loopRepository.create(TRACK.id, "Later", LoopBounds(0.6f, 0.7f)))
@@ -718,8 +815,13 @@ class PlayerViewModelTest {
                 updateProgression = UpdateLoopProgressionUseCase(loopRepository, engine, nowPlaying),
                 setBpm = SetTrackBpmUseCase(loopRepository),
             ),
-            seams = PracticeSeams(AnalyzeSectionsUseCase(null), SetMetronomeUseCase(null), SetCountInUseCase(null)),
+            seams = PracticeSeams(AnalyzeSectionsUseCase(null), SetMetronomeUseCase(clickEngine), SetCountInUseCase(clickEngine)),
             exports = ExportUseCases(ExportTrackUseCase(engine, nowPlaying, loopRepository, exports), SaveExportUseCase(exports)),
+            clickTrack = ClickUseCases(
+                ObserveClickSettingsUseCase(clickSettings),
+                UpdateClickSettingsUseCase(clickSettings),
+                DetectTrackTempoUseCase(tempoDetector, loopRepository, nowPlaying),
+            ),
             background = main,
         ).also { store.put("player", it) }
     }

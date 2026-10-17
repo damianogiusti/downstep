@@ -8,6 +8,7 @@ import com.damianogiusti.slowdowner.domain.loops.LoopRepository
 import com.damianogiusti.slowdowner.domain.loops.Progression
 import com.damianogiusti.slowdowner.domain.loops.TrackLoops
 import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
+import com.damianogiusti.slowdowner.domain.tempo.TempoEstimate
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -77,6 +78,14 @@ class DefaultLoopRepository(
     }
 
     override suspend fun setBpm(trackId: String, bpm: Float?) = withSettingsRow(trackId) { dao.setBpm(trackId, bpm) }
+
+    override suspend fun setDetectedTempo(trackId: String, estimate: TempoEstimate?, analysisVersion: Int) =
+        withSettingsRow(trackId) {
+            dao.setDetectedTempo(trackId, estimate?.bpm, estimate?.beatOffsetSeconds, analysisVersion)
+        }
+
+    override suspend fun setBeatOffset(trackId: String, offsetSeconds: Float?) =
+        withSettingsRow(trackId) { dao.setBeatOffset(trackId, offsetSeconds) }
 
     // Two statements, no transaction: both are idempotent, and the auto-save's REPLACE in between
     // keeps the loop columns.

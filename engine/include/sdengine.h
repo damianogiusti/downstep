@@ -81,6 +81,37 @@ SD_API void sd_engine_set_isolation(SdEngine *engine, int mask);
 SD_API void sd_engine_set_output_gain(SdEngine *engine, double gain);
 
 /**
+ * The open file's beat grid at 100% speed: beats at beatOffsetSeconds + k·60/bpm seconds of the file,
+ * the first of every `beatsPerBar` accented. bpm <= 0 = no tempo: no metronome clicks, and the
+ * count-in counts at 120 BPM. The engine follows the speed and the loop itself; the grid stays
+ * across sd_engine_open (set it for each track).
+ */
+SD_API void sd_engine_set_tempo(SdEngine *engine, double bpm, double beatOffsetSeconds, int beatsPerBar);
+/**
+ * A click on every beat of the grid while playing, mixed after the time stretch, EQ, Isolate and fades: it is
+ * never stretched, pitched or equalised, and follows loop wraps and seeks. `volume` 0..1 is the
+ * click's own level (the count-in's too); the output gain still applies.
+ */
+SD_API void sd_engine_set_metronome(SdEngine *engine, int enabled, double volume);
+/**
+ * `beats` > 0: that many clicks at the effective tempo (bpm × speed) before playback starts, the
+ * music starting from the requested position one beat after the last click; 0 = off. `everyLoop` = 1:
+ * also at each loop restart (playback stops at the loop end, counts in, and goes on from the loop
+ * start; the position stays at the loop start meanwhile, and there is no SD_EVENT_REACHED_END).
+ */
+SD_API void sd_engine_set_count_in(SdEngine *engine, int beats, int everyLoop);
+/** Count-in clicks still to play; 0 when not counting in. For the UI, from any thread. */
+SD_API int sd_engine_count_in_remaining(const SdEngine *engine);
+/**
+ * Estimates the open file's tempo from its onsets (see TempoDetector.h), over the audio already
+ * decoded. Blocking (a fraction of a second for a song): call it off the UI thread. `*bpm` on entry:
+ * 0 to detect the tempo, or a tempo to keep, of which only the phase is found. Writes the bpm, the
+ * first beat in seconds (0 <= offset < 60/bpm) and a confidence 0..1. Returns 1 when found, 0 when
+ * nothing is open or no steady pulse was found (the outputs are then 0).
+ */
+SD_API int sd_engine_detect_tempo(SdEngine *engine, double *bpm, double *beatOffsetSeconds, double *confidence);
+
+/**
  * Waveform of the open file for drawing: fills `buckets` values 0..1, the peak level of each equal
  * slice of from..to (fractions 0..1 of the file). Cheap (read from a summary made at open) and safe
  * from any thread. Returns the number of values written: `buckets`, or 0 when no file is open.

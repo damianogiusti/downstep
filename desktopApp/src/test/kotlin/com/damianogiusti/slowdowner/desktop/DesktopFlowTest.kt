@@ -153,7 +153,9 @@ class DesktopFlowTest {
         val engine = koin.get<PlaybackEngine>()
         // The ViewModel works on the Swing thread, as in the app.
         SwingUtilities.invokeAndWait { player.onTrackSelected(imported.track) }
-        waitUntil { engine.isOpen }
+        // Until the open is over: the engine opens before the track's saved settings (and position)
+        // are applied, and a late apply would move the playhead back under the test.
+        waitUntil { engine.isOpen && !player.header.value.isLoading }
         val textInput = TextInputFocus()
         val shortcuts = PracticeShortcuts(player, textInput)
 

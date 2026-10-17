@@ -1,18 +1,23 @@
 package com.damianogiusti.slowdowner.domain.click
 
 /**
- * Seam for the design's Metronome and Count-in toggles: a click mixed over the track at its tempo,
- * and bars of clicks before playback starts.
+ * The engine's metronome and count-in: a click mixed over the track on its beat grid, and clicks
+ * before playback starts. The engine follows the playback speed, seeks and loop wraps itself; the
+ * click is never stretched, pitched or equalised, and exports never contain it.
  *
- * There is NO implementation yet: the audio engine has no click generator. DI binds nothing for this
- * interface, so [SetMetronomeUseCase.isAvailable] and [SetCountInUseCase.isAvailable] are false and
- * the UI shows both toggles as unavailable instead of pretending to click. An engine that mixes a
- * click only needs a binding to light them up.
+ * Platforms without one bind nothing: [SetMetronomeUseCase.isAvailable] and
+ * [SetCountInUseCase.isAvailable] are then false and the UI shows both toggles as unavailable.
  */
 interface ClickTrackEngine {
-    /** [bpm] is the track's tempo at 100% speed; the engine follows the playback speed itself. */
-    fun setMetronome(enabled: Boolean, bpm: Float)
+    /** The open track's beat grid at 100% speed; null clears it (no metronome, count-in at 120 BPM). */
+    fun setTempo(tempo: TrackTempo?)
 
-    /** [bars] of 4 clicks before each start of playback. */
-    fun setCountIn(enabled: Boolean, bars: Int, bpm: Float)
+    /** [volume] 0..1, the click's own level (the count-in's too). */
+    fun setMetronome(enabled: Boolean, volume: Float)
+
+    /** [beats] clicks before playback starts (0 = off); [everyLoop] also before each loop restart. */
+    fun setCountIn(beats: Int, everyLoop: Boolean)
+
+    /** Count-in clicks still to play; 0 when not counting in. */
+    val countInRemaining: Int
 }

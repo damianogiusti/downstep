@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Click.h"
 #include "Equalizer.h"
 #include "Isolation.h"
 #include "Pcm.h"
@@ -14,7 +15,7 @@
 
 /**
  * Everything between the decoded file and the output: mix → time stretch → EQ → preamp → isolation
- * → fades.
+ * → fades, then the metronome and count-in clicks on top (never stretched, pitched or equalised).
  *
  * Controls are atomics written by the control thread. render() runs on the audio thread (or the
  * caller's thread in manual mode); it applies the controls at the start of each block and never
@@ -23,8 +24,9 @@
 class Player {
 public:
     /**
-     * Sound settings, to copy one player's sound onto another (export). Isolate is not part of it:
-     * it is a practice aid, like the loop, and an export never carries it.
+     * Sound settings, to copy one player's sound onto another (export). Isolate, the metronome and
+     * the count-in are not here on purpose: they are practice aids, like the loop, and an export never
+     * contains them.
      */
     struct Settings {
         double speed = 1.0;
@@ -86,6 +88,24 @@ public:
     void setOutputGain(double gain) { outputGain_.store(gain); }
 
     /**
+     * The open file's beat grid at 100% speed: beats at beatOffsetSeconds + k·60/bpm of the file, the
+     * first of every `beatsPerBar` accented. bpm <= 0 clears it: no metronome, and the count-in counts
+     * at 120 BPM. It stays across open(), like the speed: the app sets it for each track.
+     */
+    void setTempo(double bpm, double beatOffsetSeconds, int beatsPerBar);
+    /** The click over playback, on the beat grid; `volume` 0..1 is the click's own level (count-in too). */
+    void setMetronome(bool enabled, double volume);
+    /**
+     * `beats` clicks at the effective tempo (bpm × speed) before playback starts, the music then
+     * starting on the beat after the last one; 0 = off. `everyLoop`: also before each restart of the
+     * loop (playback stops at its end, counts in, and goes on from its start; no end event).
+     */
+    void setCountIn(int beats, bool everyLoop);
+    /** Count-in clicks still to play; 0 when not counting in. Any thread. */
+    int countInRemaining() const { return countInRemaining_.load(); }
+    static constexpr int kMaxCountInBeats = 64;
+
+    /**
      * Waveform outline of the open file (see PeakSummary::read). Any thread: it never touches the
      * audio thread's lock. 0 when no file is open, or one was opened from shared audio (export).
      */
@@ -104,6 +124,17 @@ private:
     /** Returns the seek that came with a new loop, or -1. */
     double applyControls();
     void applyFade(float *const *out, int frames, bool fadeIn);
+    /** Music into out[from..frames): stretch, EQ, gain, fade-in. Returns the frames that carry it. */
+    int renderMusic(float *const *out, int from, int frames);
+    void armCountIn(int beats);
+    /** Count-in clicks for out[from..from+frames), which stay silent otherwise. */
+    void countIn(float *const *out, int from, int frames);
+    /** Metronome clicks on the beats crossed by sourcePositions_[from..from+frames). */
+    void placeBeats(int from, int frames);
+    /** Fades out[from..end) to silence at `end`, over at most the usual fade length. */
+    void fadeOutBefore(float *const *out, int end, int from);
+    /** Audio-thread click state back to rest (open, close, stop). */
+    void resetClicks();
 
     const int outputRate_;
     const int maxBlockFrames_;
@@ -151,7 +182,29 @@ private:
     std::atomic<int> isolationMask_{0};
     unsigned appliedEqVersion_ = ~0u;
 
+    // Tempo: travels together, by seqlock like the loop.
+    std::atomic<unsigned> tempoVersion_{0};
+    std::atomic<double> tempoBpm_{0.0}, tempoOffsetSeconds_{0.0};
+    std::atomic<int> tempoBeatsPerBar_{4};
+    unsigned appliedTempoVersion_ = ~0u;
+    std::atomic<bool> metronomeOn_{false};
+    std::atomic<double> clickVolume_{0.7};
+    std::atomic<int> countInBeats_{0};
+    std::atomic<bool> countInEveryLoop_{false};
+    std::atomic<int> countInRemaining_{0};
+
     // Audio-thread state.
     bool isRunning_ = false; // producing audio, including a fade-out block
     bool needsFadeIn_ = false;
+    ClickTrack click_;
+    std::vector<double> sourcePositions_; // per output frame of the block, from the stretcher
+    bool hasPositions_ = false;
+    double bpm_ = 0, beatOffsetSeconds_ = 0;
+    int beatsPerBar_ = 4;
+    double lastSourceFrame_ = -1; // < 0: no previous frame (start, seek)
+    // Count-in in progress: clicks at round(k·interval) frames from its start, music at round(beats·interval).
+    bool isCountingIn_ = false;
+    int countInTotalBeats_ = 0, countInNextBeat_ = 0;
+    double countInInterval_ = 0;
+    int64_t countInElapsed_ = 0, countInLength_ = 0;
 };

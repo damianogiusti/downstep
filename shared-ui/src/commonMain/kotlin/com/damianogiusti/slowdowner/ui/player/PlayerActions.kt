@@ -30,6 +30,10 @@ class HeaderActions(
     /** The Equalizer (Effects) sheet: the design has no entry for it, the header keeps one. */
     val onShowEffects: () -> Unit,
     val onAddToPlaylist: () -> Unit,
+    /** The click menu beside the Metronome / Count-in toggles: volume 0..1 (at the end of a drag). */
+    val onClickVolumeChanged: (volume: Float) -> Unit = {},
+    val onCountInBeatsChanged: (beats: Int) -> Unit = {},
+    val onCountInEveryLoopToggled: () -> Unit = {},
 )
 
 /** Loop chips strip (README §2.3). */

@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.data.playback
 
 import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
+import com.damianogiusti.slowdowner.domain.click.TrackTempo
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEvent
 import com.damianogiusti.slowdowner.domain.source.AudioSource
@@ -179,6 +180,37 @@ class DesktopPlaybackEngineTest {
 
         assertTrue(events.isEmpty(), "events: $events")
         assertEquals(2f, engine.pitchSemitones)
+    }
+
+    @Test
+    fun `the metronome and count-in reach the engine, and a closed engine ignores them`() = runTest {
+        val engine = openEngine()
+        engine.setTempo(TrackTempo(120f, 0.1f))
+        engine.setMetronome(enabled = true, volume = 0.8f)
+        engine.setCountIn(beats = 2, everyLoop = false)
+        assertEquals(TrackTempo(120f, 0.1f), engine.tempo)
+        engine.togglePlayStop()
+        playFor(0.25)
+        assertEquals(1, engine.countInRemaining)
+        assertEquals(0f, engine.position, 1e-6f)
+        playFor(1.0)
+        assertEquals(0, engine.countInRemaining)
+        assertTrue(engine.position > 0.01f)
+
+        engine.close()
+        engine.setTempo(null)
+        engine.setMetronome(enabled = false, volume = 0f)
+        engine.setCountIn(beats = 0, everyLoop = false)
+        assertEquals(0, engine.countInRemaining)
+        assertEquals(null, engine.detectTempo())
+    }
+
+    @Test
+    fun `the tempo detector analyses the open track`() = runTest {
+        val engine = openEngine()
+        // A steady tone has no beat, and no onsets to place a typed tempo's beats on either.
+        assertEquals(null, NativeTempoDetector(engine).detect())
+        assertEquals(null, NativeTempoDetector(engine).detect(hintBpm = 96f))
     }
 
     @Test

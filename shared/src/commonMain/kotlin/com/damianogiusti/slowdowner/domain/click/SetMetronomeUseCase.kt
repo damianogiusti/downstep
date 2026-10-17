@@ -1,20 +1,18 @@
 package com.damianogiusti.slowdowner.domain.click
 
-import com.damianogiusti.slowdowner.domain.loops.BeatGrid
-
 /**
- * Turns the metronome on or off. [engine] is null when the platform has no click (today always,
- * see [ClickTrackEngine]); then nothing happens and the call returns false. It also returns false
- * when turning on without a valid tempo: a click needs one.
+ * Gives the engine the open track's beat grid and the metronome's state. [engine] is null when the
+ * platform has no click (see [ClickTrackEngine]); then nothing happens and the call returns false.
+ * It also returns false when the metronome is on without a tempo: it stays silent until one is known.
  */
 class SetMetronomeUseCase(private val engine: ClickTrackEngine?) {
 
     val isAvailable: Boolean get() = engine != null
 
-    operator fun invoke(enabled: Boolean, bpm: Float?): Boolean {
+    operator fun invoke(enabled: Boolean, volume: Float, tempo: TrackTempo?): Boolean {
         val engine = engine ?: return false
-        if (enabled && (bpm == null || !BeatGrid.isValidBpm(bpm))) return false
-        engine.setMetronome(enabled, bpm ?: 0f)
-        return true
+        engine.setTempo(tempo)
+        engine.setMetronome(enabled && tempo != null, if (volume.isFinite()) volume.coerceIn(0f, 1f) else 0f)
+        return !enabled || tempo != null
     }
 }

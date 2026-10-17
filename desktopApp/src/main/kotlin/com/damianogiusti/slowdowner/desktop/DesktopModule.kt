@@ -2,6 +2,9 @@ package com.damianogiusti.slowdowner.desktop
 
 import com.damianogiusti.slowdowner.data.backup.BackupArchive
 import com.damianogiusti.slowdowner.data.backup.DefaultBackupRepository
+import com.damianogiusti.slowdowner.data.click.ClickSettingsStore
+import com.damianogiusti.slowdowner.data.click.DefaultClickSettingsRepository
+import com.damianogiusti.slowdowner.data.click.PreferencesClickSettingsStore
 import com.damianogiusti.slowdowner.data.database.DatabaseTransactionRunner
 import com.damianogiusti.slowdowner.data.database.RoomTransactionRunner
 import com.damianogiusti.slowdowner.data.database.SlowDownerDatabase
@@ -30,6 +33,7 @@ import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
 import com.damianogiusti.slowdowner.data.playback.NativeOfflineRenderer
+import com.damianogiusti.slowdowner.data.playback.NativeTempoDetector
 import com.damianogiusti.slowdowner.data.playlists.DefaultPlaylistRepository
 import com.damianogiusti.slowdowner.data.practice.DefaultPracticeRepository
 import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
@@ -46,6 +50,8 @@ import com.damianogiusti.slowdowner.data.update.UpdateInstaller
 import com.damianogiusti.slowdowner.desktop.update.DesktopUpdateInstaller
 import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
 import com.damianogiusti.slowdowner.domain.backup.BackupRepository
+import com.damianogiusti.slowdowner.domain.click.ClickSettingsRepository
+import com.damianogiusti.slowdowner.domain.click.ClickTrackEngine
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
 import com.damianogiusti.slowdowner.domain.effects.EffectsSettingsRepository
 import com.damianogiusti.slowdowner.domain.effects.TrackEqRepository
@@ -63,6 +69,7 @@ import com.damianogiusti.slowdowner.domain.support.RecordAppLaunchUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportSupportPromptShownUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportWhyFreeOpenedUseCase
 import com.damianogiusti.slowdowner.domain.support.SupportPromptRepository
+import com.damianogiusti.slowdowner.domain.tempo.TempoDetector
 import com.damianogiusti.slowdowner.domain.theme.ThemeRepository
 import com.damianogiusti.slowdowner.domain.update.CheckForUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.InstallUpdateUseCase
@@ -98,6 +105,7 @@ fun desktopModule(
     logger: Logger = ConsoleLogger(),
     updates: UpdateSettings = UpdateSettings(),
     themeStore: ThemeStore = PreferencesThemeStore(),
+    clickSettingsStore: ClickSettingsStore = PreferencesClickSettingsStore(),
 ) = module {
     single { directories }
     single { logger }
@@ -111,6 +119,10 @@ fun desktopModule(
     single { DesktopPlaybackEngine(get(), get()) }
     single<PlaybackEngine> { get<DesktopPlaybackEngine>() }
     single<EffectsEngine> { get<DesktopPlaybackEngine>() }
+    // Metronome, count-in and tempo detection: the same engine.
+    single<ClickTrackEngine> { get<DesktopPlaybackEngine>() }
+    single<TempoDetector> { NativeTempoDetector(get()) }
+    single<ClickSettingsRepository> { DefaultClickSettingsRepository(clickSettingsStore, Dispatchers.IO) }
     single<AudioSourceRepository> { DesktopAudioSourceRepository(get(), logger) }
     singleOf(::InMemoryNowPlayingRepository) { bind<NowPlayingRepository>() }
 

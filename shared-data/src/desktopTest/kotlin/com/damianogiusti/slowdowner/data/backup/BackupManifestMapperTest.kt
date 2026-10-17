@@ -95,6 +95,27 @@ class BackupManifestMapperTest {
     }
 
     @Test
+    fun `when a track's tempo was detected then the backup keeps it and a restore brings it back to analyse again`() {
+        val state = PracticeStateEntity(
+            "yt_abc", columns, updatedAt = 1, bpm = 92f, detectedBpm = 128f, beatOffsetSeconds = 0.25f, tempoAnalysisVersion = 1,
+        )
+        val dto = BackupManifestMapper.toDto(TrackBackupRows(track, state, emptyList()), "audio/a.m4a")
+        assertEquals(128f, dto.detectedBpm)
+        assertEquals(0.25f, dto.beatOffsetSeconds)
+
+        val restored = BackupManifestMapper.toStateEntity(dto, dto.practiceState!!, updatedAt = 2)
+
+        assertEquals(92f, restored.bpm)
+        assertEquals(128f, restored.detectedBpm)
+        assertEquals(0.25f, restored.beatOffsetSeconds)
+        assertEquals(0, restored.tempoAnalysisVersion)
+        val wild = dto.copy(detectedBpm = 0f, beatOffsetSeconds = Float.NaN)
+        val dropped = BackupManifestMapper.toStateEntity(wild, dto.practiceState!!, updatedAt = 2)
+        assertNull(dropped.detectedBpm)
+        assertNull(dropped.beatOffsetSeconds)
+    }
+
+    @Test
     fun `when a manifest still has Snap to beat then it restores and the key is ignored`() {
         // Written before Snap to beat was removed (after 2.0).
         val json = """{"format":"sldbackup","version":1,"createdAt":1,"kind":"track","tracks":[""" +

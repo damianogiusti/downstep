@@ -44,6 +44,8 @@ object BackupManifestMapper {
         activeLoop = rows.state?.activeLoopId?.let { id -> rows.loops.indexOfFirst { it.id == id } }?.takeIf { it >= 0 },
         bpm = rows.state?.bpm,
         eq = EqCurveCodec.decode(rows.state?.eqCurve)?.let(::toDto),
+        detectedBpm = rows.state?.detectedBpm,
+        beatOffsetSeconds = rows.state?.beatOffsetSeconds,
     )
 
     fun toDto(eq: EqCurve) = BackupEqDto(
@@ -113,6 +115,8 @@ object BackupManifestMapper {
         updatedAt = updatedAt,
         bpm = dto.bpm?.takeIf(BeatGrid::isValidBpm),
         eqCurve = toEqColumn(dto.eq),
+        detectedBpm = dto.detectedBpm?.takeIf(BeatGrid::isValidBpm),
+        beatOffsetSeconds = dto.beatOffsetSeconds?.takeIf { it.isFinite() && it >= 0f },
     )
 
     /**

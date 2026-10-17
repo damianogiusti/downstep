@@ -51,6 +51,12 @@ class NativeEngineTest {
         native.setPreamp(0.0)
         native.setIsolation(0)
         native.setOutputGain(1.0)
+        native.setTempo(120.0, 0.25, 4)
+        native.setMetronome(enabled = true, volume = 0.5)
+        native.setCountIn(beats = 0, everyLoop = false)
+        assertEquals(0, native.countInRemaining)
+        // Two seconds are too short for a tempo.
+        assertNull(native.detectTempo())
         native.setLoop(0.0, 1.0, enabled = false)
         native.seek(0.25)
         assertEquals(0.25, native.position, 0.001)
@@ -70,6 +76,41 @@ class NativeEngineTest {
         native.closeFile()
         assertFalse(native.isOpen)
         native.close()
+    }
+
+    @Test
+    fun `a count-in clicks before the music and counts down`() {
+        NativeEngine.manual(RATE).use { native ->
+            assertTrue(native.open(file.path))
+            native.setCountIn(beats = 4, everyLoop = false)
+            native.setTempo(0.0, 0.0, 4) // no tempo: 120 BPM, half a second a beat
+            native.setPlaying(true)
+            native.render(RATE / 4)
+            assertEquals(3, native.countInRemaining)
+            assertEquals(0.0, native.position, 1e-9)
+            native.render(RATE * 2)
+            assertEquals(0, native.countInRemaining)
+            assertTrue(native.position > 0.1)
+        }
+    }
+
+    @Test
+    fun `the tempo of a click track is found`() {
+        val clicks = clickFile(bpm = 100.0, offsetSeconds = 0.2, seconds = 12)
+        try {
+            NativeEngine.manual(RATE).use { native ->
+                assertNull(native.detectTempo(), "nothing open")
+                assertTrue(native.open(clicks.path))
+                val tempo = assertNotNull(native.detectTempo())
+                assertEquals(100.0, tempo.bpm, 0.5)
+                assertEquals(0.2, tempo.beatOffsetSeconds, 0.01)
+                assertTrue(tempo.confidence > 0.3, "confidence ${tempo.confidence}")
+                // A typed tempo is kept; only its beats are looked for.
+                assertEquals(50.0, assertNotNull(native.detectTempo(hintBpm = 50.0)).bpm, 0.0)
+            }
+        } finally {
+            clicks.delete()
+        }
     }
 
     @Test
@@ -153,6 +194,29 @@ class NativeEngineTest {
                 put("data".toByteArray()); putInt(frames * 4)
             }
             return File.createTempFile("native-engine", ".wav").apply { writeBytes(header.array() + data.array()) }
+        }
+
+        /** 16-bit stereo: a 5 ms burst on every beat, the first at [offsetSeconds]. */
+        fun clickFile(bpm: Double, offsetSeconds: Double, seconds: Int): File {
+            val frames = seconds * RATE
+            val samples = ShortArray(frames)
+            var beat = offsetSeconds
+            while (beat < seconds) {
+                val start = (beat * RATE).toInt()
+                for (i in 0 until RATE / 200) {
+                    if (start + i >= frames) break
+                    samples[start + i] = (sin(2 * PI * 3000 * i / RATE) * 20_000 * kotlin.math.exp(-i / (0.001 * RATE))).toInt().toShort()
+                }
+                beat += 60.0 / bpm
+            }
+            val data = ByteBuffer.allocate(frames * 4).order(ByteOrder.LITTLE_ENDIAN)
+            samples.forEach { data.putShort(it).putShort(it) }
+            val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN).apply {
+                put("RIFF".toByteArray()); putInt(36 + frames * 4); put("WAVEfmt ".toByteArray())
+                putInt(16); putShort(1); putShort(2); putInt(RATE); putInt(RATE * 4); putShort(4); putShort(16)
+                put("data".toByteArray()); putInt(frames * 4)
+            }
+            return File.createTempFile("native-clicks", ".wav").apply { writeBytes(header.array() + data.array()) }
         }
     }
 }

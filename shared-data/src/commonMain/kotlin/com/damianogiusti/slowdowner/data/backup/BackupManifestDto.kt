@@ -46,6 +46,10 @@ data class BackupTrackDto(
     // it restore fine, the key is ignored like any unknown one.
     /** The track's own EQ; absent when it uses the global one (and in backups made before). */
     val eq: BackupEqDto? = null,
+    // The tempo analysis (after 2.0), optional like the loops. A restored track is analysed again
+    // when first opened (the analysis version is not kept), and uses these meanwhile.
+    val detectedBpm: Float? = null,
+    val beatOffsetSeconds: Float? = null,
 )
 
 @Serializable

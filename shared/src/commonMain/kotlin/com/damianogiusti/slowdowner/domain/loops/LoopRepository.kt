@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.domain.loops
 
+import com.damianogiusti.slowdowner.domain.tempo.TempoEstimate
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -22,4 +23,8 @@ interface LoopRepository {
     suspend fun delete(loopId: Long)
     suspend fun setActiveLoop(trackId: String, loopId: Long?)
     suspend fun setBpm(trackId: String, bpm: Float?)
+    /** The tempo analysis's result ([estimate] null: nothing found) and which analysis ran. */
+    suspend fun setDetectedTempo(trackId: String, estimate: TempoEstimate?, analysisVersion: Int)
+    /** Where the first beat of the effective tempo falls, in seconds; null when unknown. */
+    suspend fun setBeatOffset(trackId: String, offsetSeconds: Float?)
 }

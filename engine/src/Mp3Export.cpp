@@ -89,7 +89,8 @@ SdExport *sd_export_begin_range(SdEngine *engine, const char *utf8OutputPath, in
     exporter->player = std::make_unique<Player>(rate, kChunkFrames);
     if (!exporter->player->open(std::move(open.source), open.path)) return nullptr;
     // The sound settings only: the loop and the practice aids the live player plays on top of the
-    // music (metronome, count-in) never reach the export's player.
+    // music (metronome, count-in, Isolate) never reach the export's player. They are not in
+    // Player::Settings, and a new player starts with no tempo, no metronome and no count-in.
     const Player::Settings settings = source->settings();
     exporter->player->applySettings(settings);
 

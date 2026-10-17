@@ -17,6 +17,7 @@ handoff/
 
 The prototype simulates audio: the playhead advances in real time at the chosen speed, loops wrap, passes count,
 progression ramps the speed. Nothing is actually heard. Isolate, Metronome, Count‑in, Save preset, Export are visual states only.
+(In the app the Metronome and Count‑in click for real: see §7.5.)
 
 ---
 
@@ -69,11 +70,16 @@ OS‑style strip with the real Downstep icon (`assets/icons/downstep-app-icon.sv
 
 ### 2.2 Header
 - **Library** pill (left) with track count → opens the drawer.
-- **Track title** + meta line: source · duration · detected BPM · loop count.
+- **Track title** + meta line: source · duration · detected BPM · loop count. (App: "≈ 92 BPM" when detected, "92 BPM"
+  when typed or tapped, "BPM …" while the first analysis runs; click to change it. §7.5.)
 - **Analyze** pill → section detection (see §4.8). Label becomes *Analyzing…* then *Re‑analyze*.
 - **Metronome / Count‑in** segmented pill; each is an independent amber‑filled toggle.
 - Icon buttons: **Focus** (⤢), **Theme** (☀/☾), **Save preset** (bookmark), **Export** (↑; full track, loops or
   both, see §7.3).
+
+- **Metronome / Count‑in** segmented pill; each is an independent amber‑filled toggle. (App: a ⌄ at its end opens the
+  click volume, the count‑in length and "Count in at every loop restart". §7.5.)
+- Icon buttons: **Focus** (⤢), **Theme** (☀/☾), **Save preset** (bookmark), **Export** (↑).
 
 ### 2.3 Loop chips strip
 One chip per loop, in time order: colour dot · name · length · **pass badge**. The active chip is inverted
@@ -239,7 +245,8 @@ Dark (default) and light, toggled from the header, persisted.
 
 ## 6. Not in scope / open
 - Spotify / Apple Music import (DRM prevents time‑stretch; dropped by decision).
-- Real audio engine, EQ, metronome click, count‑in bars, export formats, preset contents.
+- Real audio engine, EQ, export formats, preset contents. (The metronome click and the count‑in were added after 2.0:
+  §7.5.)
 - Mic‑based "clean pass" scoring.
 - Responsive behaviour below ~1000px (cards would need to stack).
 
@@ -377,3 +384,38 @@ editor. §6 lists the EQ as outside the prototype; this is its design.
   EQ until edited. Backups carry the track's and each preset's EQ as optional fields (`eq`); older backups restore
   without them.
 - **Export** carries the EQ and preamp as heard, never Isolate (a practice aid, like the loop).
+
+### 7.5 Metronome and count‑in
+
+**Both toggles now click for real** on desktop (the C++ engine), and are enabled; a platform without the engine still
+shows them disabled with the "not available yet" tooltip.
+
+- **Metronome:** a short click on every beat of the track's tempo grid, accented (higher, louder) on the first beat of
+  each 4‑beat bar. It is mixed in the engine's render callback *after* the time stretch, EQ, preamp and fades, so it
+  is never stretched, pitched or equalised; the output gain still applies. Each output frame knows the source position
+  it plays (from Bungee's grain table, wrap‑aware), so the click lands on the beat to the sample, follows the speed,
+  seeks and loop wraps: a loop that starts on a beat clicks on every wrap, one that starts between beats never does.
+  It lines up with what is heard (the music's own run‑in after a seek included) within a millisecond at any speed.
+- **Count‑in:** before playback starts, N clicks at the effective tempo (BPM × speed; 120 BPM × speed without a
+  tempo), the first accented; the music starts from the requested position exactly one beat after the last click
+  (sample‑exact: Bungee's run‑in is skipped so the position itself is on the beat). With **Count in at every loop
+  restart**, playback stops at B (short fade), counts in again and goes on from A; the position stays at A meanwhile,
+  a pass still counts once, and there is no end‑of‑track event. Pausing during a count‑in cancels it.
+- **Settings (⌄ menu):** click volume 0–100% (the count‑in's too; default 70%), count‑in length 2 / 4 / 8 beats
+  (default 4 = one bar), every loop restart (default off). They are global, kept across launches (Java preferences
+  node `com/damianogiusti/slowdowner/click`), like the toggles themselves.
+- **Tempo:** detected from the audio the first time a track is opened, off the UI thread (onset‑energy envelope in
+  5 ms hops, compressed so that a quiet hi‑hat counts less than the kick and snare, autocorrelation over 40–240 BPM with a preference near 120, then a comb over the whole track that fits the
+  period and the first beat together; a tempo whose off‑beats are as strong as its beats is doubled up to 200 BPM). The
+  result, "nothing found" included, is cached with the track (`detected_bpm`, `beat_offset_seconds`,
+  `tempo_analysis_version`): a track is analysed once, again only when the analysis version goes up. Silence, noise,
+  steady tones and tracks under 4 s give no tempo. Bars are not detected: beat 1 is the first beat found.
+- **Typed or tapped BPM wins** over the detected one. The BPM dialog shows the detected tempo, has **Tap** (or T in the
+  field; the average of the last 8 taps, a 2 s pause starts over) and **Use detected** (clears the user's BPM). After a
+  typed or tapped tempo, the engine finds where its beats fall in the audio (the same analysis, tempo given), so the
+  metronome lines up with the music. Turning the metronome on with no tempo at all asks for one.
+- **Exports never contain the metronome or the count‑in** (full track and loop slices alike): they are practice aids,
+  not part of the music, and a slice keeps the exact (B − A) / speed length. In the engine they are kept out of
+  `Player::Settings`, which is all an export copies.
+- Backups carry `detectedBpm` and `beatOffsetSeconds` (optional, older backups restore without them); a restored track
+  is analysed again when first opened.

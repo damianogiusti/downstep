@@ -5,8 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.damianogiusti.slowdowner.domain.analysis.AnalyzeSectionsUseCase
 import com.damianogiusti.slowdowner.domain.analysis.SectionAnalysisResult
+import com.damianogiusti.slowdowner.domain.click.ClickSettings
+import com.damianogiusti.slowdowner.domain.click.ObserveClickSettingsUseCase
 import com.damianogiusti.slowdowner.domain.click.SetCountInUseCase
 import com.damianogiusti.slowdowner.domain.click.SetMetronomeUseCase
+import com.damianogiusti.slowdowner.domain.click.UpdateClickSettingsUseCase
+import com.damianogiusti.slowdowner.domain.click.tempo
 import com.damianogiusti.slowdowner.domain.export.ExportResult
 import com.damianogiusti.slowdowner.domain.export.ExportScope
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
@@ -42,6 +46,7 @@ import com.damianogiusti.slowdowner.domain.practice.SavePresetResult
 import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
+import com.damianogiusti.slowdowner.domain.tempo.DetectTrackTempoUseCase
 import com.damianogiusti.slowdowner.ui.common.UiMessage
 import com.damianogiusti.slowdowner.ui.common.UiPlural
 import kotlinx.coroutines.CoroutineDispatcher
@@ -94,6 +99,7 @@ class PlayerViewModel(
     private val loops: LoopUseCases,
     private val seams: PracticeSeams,
     private val exports: ExportUseCases,
+    private val clickTrack: ClickUseCases,
     /** Where waveform outlines are read: off the main thread. */
     private val background: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
@@ -106,7 +112,9 @@ class PlayerViewModel(
     private val zoomPeaks = MutableStateFlow<Peaks?>(null)
     private val layoutState = MutableStateFlow(PlayerLayout())
     private val analysisState = MutableStateFlow(AnalysisUiState())
-    private val clickState = MutableStateFlow(ClickUiState())
+    private val clickSettings: StateFlow<ClickSettings> = clickTrack.observeSettings().state(ClickSettings())
+    /** The track whose tempo is being analysed, if any. */
+    private val detectingTempo = MutableStateFlow<String?>(null)
 
     /** The loops of the open track; null with nothing open, and while a new track's loops load. */
     private val trackLoops: StateFlow<TrackLoops?> = nowPlaying
@@ -135,8 +143,8 @@ class PlayerViewModel(
         hasCountIn = seams.setCountIn.isAvailable,
     )
 
-    val header: StateFlow<HeaderState> = combine(nowPlaying, loadingTrack, engineState, trackLoops, exportState) {
-            track, loading, engine, trackLoops, export ->
+    val header: StateFlow<HeaderState> = combine(nowPlaying, loadingTrack, engineState, combine(trackLoops, detectingTempo, ::Pair), exportState) {
+            track, loading, engine, (trackLoops, detecting), export ->
         val shown = loading ?: track
         HeaderState(
             title = shown?.title,
@@ -146,7 +154,10 @@ class PlayerViewModel(
                 else -> TrackSource.None
             },
             durationSeconds = if (loading == null) engine.durationSeconds else 0f,
-            bpm = trackLoops?.bpm,
+            bpm = trackLoops?.effectiveBpm,
+            typedBpm = trackLoops?.bpm,
+            detectedBpm = trackLoops?.detectedBpm,
+            isDetectingTempo = track != null && loading == null && detecting == track.id,
             loopCount = trackLoops?.loops?.size ?: 0,
             isOpen = engine.isOpen && loading == null,
             isLoading = loading != null,
@@ -187,7 +198,15 @@ class PlayerViewModel(
 
     val analysis: StateFlow<AnalysisUiState> = analysisState.asStateFlow()
 
-    val clicks: StateFlow<ClickUiState> = clickState.asStateFlow()
+    val clicks: StateFlow<ClickUiState> = clickSettings.map { settings ->
+        ClickUiState(
+            isMetronomeOn = settings.isMetronomeOn && features.hasMetronome,
+            isCountInOn = settings.isCountInOn && features.hasCountIn,
+            volume = settings.volume,
+            countInBeats = settings.countInBeats,
+            countInEveryLoop = settings.countInEveryLoop,
+        )
+    }.state(ClickUiState())
 
     val overview: StateFlow<OverviewWaveformState> =
         combine(trackLoops, engineState, overviewPeaks, analysisState, controlsEnabled) { trackLoops, engine, peaks, analysis, enabled ->
@@ -310,8 +329,18 @@ class PlayerViewModel(
                 zoomPeaks.value = null
                 if (track != null && engine.isOpen) {
                     overviewPeaks.value = withContext(background) { readPeaks(0f, 1f, OVERVIEW_BUCKETS) }
+                    detectTempo(track)
                 }
             }
+        }
+        viewModelScope.launch {
+            // The engine clicks on the open track's grid: pushed again whenever the tempo (typed,
+            // detected, another track) or a setting changes, never only when a toggle is pressed.
+            combine(trackLoops.map { it?.tempo() }.distinctUntilChanged(), clickSettings) { tempo, settings -> tempo to settings }
+                .collect { (tempo, settings) ->
+                    seams.setMetronome(settings.isMetronomeOn, settings.volume, tempo)
+                    seams.setCountIn(settings.isCountInOn, settings.countInBeats, settings.countInEveryLoop)
+                }
         }
         viewModelScope.launch {
             combine(zoom.map { it?.window }.distinctUntilChanged(), overviewPeaks) { window, overview -> window.takeIf { overview != null } }
@@ -578,19 +607,24 @@ class PlayerViewModel(
         loops.updateProgression(loopId, progression)
     }
 
-    /** Typed in by the user (there is no detection); null clears it. Out of range: a message, nothing saved. */
+    /**
+     * Typed or tapped by the user; null clears it, back to the detected tempo. Out of range: a message,
+     * nothing saved. The beats of the new tempo are then found in the audio, for the metronome.
+     */
     fun onBpmChanged(bpm: Float?) {
         val track = nowPlaying.value ?: return
         viewModelScope.launch {
             if (!loops.setBpm(track.id, bpm)) {
                 _messages.send(UiMessage(Res.string.error_bpm_range, listOf(BeatGrid.MIN_BPM.toInt(), BeatGrid.MAX_BPM.toInt())))
+            } else {
+                withContext(background) { clickTrack.detectTempo.alignBeats(track.id) }
             }
         }
     }
 
     // endregion
 
-    // region Analyze, metronome, count-in (seams)
+    // region Analyze, metronome, count-in
 
     fun onAnalyzeClicked() {
         if (!features.canAnalyze || analysisState.value.status == AnalysisStatus.Running) return
@@ -631,21 +665,47 @@ class PlayerViewModel(
         analysisState.update { state -> state.copy(suggestions = state.suggestions.filterNot { it.id == suggestionId }) }
     }
 
+    /**
+     * The settings are global and kept; the engine gets them through the push in init. Turning the
+     * metronome on for a track with no tempo (and none being detected) asks for one instead.
+     */
     fun onMetronomeToggled() {
-        val enabled = !clickState.value.isMetronomeOn
-        if (seams.setMetronome(enabled, trackLoops.value?.bpm)) {
-            clickState.update { it.copy(isMetronomeOn = enabled) }
-        } else if (features.hasMetronome) {
+        if (!features.hasMetronome) return
+        val enabled = !clickSettings.value.isMetronomeOn
+        val track = nowPlaying.value
+        if (enabled && track != null && trackLoops.value?.tempo() == null && detectingTempo.value != track.id) {
             _messages.trySend(UiMessage(Res.string.error_click_needs_bpm))
+            return
         }
+        updateClicks { it.copy(isMetronomeOn = enabled) }
     }
 
+    /** No tempo needed: without one the count-in counts at 120 BPM. */
     fun onCountInToggled() {
-        val enabled = !clickState.value.isCountInOn
-        if (seams.setCountIn(enabled, trackLoops.value?.bpm)) {
-            clickState.update { it.copy(isCountInOn = enabled) }
-        } else if (features.hasCountIn) {
-            _messages.trySend(UiMessage(Res.string.error_click_needs_bpm))
+        if (!features.hasCountIn) return
+        updateClicks { it.copy(isCountInOn = !it.isCountInOn) }
+    }
+
+    /** 0..1, at the end of a drag of the volume slider. */
+    fun onClickVolumeChanged(volume: Float) = updateClicks { it.copy(volume = volume) }
+
+    fun onCountInBeatsChanged(beats: Int) = updateClicks { it.copy(countInBeats = beats) }
+
+    fun onCountInEveryLoopToggled() = updateClicks { it.copy(countInEveryLoop = !it.countInEveryLoop) }
+
+    private fun updateClicks(change: (ClickSettings) -> ClickSettings) {
+        viewModelScope.launch { clickTrack.updateSettings(change) }
+    }
+
+    /** The first time a track is opened: its tempo, from the audio; cached with the track afterwards. */
+    private suspend fun detectTempo(track: LibraryTrack) {
+        val detect = clickTrack.detectTempo
+        if (!detect.isPending(track.id)) return
+        detectingTempo.value = track.id
+        try {
+            withContext(background) { detect(track.id) }
+        } finally {
+            detectingTempo.compareAndSet(track.id, null)
         }
     }
 
@@ -1009,6 +1069,13 @@ class PracticeSeams(
     val analyzeSections: AnalyzeSectionsUseCase,
     val setMetronome: SetMetronomeUseCase,
     val setCountIn: SetCountInUseCase,
+)
+
+/** The metronome and count-in settings, and the tempo analysis they click by (domain.click, domain.tempo). */
+class ClickUseCases(
+    val observeSettings: ObserveClickSettingsUseCase,
+    val updateSettings: UpdateClickSettingsUseCase,
+    val detectTempo: DetectTrackTempoUseCase,
 )
 
 class ExportUseCases(
