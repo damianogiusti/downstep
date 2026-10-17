@@ -77,6 +77,7 @@ class ScreenRenderTest {
         modules(
             desktopModule(
                 directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(), supportPromptStore, updates = updates,
+                clickSettingsStore = InMemoryClickSettingsStore(),
             ),
             useCasesModule,
             uiModule,

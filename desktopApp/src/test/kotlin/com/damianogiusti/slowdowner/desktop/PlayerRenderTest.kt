@@ -58,7 +58,8 @@ class PlayerRenderTest {
     private val directories = AppDirectories(Files.createTempDirectory("downstep-player-render").toFile())
     private val koin = startKoin {
         modules(
-            desktopModule(directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(), InMemorySupportPromptStore()),
+            desktopModule(directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(), InMemorySupportPromptStore(),
+                clickSettingsStore = InMemoryClickSettingsStore()),
             useCasesModule,
             uiModule,
         )
