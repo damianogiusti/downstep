@@ -74,6 +74,7 @@ import com.damianogiusti.slowdowner.ui.player.components.waveform.loopGestures
 import com.damianogiusti.slowdowner.ui.player.components.waveform.normalizeLevels
 import com.damianogiusti.slowdowner.ui.player.components.waveform.playedBars
 import com.damianogiusti.slowdowner.ui.player.components.waveform.resamplePeaks
+import com.damianogiusti.slowdowner.ui.player.components.waveform.topBarOrder
 import com.damianogiusti.slowdowner.ui.resources.*
 import com.damianogiusti.slowdowner.ui.theme.DownstepDimens
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
@@ -239,15 +240,15 @@ fun OverviewWaveform(
                         )
                     }
 
-                    // Edges and top bars over the bars; the lead loop on top of the others. A bar under the
-                    // mouse or in a drag is raised and opaque: it is the grab handle.
-                    for (region in state.regions.sortedBy { it.id == lead?.id }) {
-                        val bounds = drag.shown(region.id, region.bounds)
+                    // Top bars over the bars, longest first, so a loop inside another shows its bar on top,
+                    // as the hit test grabs it. A bar under the mouse or in a drag is raised and opaque: it is
+                    // the grab handle.
+                    val shown = state.regions.map { it to drag.shown(it.id, it.bounds) }
+                    for ((region, bounds) in topBarOrder(shown, { it.second.length }, { it.first.id == lead?.id })) {
                         val isLead = region.id == lead?.id
                         val isHeld = region.id == dragged || (hovered?.loopId == region.id && hovered.handle == LoopHandle.Bar)
                         val loopColor = colors.loopColor(region.colorIndex)
                         val barColor = loopColor.copy(alpha = if (isLead || isHeld) 1f else INACTIVE_BAR_ALPHA)
-                        val edgeColor = loopColor.copy(alpha = if (isLead) 1f else INACTIVE_EDGE_ALPHA)
                         val left = axis.x(bounds.start)
                         val right = axis.x(bounds.end)
                         val thickness = if (isHeld) barRaised else bar
@@ -259,9 +260,14 @@ fun OverviewWaveform(
                                 drawCircle(colors.bgDeep.copy(alpha = GRIP_ALPHA), grip, Offset(centre + dot * gripGap, thickness / 2))
                             }
                         }
+                    }
+                    // Then the edges; the lead loop's on top of the others, as the hit test tries it first.
+                    for ((region, bounds) in shown.sortedBy { it.first.id == lead?.id }) {
+                        val isLead = region.id == lead?.id
+                        val edgeColor = colors.loopColor(region.colorIndex).copy(alpha = if (isLead) 1f else INACTIVE_EDGE_ALPHA)
                         val hoveredEdge = hovered?.takeIf { it.loopId == region.id }?.handle
-                        drawVerticalLine(edgeColor, left, if (hoveredEdge == LoopHandle.Start) px * 2 else px)
-                        drawVerticalLine(edgeColor, right, if (hoveredEdge == LoopHandle.End) px * 2 else px)
+                        drawVerticalLine(edgeColor, axis.x(bounds.start), if (hoveredEdge == LoopHandle.Start) px * 2 else px)
+                        drawVerticalLine(edgeColor, axis.x(bounds.end), if (hoveredEdge == LoopHandle.End) px * 2 else px)
                     }
 
                     if (active != null) {

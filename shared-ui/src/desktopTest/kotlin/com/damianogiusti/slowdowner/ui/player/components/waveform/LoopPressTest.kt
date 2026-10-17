@@ -49,6 +49,30 @@ class LoopPressTest {
     }
 
     @Test
+    fun `when a loop sits inside the active one then its bar is grabbed, the active loop keeps its own bar and edges`() {
+        val outer = HitRegion(11, LoopBounds(0.1f, 0.9f), isActive = true)
+        val inner = HitRegion(12, LoopBounds(0.5f, 0.55f), isActive = false)
+        val nested = listOf(outer, inner)
+
+        assertEquals(LoopHit(12, LoopHandle.Bar), hitLoop(549f, 4f, nested, axis, 8f, 16f))
+        assertEquals(LoopHit(11, LoopHandle.Bar), hitLoop(324f, 4f, nested, axis, 8f, 16f), "outside the inner loop")
+        assertEquals(LoopHit(11, LoopHandle.Start), hitLoop(128f, 4f, nested, axis, 8f, 16f))
+        assertEquals(LoopHit(11, LoopHandle.End), hitLoop(920f, 4f, nested, axis, 8f, 16f))
+        assertEquals(LoopHit(12, LoopHandle.Start), hitLoop(526f, 100f, nested, axis, 8f, 16f), "the inner edges, below the bar")
+        assertNull(hitLoop(549f, 100f, nested, axis, 8f, 16f), "inside both, below the bars")
+    }
+
+    @Test
+    fun `when top bars are drawn then the bar on top is the one a press grabs`() {
+        val outer = HitRegion(11, LoopBounds(0.1f, 0.9f), isActive = true)
+        val inner = HitRegion(12, LoopBounds(0.5f, 0.55f), isActive = false)
+        val twin = HitRegion(13, LoopBounds(0.5f, 0.55f), isActive = true)
+
+        assertEquals(listOf(outer, inner), topBarOrder(listOf(inner, outer), { it.bounds.length }, { it.isActive }))
+        assertEquals(listOf(inner, twin), topBarOrder(listOf(twin, inner), { it.bounds.length }, { it.isActive }), "the active one on top of a twin")
+    }
+
+    @Test
     fun `when a loop is too narrow for its bar and both edges then they share it by thirds`() {
         // 15 px wide, under three reaches of 8 px.
         val narrow = listOf(HitRegion(3, LoopBounds(0.5f, 0.515f), isActive = true))

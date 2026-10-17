@@ -19,8 +19,9 @@ internal data class LoopHit(val loopId: Long, val handle: LoopHandle)
  * - Above [barHeight] (the top bar's grab zone) and between the edges, the bar moves the whole loop.
  *   Where an edge and the bar meet, the edge wins; on a loop too narrow for both, the middle third is
  *   the bar and the outer thirds are the edges.
- * - Loops may overlap: the active one is tried first, then the others, shortest first, so a loop
- *   inside another stays reachable.
+ * - Loops may overlap. For the edges the active loop is tried first, then the others, shortest first.
+ *   For the bar the shortest loop under the pointer wins, active or not, so a loop inside another (the
+ *   active one included) stays reachable; [topBarOrder] draws the bars in the same order.
  */
 internal fun hitLoop(
     x: Float,
@@ -40,10 +41,19 @@ internal fun hitLoop(
             if (x >= startX + third && x <= endX - third) return LoopHit(region.loopId, LoopHandle.Bar)
         }
         hitHandle(x, startX, endX, edgeReach)?.let { return LoopHit(region.loopId, it) }
-        if (onBar) return LoopHit(region.loopId, LoopHandle.Bar)
     }
-    return null
+    if (y >= barHeight) return null
+    return regions.sortedWith(compareBy<HitRegion> { it.bounds.length }.thenByDescending { it.isActive })
+        .firstOrNull { x >= axis.x(it.bounds.start) && x <= axis.x(it.bounds.end) }
+        ?.let { LoopHit(it.loopId, LoopHandle.Bar) }
 }
+
+/**
+ * The order to draw the loops' top bars in so that the bar on top is the one [hitLoop] grabs: longest
+ * first, the shortest last. Between two loops of the same length the active one goes on top.
+ */
+internal fun <T> topBarOrder(items: List<T>, length: (T) -> Float, isActive: (T) -> Boolean): List<T> =
+    items.sortedWith(compareByDescending<T> { length(it) }.thenBy { isActive(it) })
 
 /** Narrower than this many edge reaches, a loop's bar and edges share its width by thirds. */
 private const val NARROW_LOOP_REACHES = 3f
