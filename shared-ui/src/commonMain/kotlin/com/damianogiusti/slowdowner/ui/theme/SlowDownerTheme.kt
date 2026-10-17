@@ -8,17 +8,22 @@ import androidx.compose.runtime.remember
 import com.damianogiusti.slowdowner.domain.theme.ThemeMode
 
 /**
- * Downstep 2.0: dark by default, light on the header toggle (persisted, see ThemeViewModel). No dynamic
- * color: the practice colors (loops, A/B, accents) must keep their meaning everywhere. The palette is
- * also mapped onto Material's roles, so Material components and the older screens follow it.
+ * Downstep 2.0: the Downstep palette in dark by default; the header's theme menu picks another theme
+ * and the mode (persisted, see ThemeViewModel). No dynamic color: the practice colors (loops, A/B,
+ * accents) must keep their meaning everywhere. The palette is also mapped onto Material's roles, so
+ * Material components and the older screens follow it.
+ *
+ * A change of theme recomposes everything that reads the colours: fine for a pick or a preview in the
+ * menu, and nothing on the playback path depends on it.
  */
 @Composable
 fun SlowDownerTheme(
     themeMode: ThemeMode = ThemeMode.DEFAULT,
+    theme: AppTheme = DownstepTheme,
     content: @Composable () -> Unit,
 ) {
-    val tokens = if (themeMode == ThemeMode.Light) LightTokens else DarkTokens
-    val colorScheme = remember(tokens) { tokens.toMaterial() }
+    val tokens = theme.colors(themeMode)
+    val colorScheme = remember(theme, themeMode) { theme.material(themeMode) }
     CompositionLocalProvider(
         LocalDownstepColors provides tokens,
         LocalDownstepType provides rememberDownstepType(),
