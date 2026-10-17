@@ -146,8 +146,10 @@ internal suspend fun PointerInputScope.loopGestures(
         try {
             while (true) {
                 val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                // Read before consuming: a consumed change no longer reports that it moved.
+                val moved = change.positionChanged()
                 if (hit != null) change.consume()
-                if (!change.pressed || change.positionChanged()) {
+                if (!change.pressed || moved) {
                     if (press.moveTo(change.position.x)) onDragStarted(press, drag, actions)
                     if (press.isDrag && hit != null) press.bounds?.let(drag::move)
                 }

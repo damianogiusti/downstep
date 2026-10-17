@@ -129,6 +129,19 @@ class WaveformGesturesTest {
     }
 
     @Test
+    fun `a drag is picked up while the pointer moves, not only on release`() {
+        val events = mutableListOf<String>()
+        scene(withOther, recording(events)) {
+            press(Offset(824f, 4f))
+            move(Offset(874f, 4f))
+            // The grab (and the live preview with it) happens on the first move past the threshold.
+            assertEquals(listOf("grab 8"), events, "nothing happened before the release")
+            release(Offset(874f, 4f))
+        }
+        assertEquals(listOf("grab 8", "commit 8"), events)
+    }
+
+    @Test
     fun `a click in another loop below its top bar is a click on the waveform`() {
         val events = mutableListOf<String>()
         scene(withOther, recording(events)) {
