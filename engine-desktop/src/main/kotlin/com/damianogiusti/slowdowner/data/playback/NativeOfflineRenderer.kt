@@ -21,8 +21,9 @@ class NativeOfflineRenderer(private val engine: NativeEngine) : OfflineRenderer 
 
     override fun renderNext(): Float? = export?.next()
 
-    override fun end() {
-        export?.finish()
+    override fun end(): Boolean {
+        val isComplete = export?.finish() ?: false
         export = null
+        return isComplete
     }
 }

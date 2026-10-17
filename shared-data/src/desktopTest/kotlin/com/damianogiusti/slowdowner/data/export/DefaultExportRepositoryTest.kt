@@ -154,6 +154,18 @@ class DefaultExportRepositoryTest {
     }
 
     @Test
+    fun `when a file of the batch is cut short then the batch fails and leaves no file`() = runTest {
+        // The second file's write failed half way (a full disk): it has bytes, but it is not complete.
+        renderer.completes = { index -> index != 1 }
+
+        val result = repository().exportOpenTrack(listOf(ExportItem("Full.mp3"), ExportItem("Loop.mp3", 0.2f, 0.4f))) {}
+
+        assertTrue(result is ExportResult.Failure)
+        assertEquals(emptyList<String>(), exportDir.list()?.toList().orEmpty())
+        assertEquals(mapOf("format" to "mp3", "files" to "2", "stage" to "finish", "index" to "1"), logger.at('E').single().properties)
+    }
+
+    @Test
     fun `when a batch exports then older exports are deleted once and not between files`() = runTest {
         exportDir.mkdirs()
         val old = File(exportDir, "Old.mp3").apply { writeBytes(byteArrayOf(1)) }
@@ -203,6 +215,8 @@ class DefaultExportRepositoryTest {
         var canBegin: (Int) -> Boolean = { true }
         var writesAudio = true
         var error: (Int) -> Exception? = { null }
+        /** False: the engine stopped early (a write failed) and reports the file as cut short. */
+        var completes: (Int) -> Boolean = { true }
         val begins = mutableListOf<Triple<String, Float, Float>>()
         var ends = 0
         val isEnded get() = ends > 0
@@ -224,8 +238,9 @@ class DefaultExportRepositoryTest {
             return steps.removeFirstOrNull()
         }
 
-        override fun end() {
+        override fun end(): Boolean {
             ends++
+            return completes(begins.size - 1)
         }
     }
 

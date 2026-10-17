@@ -49,6 +49,7 @@ class DefaultExportRepository(
                     logger.e("Export failed", properties = properties + ("stage" to "begin") + ("index" to index.toString()))
                     return@withContext ExportResult.Failure(IOException("Cannot start export"))
                 }
+                var isFileComplete = false
                 try {
                     while (true) {
                         ensureActive()
@@ -56,10 +57,15 @@ class DefaultExportRepository(
                         onProgress(((done + progress.coerceIn(0f, 1f) * weights[index]) / total).coerceAtMost(1f))
                     }
                 } finally {
-                    renderer.end()
+                    isFileComplete = renderer.end()
                 }
                 current = null
                 written += target
+                // The engine also stops when a write fails (a full disk): the file is then cut short.
+                if (!isFileComplete) {
+                    logger.e("Export failed", properties = properties + ("stage" to "finish") + ("index" to index.toString()))
+                    return@withContext ExportResult.Failure(IOException("Export could not be completed"))
+                }
                 if (target.length() <= 0) {
                     logger.e("Export failed", properties = properties + ("stage" to "empty") + ("index" to index.toString()))
                     return@withContext ExportResult.Failure(IOException("Export produced an empty file"))

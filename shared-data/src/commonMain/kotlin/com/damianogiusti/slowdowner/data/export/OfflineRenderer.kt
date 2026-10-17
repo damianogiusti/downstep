@@ -11,6 +11,9 @@ interface OfflineRenderer {
     /** Renders one chunk. Returns the progress (0..1 of the range), or null once the file is complete. */
     fun renderNext(): Float?
 
-    /** Closes the output file. Always call it after a successful [begin]. */
-    fun end()
+    /**
+     * Closes the output file. Always call it after a successful [begin]. Returns true if the file is
+     * complete: false if the render was cut short (cancelled, or a write failed).
+     */
+    fun end(): Boolean
 }
