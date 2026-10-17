@@ -1314,6 +1314,52 @@ void countInEveryLoopLeavesAGapAtEachWrap() {
     sd_engine_destroy(e);
 }
 
+void countInEveryLoopFadesTheMusicOutAtB() {
+    // A sustained tone up to B, whatever the device's block size: the music must always end with the
+    // full ~10 ms fade, never cut, however the stop falls against the blocks (also when the stretcher
+    // has nothing left for the block it stops in).
+    const int fade = kRate / 100;
+    int cut = 0;
+    for (int block = 61; block <= 1100; block += 23) {
+        SdEngine *e = openInMemory(toneOnTheLeft(10));
+        sd_engine_set_tempo(e, 120, 0, 4);
+        sd_engine_set_count_in(e, 2, 1);
+        sd_engine_set_loop_and_seek(e, 0.1, 0.15, 1, 0.1); // 0.5 s of music after each 1 s count-in
+        sd_engine_set_playing(e, 1);
+        const int total = 5 * kRate;
+        std::vector<float> interleaved(size_t(total) * 2);
+        for (int done = 0; done < total; done += block)
+            sd_engine_render(e, interleaved.data() + size_t(done) * 2, std::min(block, total - done));
+        sd_engine_destroy(e);
+        std::vector<float> music(static_cast<size_t>(total));
+        for (int i = 0; i < total; ++i) music[size_t(i)] = interleaved[size_t(i) * 2] - interleaved[size_t(i) * 2 + 1];
+
+        // Each pass ends where the music falls silent for the count-in.
+        int stops = 0;
+        for (int i = kRate + kRate / 10; i + kRate / 2 < total; ++i) {
+            if (std::fabs(music[size_t(i - 1)]) <= 1e-6f) continue;
+            bool gap = true;
+            for (int j = i; j < i + kRate / 2 && gap; ++j) gap = std::fabs(music[size_t(j)]) <= 1e-6f;
+            if (!gap) continue;
+            ++stops;
+            // Four ~2.5 ms windows over the last 10 ms: each quieter than the one before, the music
+            // still at full level just before them, and next to nothing at the end.
+            float peaks[4];
+            for (int w = 0; w < 4; ++w) peaks[w] = peakAfter(music, i - fade + w * fade / 4, fade / 4);
+            const float before = peakAfter(music, i - fade - kRate / 200, kRate / 200);
+            const float last = peakAfter(music, i - 20, 20);
+            const bool ramps = before > 0.4f && peaks[0] > peaks[1] && peaks[1] > peaks[2] && peaks[2] > peaks[3] &&
+                               peaks[3] < 0.2f && last < 0.03f;
+            if (!ramps) ++cut;
+            CHECK(ramps, "block %d, stop at %d: peaks %.3f before, %.3f %.3f %.3f %.3f, last 20 frames %.3f", block, i,
+                  before, peaks[0], peaks[1], peaks[2], peaks[3], last);
+            i += kRate / 2;
+        }
+        CHECK(stops == 2, "block %d: %d stops in two passes", block, stops);
+    }
+    if (cut > 0) std::printf("  %d stops without the full fade\n", cut);
+}
+
 double circularDistance(double a, double b, double period) {
     const double d = std::fmod(std::fabs(a - b), period);
     return std::min(d, period - d);
@@ -1638,6 +1684,7 @@ int main() {
         {"metronome follows the loop wrap", [] { metronomeFollowsTheLoopWrap(); }},
         {"count-in starts the music on the beat", [] { countInStartsTheMusicOnTheBeat(); }},
         {"count-in every loop leaves a gap at each wrap", [] { countInEveryLoopLeavesAGapAtEachWrap(); }},
+        {"count-in every loop fades the music out at B", [] { countInEveryLoopFadesTheMusicOutAtB(); }},
         {"detects the tempo of a click track", [] { detectsTheTempoOfAClickTrack(); }},
         {"no tempo in silence or noise", [] { noTempoInSilenceOrNoise(); }},
         {"export has no clicks", [] { exportHasNoClicks(); }},

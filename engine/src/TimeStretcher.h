@@ -2,6 +2,7 @@
 
 #include "Pcm.h"
 
+#include <algorithm>
 #include <array>
 #include <memory>
 
@@ -39,9 +40,15 @@ public:
 
     /**
      * With it on, playback stops at the loop end instead of wrapping: render() returns fewer frames and
-     * reachedLoopEnd() says why (the count-in before each loop restart). seek() clears it.
+     * reachedLoopEnd() says why (the count-in before each loop restart). seek() clears it. The music
+     * fades out over its last setStopFadeFrames() frames, wherever the blocks fall.
      */
     void setStopAtLoopEnd(bool stop) { stopAtLoopEnd_ = stop; }
+    /**
+     * The fade-out before a stop at the loop end, in output frames. render() keeps this much more than
+     * a block in the FIFO, so the stop is known while its last frames are still there to fade.
+     */
+    void setStopFadeFrames(int frames) { stopFadeFrames_ = std::max(0, frames); }
     bool reachedLoopEnd() const { return reachedLoopEnd_; }
     int64_t loopStartFrame() const { return loopStart_; }
     /**
@@ -70,6 +77,8 @@ private:
     void updatePosition();
     void updateChunkPosition();
     void fillSourceFrames(double *sourceFrames, int frames) const;
+    /** Fades the frames still in the FIFO out to silence, over at most stopFadeFrames_. */
+    void fadeOutFifoTail();
 
     struct ChunkInfo {
         int64_t begin = 0; // absolute FIFO frame index
@@ -101,6 +110,7 @@ private:
     bool finished_ = false;
     bool stopAtLoopEnd_ = false;
     bool reachedLoopEnd_ = false;
+    int stopFadeFrames_ = 0;
     double position_ = 0;
     double seekTarget_ = -1; // after a seek the preroll grains sit before it: hold the target until passed
 };

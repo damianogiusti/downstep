@@ -27,6 +27,7 @@ Player::Player(int outputRate, int maxBlockFrames) : outputRate_(outputRate), ma
     equalizer_.setSampleRate(outputRate);
     isolation_.setSampleRate(outputRate);
     click_.prepare(outputRate);
+    stretcher_.setStopFadeFrames(std::max(1, int(outputRate * kFadeSeconds)));
     sourcePositions_.assign(size_t(std::max(1, maxBlockFrames)), 0.0);
 }
 
@@ -344,8 +345,8 @@ int Player::render(float *const *out, int frames) {
             reachedEnd = true; // the end of the file with the loop off
             break;
         }
-        // The loop end: fade the music out where it stops, count in, go on from the loop start.
-        fadeOutBefore(out, done, done - rendered);
+        // The loop end: the music has faded out where it stops (the stretcher saw the stop coming,
+        // see setStopFadeFrames). Count in, go on from the loop start.
         stretcher_.seek(double(stretcher_.loopStartFrame()));
         equalizer_.reset();
         isolation_.reset();
@@ -486,16 +487,6 @@ void Player::placeBeats(int from, int frames) {
         last = p;
     }
     lastSourceFrame_ = last;
-}
-
-void Player::fadeOutBefore(float *const *out, int end, int from) {
-    const int length = std::max(1, int(outputRate_ * kFadeSeconds));
-    const int start = std::max(from, end - length);
-    for (int i = start; i < end; ++i) {
-        const float g = float(end - 1 - i) / float(end - start);
-        out[0][i] *= g;
-        out[1][i] *= g;
-    }
 }
 
 void Player::applyFade(float *const *out, int frames, bool fadeIn) {

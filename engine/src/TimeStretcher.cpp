@@ -72,7 +72,10 @@ void TimeStretcher::setMix(double mixRight) {
 }
 
 int TimeStretcher::render(float *const *out, int frames, double *sourceFrames) {
-    while (fifoWrite_ - fifoRead_ < frames && !finished_) produceGrain();
+    // With a stop at the loop end, a fade's worth beyond the block: the stop is found while the frames
+    // before it are still in the FIFO, to be faded whatever the block boundaries (see produceGrain()).
+    const int wanted = frames + (stopAtLoopEnd_ ? stopFadeFrames_ : 0);
+    while (fifoWrite_ - fifoRead_ < wanted && !finished_) produceGrain();
     const int available = std::min(frames, fifoWrite_ - fifoRead_);
     for (int c = 0; c < 2; ++c) {
         std::copy_n(fifo_[size_t(c)].begin() + fifoRead_, available, out[c]);
@@ -91,6 +94,7 @@ void TimeStretcher::produceGrain() {
         if (stopAtLoopEnd_) {
             finished_ = true;
             reachedLoopEnd_ = true;
+            fadeOutFifoTail();
             return;
         }
         // Jump without reset: Bungee overlaps the grains on both sides, so the wrap stays smooth.
@@ -133,6 +137,14 @@ void TimeStretcher::produceGrain() {
 
     stretcher_->next(r);
     r.reset = false;
+}
+
+void TimeStretcher::fadeOutFifoTail() {
+    // Shorter only when the stop comes within a fade of a seek: the FIFO then holds less.
+    const int length = std::min(stopFadeFrames_, fifoWrite_ - fifoRead_);
+    const int start = fifoWrite_ - length;
+    for (auto &channel : fifo_)
+        for (int i = 0; i < length; ++i) channel[size_t(start + i)] *= float(length - 1 - i) / float(length);
 }
 
 void TimeStretcher::appendToFifo(const Bungee::OutputChunk &output) {

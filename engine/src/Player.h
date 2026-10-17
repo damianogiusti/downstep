@@ -141,8 +141,6 @@ private:
     void countIn(float *const *out, int from, int frames);
     /** Metronome clicks on the beats crossed by sourcePositions_[from..from+frames). */
     void placeBeats(int from, int frames);
-    /** Fades out[from..end) to silence at `end`, over at most the usual fade length. */
-    void fadeOutBefore(float *const *out, int end, int from);
     /** Audio-thread click state back to rest (open, close, stop). */
     void resetClicks();
 
