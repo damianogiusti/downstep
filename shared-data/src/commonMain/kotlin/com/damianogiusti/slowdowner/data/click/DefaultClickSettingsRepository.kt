@@ -18,12 +18,17 @@ class DefaultClickSettingsRepository(
 
     private val cache = MutableStateFlow<ClickSettings?>(null)
     private val loadLock = Mutex()
+    private val writeLock = Mutex()
 
     override fun observe(): Flow<ClickSettings> = cache.onStart { load() }.filterNotNull()
 
     override suspend fun save(settings: ClickSettings) {
         cache.value = settings
-        withContext(dispatcher) { store.write(settings.toDto()) }
+        // One write at a time, of the latest settings: two quick changes never land in the wrong order.
+        writeLock.withLock {
+            val latest = cache.value ?: return@withLock
+            withContext(dispatcher) { store.write(latest.toDto()) }
+        }
     }
 
     private suspend fun load() = loadLock.withLock {
