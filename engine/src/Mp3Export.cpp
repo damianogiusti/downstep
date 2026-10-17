@@ -54,6 +54,8 @@ SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitr
     auto exporter = std::make_unique<SdExport>();
     exporter->player = std::make_unique<Player>(rate, kChunkFrames);
     if (!exporter->player->open(std::move(open.source), open.path)) return nullptr;
+    // The sound only: the metronome and count-in are practice aids, not part of the music, so the
+    // export's player never gets them (they are not in Player::Settings).
     exporter->player->applySettings(source->settings());
 
     exporter->file = openFileUtf8(utf8OutputPath, "wb");

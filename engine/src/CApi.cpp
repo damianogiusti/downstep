@@ -2,10 +2,12 @@
 
 #include "Denormals.h"
 #include "Player.h"
+#include "TempoDetector.h"
 
 #include <miniaudio.h>
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <vector>
 
@@ -129,6 +131,38 @@ void sd_engine_set_eq_band(SdEngine *engine, int band, double gainDb) { engine->
 void sd_engine_set_preamp(SdEngine *engine, double gainDb) { engine->player->setPreamp(gainDb); }
 
 void sd_engine_set_output_gain(SdEngine *engine, double gain) { engine->player->setOutputGain(gain); }
+
+void sd_engine_set_tempo(SdEngine *engine, double bpm, double beatOffsetSeconds, int beatsPerBar) {
+    engine->player->setTempo(bpm, beatOffsetSeconds, beatsPerBar);
+}
+
+void sd_engine_set_metronome(SdEngine *engine, int enabled, double volume) {
+    engine->player->setMetronome(enabled != 0, volume);
+}
+
+void sd_engine_set_count_in(SdEngine *engine, int beats, int everyLoop) {
+    engine->player->setCountIn(beats, everyLoop != 0);
+}
+
+int sd_engine_count_in_remaining(const SdEngine *engine) { return engine->player->countInRemaining(); }
+
+int sd_engine_detect_tempo(SdEngine *engine, double *bpm, double *beatOffsetSeconds, double *confidence) {
+    const double hint = bpm && std::isfinite(*bpm) && *bpm > 0 ? *bpm : 0.0;
+    TempoEstimate estimate;
+    bool found = false;
+    // The shared buffer, so a file opening meanwhile cannot pull it away; the analysis allocates, and
+    // nothing may throw into the JVM.
+    try {
+        if (const auto source = engine->player->source()) found = detectTempo(*source, hint, estimate);
+    } catch (...) {
+        found = false;
+    }
+    if (!found) estimate = {};
+    if (bpm) *bpm = estimate.bpm;
+    if (beatOffsetSeconds) *beatOffsetSeconds = estimate.beatOffsetSeconds;
+    if (confidence) *confidence = estimate.confidence;
+    return found ? 1 : 0;
+}
 
 int sd_engine_peaks(SdEngine *engine, double from, double to, float *out, int buckets) {
     return engine->player->peaks(from, to, out, buckets);

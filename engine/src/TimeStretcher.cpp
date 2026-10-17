@@ -40,6 +40,7 @@ void TimeStretcher::seek(double frame) {
     readCount_ = writeCount_ = 0;
     chunkHead_ = chunkCount_ = 0;
     finished_ = false;
+    reachedLoopEnd_ = false;
     position_ = frame;
     seekTarget_ = frame;
 }
@@ -70,13 +71,14 @@ void TimeStretcher::setMix(double mixRight) {
     }
 }
 
-int TimeStretcher::render(float *const *out, int frames) {
+int TimeStretcher::render(float *const *out, int frames, double *sourceFrames) {
     while (fifoWrite_ - fifoRead_ < frames && !finished_) produceGrain();
     const int available = std::min(frames, fifoWrite_ - fifoRead_);
     for (int c = 0; c < 2; ++c) {
         std::copy_n(fifo_[size_t(c)].begin() + fifoRead_, available, out[c]);
         std::fill(out[c] + available, out[c] + frames, 0.f);
     }
+    if (sourceFrames) fillSourceFrames(sourceFrames, available);
     fifoRead_ += available;
     readCount_ += available;
     updatePosition();
@@ -86,6 +88,11 @@ int TimeStretcher::render(float *const *out, int frames) {
 void TimeStretcher::produceGrain() {
     auto &r = request_->request;
     if (loopOn_ && r.position >= double(loopEnd_)) {
+        if (stopAtLoopEnd_) {
+            finished_ = true;
+            reachedLoopEnd_ = true;
+            return;
+        }
         // Jump without reset: Bungee overlaps the grains on both sides, so the wrap stays smooth.
         r.position = double(loopStart_) + std::fmod(r.position - double(loopEnd_), double(loopEnd_ - loopStart_));
     }
@@ -142,14 +149,19 @@ void TimeStretcher::appendToFifo(const Bungee::OutputChunk &output) {
     }
     fifoWrite_ += frames;
 
-    const double begin = output.request[Bungee::OutputChunk::begin]->position;
     const double end = output.request[Bungee::OutputChunk::end]->position;
+    // The first chunk after a reset (a seek) starts from the grain before it, somewhere else in the
+    // file: it would read as a jump back, or a wrap. It is the run-in's start: hold its end.
+    const double begin =
+        output.request[Bungee::OutputChunk::end]->reset ? end : output.request[Bungee::OutputChunk::begin]->position;
     if (!std::isnan(begin) && !std::isnan(end)) {
-        if (chunkCount_ == kMaxChunks) { // drop the oldest; positions are for display only
+        if (chunkCount_ == kMaxChunks) { // drop the oldest (never seen: see kMaxChunks)
             chunkHead_ = (chunkHead_ + 1) % kMaxChunks;
             --chunkCount_;
         }
-        chunks_[size_t((chunkHead_ + chunkCount_) % kMaxChunks)] = {writeCount_, frames, begin, end};
+        const double loopLength = loopOn_ ? double(loopEnd_ - loopStart_) : 0.0;
+        chunks_[size_t((chunkHead_ + chunkCount_) % kMaxChunks)] = {writeCount_, frames, begin, end, double(loopStart_),
+                                                                    loopLength};
         ++chunkCount_;
     }
     writeCount_ += frames;
@@ -182,4 +194,61 @@ void TimeStretcher::updateChunkPosition() {
     }
     const double t = double(readCount_ - head.begin) / head.frames;
     position_ = head.positionBegin + (head.positionEnd - head.positionBegin) * t;
+}
+
+void TimeStretcher::skipPreroll() {
+    if (seekTarget_ < 0) return;
+    // A few grains at most: Bungee's run-in is a handful of grains long.
+    for (int grains = 0; grains < kMaxChunks / 2; ++grains) {
+        for (int k = 0; k < chunkCount_; ++k) {
+            const ChunkInfo &chunk = chunks_[size_t((chunkHead_ + k) % kMaxChunks)];
+            if (chunk.positionEnd < seekTarget_ || chunk.positionEnd < chunk.positionBegin) continue;
+            // The first frame of this chunk at or past the target.
+            const double span = chunk.positionEnd - chunk.positionBegin;
+            const double t = span > 0 ? std::clamp((seekTarget_ - chunk.positionBegin) / span, 0.0, 1.0) : 0.0;
+            const int64_t frame = std::max(readCount_, chunk.begin + int64_t(std::ceil(t * chunk.frames)));
+            const int skip = int(std::min<int64_t>(frame - readCount_, fifoWrite_ - fifoRead_));
+            const double target = seekTarget_;
+            fifoRead_ += skip;
+            readCount_ += skip;
+            updatePosition();
+            position_ = target;
+            seekTarget_ = -1;
+            return;
+        }
+        if (finished_) return;
+        produceGrain();
+    }
+}
+
+void TimeStretcher::fillSourceFrames(double *sourceFrames, int frames) const {
+    // The same mapping as updateChunkPosition(), for every output frame of the block about to be read,
+    // but without holding a seek target: the run-in before it is heard, so its beats click too.
+    // Before the first chunk of a seek nothing is known (NaN): position_ holds the target, not yet heard.
+    double last = seekTarget_ >= 0 ? std::nan("") : position_;
+    int k = 0; // chunks after the head
+    for (int i = 0; i < frames; ++i) {
+        const int64_t frame = readCount_ + i;
+        while (k < chunkCount_) {
+            const ChunkInfo &chunk = chunks_[size_t((chunkHead_ + k) % kMaxChunks)];
+            if (chunk.begin + chunk.frames > frame) break;
+            ++k;
+        }
+        double p = last; // between chunks (a NaN request was skipped): hold
+        if (k < chunkCount_) {
+            const ChunkInfo &chunk = chunks_[size_t((chunkHead_ + k) % kMaxChunks)];
+            if (chunk.begin <= frame) {
+                const double t = double(frame - chunk.begin) / chunk.frames;
+                double end = chunk.positionEnd;
+                // Across a wrap: interpolate as if the loop went on, then fold back to its start.
+                const bool wraps = end < chunk.positionBegin && chunk.loopLength > 0;
+                if (wraps) end += chunk.loopLength;
+                p = chunk.positionBegin + (end - chunk.positionBegin) * t;
+                if (wraps && p >= chunk.loopStart + chunk.loopLength) p -= chunk.loopLength;
+                else if (!wraps && end < chunk.positionBegin) p = chunk.positionBegin;
+            }
+        }
+        sourceFrames[i] = p;
+        last = p;
+    }
 }
