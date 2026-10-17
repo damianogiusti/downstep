@@ -31,12 +31,15 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
 import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
+import com.damianogiusti.slowdowner.desktop.windows.WindowsTitleBar
+import com.damianogiusti.slowdowner.desktop.windows.WindowsTitleBarHook
 import com.damianogiusti.slowdowner.di.uiModule
 import com.damianogiusti.slowdowner.di.useCasesModule
 import com.damianogiusti.slowdowner.logging.Logger
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.common.LocalTextInputFocus
+import com.damianogiusti.slowdowner.ui.common.LocalWindowTitleBar
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.navigation.ActivityViewModels
@@ -112,7 +115,8 @@ fun main() {
         )
         Window(
             onCloseRequest = ::exitApplication,
-            // Shown on Windows: tells which build the band is trying. Hidden on macOS (WindowChrome).
+            // Tells which build the band is trying, in the taskbar and Alt+Tab (and to screen readers). Not
+            // drawn: on macOS the title bar is transparent (WindowChrome), on Windows the header replaces it.
             title = "Downstep $appVersion",
             // From the first frame, so the coffee cup never shows; sharper sizes follow below.
             icon = remember { runCatching { appIconPainter() }.getOrNull() },
@@ -120,10 +124,21 @@ fun main() {
             onPreviewKeyEvent = { event -> shortcuts?.handle(event) ?: false },
         ) {
             val scope = rememberCoroutineScope()
-            val fullscreen = remember(windowState) { WindowFullscreen(windowState, scope) { window.placement } }
+            // Windows: the header replaces the title bar, before the window first shows. Null elsewhere,
+            // or when it cannot: the window then keeps the system's title bar.
+            val titleBarHook = remember { if (isWindows) WindowsTitleBarHook.install(window, logger) else null }
+            val fullscreen = remember(windowState) {
+                WindowFullscreen(windowState, scope, awtPlacement = { window.placement }, borderless = titleBarHook?.asBorderlessFullscreen())
+            }
+            val titleBar = remember(titleBarHook, fullscreen) {
+                titleBarHook?.let { hook ->
+                    WindowsTitleBar(hook, isFullscreen = { fullscreen.isFullscreen }, isMaximized = { windowState.placement == WindowPlacement.Maximized })
+                        .apply { onLeaveFullscreenRequested = { fullscreen.exit() } }
+                }
+            }
             LaunchedEffect(fullscreen) { fullscreen.trackRestorePlacement() }
-            // A file picker or another app taking the focus must not minimize the fullscreen window.
-            if (isWindows) LaunchedEffect(windowState) { window.keepFullscreenOnFocusLoss(windowState) }
+            // AWT's fullscreen only: a file picker or another app taking the focus must not minimize it.
+            if (isWindows && titleBarHook == null) LaunchedEffect(windowState) { window.keepFullscreenOnFocusLoss(windowState) }
             LaunchedEffect(Unit) {
                 // From the screen the window opens on: restored bounds may be on a smaller one than the primary.
                 window.minimumSize = minimumWindowSize(initialBounds, screens)
@@ -139,7 +154,11 @@ fun main() {
                 sinceLaunchMillis()?.let { println("Window composed $it ms after launch") }
             }
             LaunchedEffect(windowState) {
-                windowState.saveBoundsTo(windowBounds, initialBounds, isWindowFullscreen = { window.placement == WindowPlacement.Fullscreen })
+                windowState.saveBoundsTo(
+                    windowBounds,
+                    initialBounds,
+                    isWindowFullscreen = { window.placement == WindowPlacement.Fullscreen || fullscreen.isFullscreen },
+                )
             }
             // macOS only: there the menus sit in the screen's menu bar. On Windows they would be a bar
             // inside the window, and Alt+F4 already closes it. One window: closing it quits.
@@ -164,7 +183,7 @@ fun main() {
             // One store for the window, as the activity is on Android: pickers report into these ViewModels,
             // and the player, its effects and the theme live as long as the window.
             val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
-            CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
+            CompositionLocalProvider(LocalViewModelStoreOwner provides owner, LocalWindowTitleBar provides titleBar) {
                 // Without an engine there is no Koin: the error screen gets the default theme. The theme
                 // on screen includes the theme menu's preview.
                 val theme = if (engine != null) koinViewModel<ThemeViewModel>().effective.collectAsStateWithLifecycle().value else ThemeSelection.DEFAULT
@@ -207,6 +226,12 @@ fun main() {
     }
     CrashReporting.stop()
     exitProcess(0)
+}
+
+private fun WindowsTitleBarHook.asBorderlessFullscreen() = object : BorderlessFullscreen {
+    override fun enter() = enterFullscreen()
+
+    override fun exit() = exitFullscreen()
 }
 
 /** Null where the OS does not tell when the process started. */

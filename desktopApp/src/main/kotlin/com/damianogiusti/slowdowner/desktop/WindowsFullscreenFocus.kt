@@ -11,7 +11,9 @@ import java.awt.Window
 import java.awt.event.WindowListener
 
 /**
- * Windows only: a fullscreen window that its own file pickers, or another app, do not minimize.
+ * Windows only, when the header could not replace the title bar (see WindowsTitleBarHook, whose
+ * borderless fullscreen needs none of this): a fullscreen window that its own file pickers, or
+ * another app, do not minimize.
  *
  * Compose's fullscreen there is AWT's full-screen exclusive mode (`setFullScreenWindow`). With Java2D's
  * GDI pipeline (Direct3D unavailable or turned off: remote desktop, some virtual machines and GPUs) the

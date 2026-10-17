@@ -35,6 +35,8 @@ import androidx.navigationevent.NavigationEventInput
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.damianogiusti.slowdowner.ui.common.FullscreenControl
 import com.damianogiusti.slowdowner.ui.common.LocalTextInputFocus
+import com.damianogiusti.slowdowner.ui.common.LocalWindowTitleBar
+import com.damianogiusti.slowdowner.ui.common.WindowTitleBar
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
 import com.damianogiusti.slowdowner.ui.navigation.ActivityActions
 import com.damianogiusti.slowdowner.ui.navigation.ActivityViewModels
@@ -72,6 +74,8 @@ class PlayerScene(
     private val fullscreen: FullscreenControl = TestFullscreen(),
     /** Composed first, before the app: what the window composes at its root. */
     private val root: @Composable () -> Unit = {},
+    /** The window's title bar, where the header replaces it (Windows). */
+    private val titleBar: WindowTitleBar? = null,
 ) : AutoCloseable {
 
     private lateinit var scene: ImageComposeScene
@@ -100,6 +104,7 @@ class PlayerScene(
                     LocalTextInputFocus provides textInput,
                     LocalNavigationEventDispatcherOwner provides backOwner,
                     LocalViewConfiguration provides slowMachineConfiguration(LocalViewConfiguration.current),
+                    LocalWindowTitleBar provides titleBar,
                 ) {
                     root()
                     SlowDownerTheme(theme) {

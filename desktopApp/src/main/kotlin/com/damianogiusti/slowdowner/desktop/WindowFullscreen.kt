@@ -2,6 +2,9 @@ package com.damianogiusti.slowdowner.desktop
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
@@ -20,9 +23,14 @@ import kotlinx.coroutines.withTimeoutOrNull
  * The window's fullscreen: the header's toggle, F and F11 turn it on and off, Esc leaves it. The
  * state is the window's own placement ([WindowState.placement] = [WindowPlacement.Fullscreen]),
  * which Compose implements per OS and keeps in step with the OS:
- * - Windows (and Linux): AWT's full-screen window, which covers the whole screen, taskbar included,
- *   without the title bar. Its own file pickers show over it (see [keepFullscreenOnFocusLoss]); when
- *   another app comes to the front Windows may minimize it, and it is fullscreen again when brought back.
+ * - Windows, where the header replaces the title bar ([borderless], see WindowsTitleBarHook): a
+ *   borderless window over the whole monitor, as a browser's F11. Windows hides the taskbar for it
+ *   while it is in front; another window simply comes in front of it, nothing minimizes it. The
+ *   window's placement stays floating or maximized meanwhile: [borderless] restores it on exit.
+ * - Linux, and Windows if the title bar could not be replaced: AWT's full-screen window, which covers
+ *   the whole screen, taskbar included, without the title bar. Its own file pickers show over it (see
+ *   [keepFullscreenOnFocusLoss]); when another app comes to the front Windows may minimize it, and it
+ *   is fullscreen again when brought back.
  * - macOS: the native fullscreen of the green button (`toggleFullScreen:`), in its own Space, so the
  *   button, the menu item, ⌃⌘F, F and F11 all toggle the same thing (see [useTransparentTitleBar],
  *   which makes the window fullscreenable).
@@ -45,6 +53,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class WindowFullscreen(
     private val state: WindowState,
     private val scope: CoroutineScope,
+    private val borderless: BorderlessFullscreen? = null,
     private val awtPlacement: () -> WindowPlacement? = { null },
 ) : FullscreenControl {
 
@@ -55,7 +64,10 @@ class WindowFullscreen(
 
     private var leaving: Job? = null
 
-    override val isFullscreen: Boolean get() = state.placement == WindowPlacement.Fullscreen
+    /** In [borderless]'s fullscreen. */
+    private var isBorderless by mutableStateOf(false)
+
+    override val isFullscreen: Boolean get() = isBorderless || state.placement == WindowPlacement.Fullscreen
 
     override fun toggle() {
         if (isFullscreen) exit() else enter()
@@ -63,6 +75,11 @@ class WindowFullscreen(
 
     fun enter() {
         if (isFullscreen) return
+        if (borderless != null) {
+            isBorderless = true
+            borderless.enter()
+            return
+        }
         val isLeaving = leaving?.isActive == true
         // Still on its way out (macOS animates it): AppKit would ignore the toggle, and the header would
         // show a fullscreen the window is leaving. The press is dropped; the next one, once out, enters.
@@ -76,6 +93,11 @@ class WindowFullscreen(
     /** Back to [restorePlacement]. False when the window was not fullscreen: Esc then does nothing. */
     fun exit(): Boolean {
         if (!isFullscreen) return false
+        if (isBorderless) {
+            borderless?.exit()
+            isBorderless = false
+            return true
+        }
         val target = restorePlacement
         // Out of fullscreen first: Compose's Maximized only maximizes, a full-screen window stays so.
         state.placement = WindowPlacement.Floating
@@ -104,6 +126,16 @@ class WindowFullscreen(
         const val POLL_MS = 50L
         const val LEAVE_TIMEOUT_MS = 2_000L
     }
+}
+
+/**
+ * A fullscreen of the window's own, instead of the placement's (Windows, see WindowsTitleBarHook):
+ * [enter] covers the monitor, [exit] puts the window back as it was, maximized or not.
+ */
+interface BorderlessFullscreen {
+    fun enter()
+
+    fun exit()
 }
 
 /**

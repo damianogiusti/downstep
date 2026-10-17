@@ -219,6 +219,87 @@ class WindowFullscreenTest {
         saving.cancelAndJoin()
     }
 
+    /** Windows' borderless fullscreen, as the hook does it: the window's bounds change, its placement stays. */
+    private class FakeBorderless(private val state: WindowState) : BorderlessFullscreen {
+        var entered = 0
+        var exited = 0
+        private var before: Pair<WindowPosition, DpSize>? = null
+        private var wasMaximized = false
+
+        override fun enter() {
+            entered++
+            wasMaximized = state.placement == WindowPlacement.Maximized
+            state.placement = WindowPlacement.Floating
+            before = state.position to state.size
+            state.position = WindowPosition(0.dp, 0.dp)
+            state.size = DpSize(1920.dp, 1080.dp)
+        }
+
+        override fun exit() {
+            exited++
+            before?.let { (position, size) ->
+                state.position = position
+                state.size = size
+            }
+            if (wasMaximized) state.placement = WindowPlacement.Maximized
+        }
+    }
+
+    @Test
+    fun `the borderless fullscreen toggles without the placement`() {
+        val state = windowState()
+        val borderless = FakeBorderless(state)
+        val fullscreen = WindowFullscreen(state, CoroutineScope(Dispatchers.Unconfined), borderless = borderless)
+
+        fullscreen.toggle()
+        assertTrue(fullscreen.isFullscreen)
+        assertEquals(WindowPlacement.Floating, state.placement, "never AWT's exclusive full screen")
+        assertEquals(1, borderless.entered)
+
+        fullscreen.enter()
+        assertEquals(1, borderless.entered, "already in")
+
+        assertTrue(fullscreen.exit())
+        assertFalse(fullscreen.isFullscreen)
+        assertEquals(1, borderless.exited)
+        assertEquals(WindowPosition(120.dp, 80.dp), state.position)
+        assertFalse(fullscreen.exit(), "Esc goes on")
+        assertEquals(1, borderless.exited)
+    }
+
+    @Test
+    fun `a maximized window is maximized again after the borderless fullscreen`() {
+        val state = windowState(WindowPlacement.Maximized)
+        val fullscreen = WindowFullscreen(state, CoroutineScope(Dispatchers.Unconfined), borderless = FakeBorderless(state))
+
+        fullscreen.enter()
+        assertTrue(fullscreen.isFullscreen)
+        fullscreen.exit()
+        assertFalse(fullscreen.isFullscreen)
+        assertEquals(WindowPlacement.Maximized, state.placement)
+    }
+
+    @Test
+    fun `the borderless fullscreen is never saved as the startup state`() = runBlocking {
+        val store = WindowBoundsStore(node)
+        val state = windowState()
+        val fullscreen = WindowFullscreen(state, this, borderless = FakeBorderless(state))
+        val saving = launch { state.saveBoundsTo(store, WindowBounds(120, 80, 1100, 720), { fullscreen.isFullscreen }, delayMillis = 20) }
+        settle()
+
+        fullscreen.enter()
+        settle()
+        delay(150)
+        assertEquals(WindowBounds(120, 80, 1100, 720), store.read(), "the window before fullscreen, not the monitor")
+
+        fullscreen.exit()
+        state.position = WindowPosition(130.dp, 90.dp)
+        settle()
+        delay(150)
+        assertEquals(WindowBounds(130, 90, 1100, 720), store.read())
+        saving.cancelAndJoin()
+    }
+
     /** What Compose's frame clock does in the app: tells snapshotFlow, then lets its collector run. */
     private suspend fun settle() {
         Snapshot.sendApplyNotifications()

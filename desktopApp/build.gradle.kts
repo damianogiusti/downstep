@@ -34,6 +34,9 @@ dependencies {
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     implementation("io.sentry:sentry:8.61.0")
+    // Windows: the header replaces the title bar, through a hook on the window's procedure (windows/).
+    implementation("net.java.dev.jna:jna:5.17.0")
+    implementation("net.java.dev.jna:jna-platform:5.17.0")
 
     testImplementation(kotlin("test"))
     testImplementation("io.insert-koin:koin-test")

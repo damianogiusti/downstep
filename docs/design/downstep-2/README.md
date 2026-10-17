@@ -68,6 +68,14 @@ play 68px; transport buttons 44px; loop‑tool buttons 30px. Minimum hit target 
 ### 2.1 Title bar
 OS‑style strip with the real Downstep icon (`assets/icons/downstep-app-icon.svg`) and version.
 
+(App: there is no separate strip. On macOS the title bar is transparent over the content, with only the traffic
+lights. On Windows the header is the title bar: its empty area drags the window (double click maximizes, right click
+opens the system menu, Aero Snap and snap layouts work), and its right end has the window's own minimize, maximize /
+restore and close buttons, 46 px wide and as tall as the header, drawn in the theme's colours (close turns red on
+hover). The window keeps its native frame: shadow, rounded corners, resize borders. The title "Downstep <version>"
+is still set for the taskbar, Alt+Tab and screen readers. In fullscreen the buttons go and the header keeps its gutter.
+If the title bar cannot be replaced, Windows' own stays. Linux keeps the system title bar.)
+
 ### 2.2 Header
 - **Library** pill (left) with track count → opens the drawer.
 - **Track title** + meta line: source · duration · detected BPM · loop count. (App: "≈ 92 BPM" when detected, "92 BPM"
