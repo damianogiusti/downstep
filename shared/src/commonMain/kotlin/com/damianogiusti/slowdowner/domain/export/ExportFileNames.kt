@@ -43,16 +43,37 @@ object ExportFileNames {
      * [text] made safe for a file name: characters Windows, macOS or Linux reject become "_", runs
      * of white space (a pasted line break) become one space, and the result is trimmed, at most
      * [maxLength] long, never starts with a dot (a hidden file on macOS and Linux) and never ends in
-     * one (Windows drops it). Empty becomes [fallback].
+     * one (Windows drops it). Empty becomes [fallback]. The cap never splits an emoji (a surrogate
+     * pair), and half of one is dropped: the path reaches the engine as UTF-8, where it would turn into
+     * "?", a character Windows rejects and a name the app would then not find.
      */
     fun sanitize(text: String, maxLength: Int, fallback: String): String =
         text.replace(WHITESPACE, " ")
             .replace(UNSAFE_CHARS, "_")
+            .withoutLoneSurrogates()
             .trim()
             .trimStart('.', ' ')
             .take(maxLength)
+            .let { if (it.isNotEmpty() && it.last().isHighSurrogate()) it.dropLast(1) else it }
             .trimEnd('.', ' ')
             .ifEmpty { fallback }
+
+    /** Every char of a surrogate pair is kept; half a pair, alone, is not. */
+    private fun String.withoutLoneSurrogates(): String = buildString(length) {
+        val text = this@withoutLoneSurrogates
+        var i = 0
+        while (i < text.length) {
+            val c = text[i]
+            when {
+                c.isHighSurrogate() && i + 1 < text.length && text[i + 1].isLowSurrogate() -> {
+                    append(c).append(text[i + 1])
+                    i++
+                }
+                !c.isSurrogate() -> append(c)
+            }
+            i++
+        }
+    }
 
     /**
      * [names] with a " (2)", " (3)"… before the extension where a name repeats an earlier one,

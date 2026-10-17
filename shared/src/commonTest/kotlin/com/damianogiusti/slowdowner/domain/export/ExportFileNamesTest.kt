@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.domain.export
 
+import com.damianogiusti.slowdowner.domain.loops.Loop
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -28,6 +29,26 @@ class ExportFileNamesTest {
     @Test
     fun `line breaks and runs of spaces become one space`() {
         assertEquals("Song - 01 Bridge part 2.mp3", ExportFileNames.loop("Song", 1, 1, "Bridge\n  part\t2"))
+    }
+
+    @Test
+    fun `the length cap never splits an emoji`() {
+        val guitar = "🎸" // a guitar emoji: two chars, one surrogate pair
+        // The emoji straddles the cap: it goes, whole.
+        assertEquals("a".repeat(79), ExportFileNames.sanitize("a".repeat(79) + guitar + "tail", 80, "audio"))
+        // It ends on the cap: it stays, whole.
+        assertEquals("a".repeat(78) + guitar, ExportFileNames.sanitize("a".repeat(78) + guitar + "tail", 80, "audio"))
+        // In a loop's name too.
+        val name = "b".repeat(Loop.MAX_NAME_LENGTH - 1) + guitar
+        assertEquals("Song - 01 ${"b".repeat(Loop.MAX_NAME_LENGTH - 1)}.mp3", ExportFileNames.loop("Song", 1, 1, name))
+    }
+
+    @Test
+    fun `half an emoji on its own is dropped`() {
+        // A name cut elsewhere (a field's length cap) can already end in half of one.
+        assertEquals("Solo", ExportFileNames.sanitize("Solo\uD83C", 40, "loop"))
+        assertEquals("Solo", ExportFileNames.sanitize("\uDFB8Solo", 40, "loop"))
+        assertEquals("loop", ExportFileNames.sanitize("\uD83C", 40, "loop"))
     }
 
     @Test
