@@ -197,6 +197,15 @@ class WindowsTitleBarHook private constructor(
                     extendFrame()
                     return result
                 }
+                // Fullscreen covers its monitor whatever moves or sizes the window (Win+Shift+arrows,
+                // a DPI change and AWT's suggested rect, AWT itself).
+                Win32.WM_WINDOWPOSCHANGING -> if (isFullscreen && !user32.IsIconic(h)) coverMonitor(h, Pointer(lParam.toLong()))
+                // A resolution change, a rotation, a monitor plugged or unplugged: once the monitors settled.
+                Win32.WM_DISPLAYCHANGE -> if (isFullscreen) user32.PostMessageW(h, WM_REFIT, WPARAM(0), LPARAM(0))
+                WM_REFIT -> {
+                    if (isFullscreen && !user32.IsIconic(h)) refitToMonitor()
+                    return LRESULT(0)
+                }
                 // The window's last message: its procedure goes back to what it was, and the hook may go.
                 Win32.WM_NCDESTROY -> {
                     val previous = previousProc
@@ -356,7 +365,9 @@ class WindowsTitleBarHook private constructor(
     /**
      * Fullscreen as a browser's: the window without its frame, over its whole monitor (taskbar
      * included, which Windows hides for a window that covers the monitor). A maximized window is
-     * restored first, and maximized again on [exitFullscreen]. AWT event thread only.
+     * restored first, and maximized again on [exitFullscreen]. Moved to another monitor, resized for
+     * a new DPI or after a display change, it covers its monitor again ([fullscreenWindowPos]).
+     * AWT event thread only.
      */
     fun enterFullscreen() {
         if (isFullscreen) return
@@ -390,7 +401,10 @@ class WindowsTitleBarHook private constructor(
         user32.SetWindowLongW(hwnd, Win32.GWL_EXSTYLE, window.exStyle)
         setCorners(Win32.DWMWCP_DEFAULT)
         isFullscreen = false
-        val bounds = window.bounds
+        // On the monitor the window is on now: it may have moved while fullscreen, or the old one be gone.
+        val current = monitorInfo(user32.MonitorFromWindow(hwnd, Win32.MONITOR_DEFAULTTONEAREST))?.rcWork?.toIntRect()
+        val before = monitorInfo(user32.MonitorFromRect(window.bounds.toRECT(), Win32.MONITOR_DEFAULTTONULL))?.rcWork?.toIntRect()
+        val bounds = if (current == null) window.bounds else boundsAfterFullscreen(window.bounds, before, current)
         user32.SetWindowPos(
             hwnd, null, bounds.left, bounds.top, bounds.width, bounds.height,
             Win32.SWP_NOZORDER or Win32.SWP_NOACTIVATE or Win32.SWP_FRAMECHANGED or Win32.SWP_NOOWNERZORDER,
@@ -398,12 +412,44 @@ class WindowsTitleBarHook private constructor(
         if (window.isMaximized) user32.SendMessageW(hwnd, Win32.WM_SYSCOMMAND, WPARAM(Win32.SC_MAXIMIZE.toLong()), LPARAM(0))
     }
 
-    private fun monitorBounds(): IntRect? {
-        val monitor = user32.MonitorFromWindow(hwnd, Win32.MONITOR_DEFAULTTONEAREST) ?: return null
+    /** Rewrites the WINDOWPOS at [windowPos] so that the window covers the monitor it is going to. */
+    private fun coverMonitor(h: HWND, windowPos: Pointer) {
+        val current = RECT().also { user32.GetWindowRect(h, it) }.toIntRect()
+        val flags = windowPos.getInt(WINDOWPOS_FLAGS)
+        val target = fullscreenWindowPos(
+            current,
+            x = windowPos.getInt(WINDOWPOS_X),
+            y = windowPos.getInt(WINDOWPOS_Y),
+            cx = windowPos.getInt(WINDOWPOS_CX),
+            cy = windowPos.getInt(WINDOWPOS_CY),
+            flags = flags,
+            monitorOf = { rect -> monitorInfo(user32.MonitorFromRect(rect.toRECT(), Win32.MONITOR_DEFAULTTONEAREST))?.rcMonitor?.toIntRect() },
+        ) ?: return
+        windowPos.setInt(WINDOWPOS_X, target.left)
+        windowPos.setInt(WINDOWPOS_Y, target.top)
+        windowPos.setInt(WINDOWPOS_CX, target.width)
+        windowPos.setInt(WINDOWPOS_CY, target.height)
+        windowPos.setInt(WINDOWPOS_FLAGS, flags and (Win32.SWP_NOMOVE or Win32.SWP_NOSIZE).inv())
+    }
+
+    /** Over the monitor the window is on now, as it was when it went fullscreen. */
+    private fun refitToMonitor() {
+        val monitor = monitorBounds() ?: return
+        val current = RECT().also { user32.GetWindowRect(hwnd, it) }.toIntRect()
+        if (current == monitor) return
+        user32.SetWindowPos(
+            hwnd, null, monitor.left, monitor.top, monitor.width, monitor.height,
+            Win32.SWP_NOZORDER or Win32.SWP_NOACTIVATE or Win32.SWP_NOOWNERZORDER,
+        )
+    }
+
+    private fun monitorBounds(): IntRect? =
+        monitorInfo(user32.MonitorFromWindow(hwnd, Win32.MONITOR_DEFAULTTONEAREST))?.rcMonitor?.toIntRect()
+
+    private fun monitorInfo(monitor: Pointer?): MONITORINFO? {
+        if (monitor == null) return null
         val info = MONITORINFO()
-        if (!user32.GetMonitorInfoW(monitor, info)) return null
-        val r = info.rcMonitor
-        return IntRect(r.left, r.top, r.right, r.bottom)
+        return info.takeIf { user32.GetMonitorInfoW(monitor, it) }
     }
 
     /** Windows 11's rounded corners, off over a whole monitor. Nothing before Windows 11. */
@@ -457,6 +503,25 @@ class WindowsTitleBarHook private constructor(
         }.onFailure { logger.e("Windows title bar: cannot replace the title bar, the system one stays", it) }.getOrNull()
 
         private fun procPointer(proc: WindowProc): Pointer = com.sun.jna.CallbackReference.getFunctionPointer(proc)
+
+        /** Posted to the window to cover its monitor again, once a display change settled. */
+        private const val WM_REFIT = Win32.WM_APP + 1
+
+        // WINDOWPOS: two handles, then x, y, cx, cy and flags.
+        private val WINDOWPOS_X = 2L * com.sun.jna.Native.POINTER_SIZE
+        private val WINDOWPOS_Y = WINDOWPOS_X + 4
+        private val WINDOWPOS_CX = WINDOWPOS_X + 8
+        private val WINDOWPOS_CY = WINDOWPOS_X + 12
+        private val WINDOWPOS_FLAGS = WINDOWPOS_X + 16
+
+        private fun RECT.toIntRect() = IntRect(left, top, right, bottom)
+
+        private fun IntRect.toRECT() = RECT().also {
+            it.left = left
+            it.top = top
+            it.right = right
+            it.bottom = bottom
+        }
 
         private fun Pointer.readRect() = IntRect(getInt(0), getInt(4), getInt(8), getInt(12))
 

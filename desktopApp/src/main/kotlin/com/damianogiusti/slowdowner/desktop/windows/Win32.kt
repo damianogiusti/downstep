@@ -30,6 +30,10 @@ internal interface User32Api : StdCallLibrary {
     fun GetSystemMetrics(index: Int): Int
     fun GetSystemMetricsForDpi(index: Int, dpi: Int): Int
     fun MonitorFromWindow(hwnd: HWND, flags: Int): Pointer?
+    fun MonitorFromRect(rect: RECT, flags: Int): Pointer?
+    fun GetCursorPos(point: POINT): Boolean
+    fun SetTimer(hwnd: HWND, id: Pointer, elapse: Int, timerProc: Pointer?): Pointer?
+    fun KillTimer(hwnd: HWND, id: Pointer): Boolean
     fun GetMonitorInfoW(monitor: Pointer, info: MONITORINFO): Boolean
     fun TrackMouseEvent(event: TRACKMOUSEEVENT): Boolean
     fun PostMessageW(hwnd: HWND, message: Int, wParam: WPARAM, lParam: LPARAM): Boolean
@@ -125,6 +129,9 @@ internal object Win32 {
     const val WM_SYSCOMMAND = 0x0112
     const val WM_DPICHANGED = 0x02E0
     const val WM_WINDOWPOSCHANGING = 0x0046
+    const val WM_DISPLAYCHANGE = 0x007E
+    const val WM_TIMER = 0x0113
+    const val WM_APP = 0x8000
 
     const val SC_SIZE = 0xF000
     const val SC_MOVE = 0xF010
@@ -151,6 +158,7 @@ internal object Win32 {
     const val SM_CYFRAME = 33
     const val SM_CXPADDEDBORDER = 92
 
+    const val MONITOR_DEFAULTTONULL = 0
     const val MONITOR_DEFAULTTONEAREST = 2
 
     const val MF_BYCOMMAND = 0x0000
