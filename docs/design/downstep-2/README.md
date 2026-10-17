@@ -181,7 +181,8 @@ transport pill shows *+3% in N*, and the card's status/progress bar reflect wher
 > Recommendation for the real app: reset the pass counter if the user intervenes mid‑pass (seek, A/B change, speed/pitch change, pause) so "passes" means uninterrupted passes.
 
 ### 4.7 Isolate
-Band solo (Low / Mid / High) — any combination; none selected = full mix. Visual only in the prototype.
+Band solo (Low / Mid / High) — any combination; none selected = full mix. Visual only in the prototype; in the app
+it is a fixed stage after the EQ (see 7.4).
 
 ### 4.8 Analyze (suggested loops)
 Simulates ~1.6s of analysis then proposes sections (Verse 1, Chorus, Bridge) as dashed chips and dashed outlines
@@ -261,3 +262,47 @@ mode. The triangle's centroid, not its bounding box, now sits on the button's ce
 centroid was 2.17 units (2.5 dp) right of centre; the bounding box now leans 1.83 units right, which is the optical
 compensation. `PlayerRenderTest` measures the rendered icon's ink centroid against the button in the dark, light
 and focus renders (within 0.6 dp; it measured 2.52 dp off before the change).
+
+### 7.4 Bell-curve EQ, saved per track
+
+The effects sheet's seven gain sliders are replaced by a **frequency-response graph** (`EqGraph`), the only EQ
+editor. §6 lists the EQ as outside the prototype; this is its design.
+
+- **Axes:** frequency on a log axis, 20 Hz to 20 kHz (grid at 20, 50, 100 … 10k, 20k); gain linear, ±15 dB shown,
+  grid every 6 dB with 0 dB stronger. The plot sits on `bgDeep` inside the sheet's `surfaceContainer` card, radius
+  `control` (10).
+- **Bands:** each one is a peaking (bell) filter with a node. The starting layout is seven bands at 60, 150, 400,
+  1k, 2.4k, 6k and 15k Hz, Q 1, flat; there is room for eight (`EqCurve.MAX_BANDS`, the engine's
+  `SD_EQ_MAX_BANDS`). Gain ±12 dB, frequency 20 Hz–20 kHz, Q 0.3–10, all clamped.
+- **Gestures** (common code, also for Android): drag a node sideways for the frequency, up and down for the gain;
+  the **wheel over a node** or a **drag with Shift or Alt** changes the width (Q: four wheel notches or 60 dp of
+  drag double or halve it; up is wider). **Double-click a node** to put its gain back to 0 dB. The pointer is a
+  hand over a node; presses on a node are consumed, so the sheet neither scrolls nor closes under a drag.
+- **Drawing:** the combined curve bold in amber with a light fill to 0 dB, each band's own bell faintly; the node
+  under the pointer (or dragged) turns teal and is read out above the plot (`1.2 kHz · +3.5 dB · Q 1.4`); without
+  one the line shows the gesture hint. With the EQ off the curve and nodes are drawn in `fg2`. The curve comes from
+  `EqResponse`, the same RBJ formula the engine runs, so what is drawn is what is heard.
+- **Kept:** the EQ switch, Reset (back to the starting layout, flat; on/off stays), the preamp slider (±12 dB) and
+  the time-stretch quality.
+- **Engine:** RBJ peaking biquads (`Biquad.h`, `Equalizer.h`). Changes reach the audio thread lock-free (a seqlock:
+  one band's frequency, gain and Q always arrive together) and **glide**: the parameters move once per 32-frame
+  sub-block with a ~20 ms time constant (ending within ~80 ms), the preamp ramps sample by sample, and on/off
+  glides too, so dragging a node never zippers or clicks. Settled at flat, the EQ is skipped (bit-transparent).
+  While stopped, changes apply at once, so a new player (the export's) starts with the EQ in place.
+- **Isolate** keeps working, now as a fixed stage after the EQ (`Isolation.h`): the first EQ's 7-band split with
+  everything outside the selection cut 12 dB, whatever the user's bands are and whether the EQ is on. It glides like
+  the EQ and is never saved.
+- **Saved per track:** an edit is saved (after a 500 ms pause) with the track it was made on
+  (`track_practice_state.eq_curve`, JSON); a track without its own plays the **global EQ** (the preferences), which
+  is also what is edited when no track is open and the EQ of a track outside the library. Switching tracks loads the
+  new track's EQ; an edit still waiting is saved to its own track first. The sheet's subtitle says which one is being
+  edited.
+- **Presets** save the track's EQ with them (`practice_presets.eq_curve`); applying one makes it the track's EQ, as
+  an edit would. Presets saved before keep no EQ and leave it alone.
+- **Migration:** the first EQ's preferences (seven gains, preamp, switch) become the global curve on first read: the
+  five middle bands map exactly (they were Q 1 bells); the end shelves become broad bells (Q 0.7) at 60 Hz and 15 kHz,
+  which keep the gain at their frequency (below 60 Hz and above 15 kHz the old shelf held its gain where the bell
+  returns to 0 dB). The next save writes `eq_curve` and removes the old keys. Tracks keep playing the migrated global
+  EQ until edited. Backups carry the track's and each preset's EQ as optional fields (`eq`); older backups restore
+  without them.
+- **Export** carries the EQ and preamp as heard, never Isolate (a practice aid, like the loop).
