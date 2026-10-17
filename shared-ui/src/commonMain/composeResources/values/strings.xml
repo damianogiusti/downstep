@@ -40,7 +40,7 @@
     <string name="loop_shift_forward_description">Move the loop forward 1 s</string>
 
     <string name="mix_title">L / R balance</string>
-    <string name="effects_subtitle">They apply to all tracks.</string>
+    <string name="effects_subtitle">The EQ is saved with this track; the mix is for this session.</string>
     <string name="mix_format">Left %1$d / Right %2$d</string>
     <string name="reset">Reset</string>
     <string name="eq_title">Equalizer</string>
@@ -365,4 +365,9 @@
     <string name="progression_step_value">speed step</string>
     <string name="progression_every_value">passes per step</string>
     <!-- Group D additions -->
+    <!-- eq: bell-curve EQ graph, saved per track -->
+    <string name="effects_subtitle_default">No track is open: this EQ is the default for tracks without their own.</string>
+    <string name="eq_graph_hint">Drag a point: sideways for the frequency, up and down for the gain. Scroll, or drag with Shift or Alt, for the width. Double-click for 0 dB.</string>
+    <string name="eq_band_readout">%1$s · %2$s · Q %3$s</string>
+    <string name="eq_graph_description">EQ curve</string>
 </resources>
