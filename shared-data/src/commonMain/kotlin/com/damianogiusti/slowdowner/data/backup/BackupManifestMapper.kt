@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.data.backup
 
+import com.damianogiusti.slowdowner.data.effects.EqCurveCodec
 import com.damianogiusti.slowdowner.data.library.TrackEntity
 import com.damianogiusti.slowdowner.data.loops.LoopEntity
 import com.damianogiusti.slowdowner.data.loops.LoopMapper
@@ -10,6 +11,8 @@ import com.damianogiusti.slowdowner.data.practice.PracticeSettingsMapper
 import com.damianogiusti.slowdowner.data.practice.PracticeStateEntity
 import com.damianogiusti.slowdowner.domain.backup.BackupScope
 import com.damianogiusti.slowdowner.domain.backup.RestoreRules
+import com.damianogiusti.slowdowner.domain.effects.EqBand
+import com.damianogiusti.slowdowner.domain.effects.EqCurve
 import com.damianogiusti.slowdowner.domain.loops.BeatGrid
 import com.damianogiusti.slowdowner.domain.loops.Loop
 import com.damianogiusti.slowdowner.domain.loops.Progression
@@ -33,12 +36,29 @@ object BackupManifestMapper {
         addedAt = rows.track.addedAt,
         audio = audioEntry,
         practiceState = rows.state?.let { toDto(it.settings) },
-        presets = rows.presets.map { BackupPresetDto(name = it.name, settings = toDto(it.settings)) },
+        presets = rows.presets.map {
+            BackupPresetDto(name = it.name, settings = toDto(it.settings), eq = EqCurveCodec.decode(it.eqCurve)?.let(::toDto))
+        },
         loops = rows.loops.map(::toDto),
         // Ids are local to a database: the backup points at the active loop by position.
         activeLoop = rows.state?.activeLoopId?.let { id -> rows.loops.indexOfFirst { it.id == id } }?.takeIf { it >= 0 },
         bpm = rows.state?.bpm,
+        eq = EqCurveCodec.decode(rows.state?.eqCurve)?.let(::toDto),
     )
+
+    fun toDto(eq: EqCurve) = BackupEqDto(
+        enabled = eq.enabled,
+        preampDb = eq.preampDb,
+        bands = eq.bands.map { BackupEqBandDto(it.frequencyHz, it.gainDb, it.q) },
+    )
+
+    /** As the codec reads a column: clamped, bad bands dropped, never without bands. Stored as JSON. */
+    fun toEqColumn(dto: BackupEqDto?): String? = dto?.let {
+        val bands = it.bands
+            .filter { band -> band.frequencyHz.isFinite() && band.gainDb.isFinite() && band.q.isFinite() }
+            .map { band -> EqBand(band.frequencyHz, band.gainDb, band.q) }
+        EqCurveCodec.encode(EqCurve(it.enabled, if (it.preampDb.isFinite()) it.preampDb else 0f, bands))
+    }
 
     fun toDto(loop: LoopEntity) = BackupLoopDto(
         name = loop.name,
@@ -92,6 +112,7 @@ object BackupManifestMapper {
         settings = toColumns(settings),
         updatedAt = updatedAt,
         bpm = dto.bpm?.takeIf(BeatGrid::isValidBpm),
+        eqCurve = toEqColumn(dto.eq),
     )
 
     /**

@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.fake
 
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
+import com.damianogiusti.slowdowner.domain.effects.EqBand
 import com.damianogiusti.slowdowner.domain.effects.ProcessingQuality
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
@@ -71,12 +72,14 @@ class FakeEngine : PlaybackEngine, EffectsEngine {
     var qualityChanges = 0
     var appliedEqEnabled = false
     var appliedPreampDb = 0f
-    val bandGainsDb = MutableList(7) { 0f }
+    var appliedEqBands: List<EqBand> = emptyList()
+    var isolationMask = 0
 
     override fun setMixFromSlider(position: Int) = Unit
     override fun setEqEnabled(enabled: Boolean) { appliedEqEnabled = enabled }
     override fun setPreampDb(gainDb: Float) { appliedPreampDb = gainDb }
-    override fun setBandGainDb(band: Int, gainDb: Float) { bandGainsDb[band] = gainDb }
+    override fun setEqBands(bands: List<EqBand>) { appliedEqBands = bands }
+    override fun setIsolation(mask: Int) { isolationMask = mask }
     override fun setQuality(quality: ProcessingQuality) {
         appliedQuality = quality
         qualityChanges++

@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.data.playback
 
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
+import com.damianogiusti.slowdowner.domain.effects.EqBand
 import com.damianogiusti.slowdowner.domain.effects.ProcessingQuality
 import com.damianogiusti.slowdowner.domain.playback.LoopEditing
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
@@ -230,7 +231,20 @@ class DesktopPlaybackEngine(
 
     override fun setPreampDb(gainDb: Float) = engine.setPreamp(gainDb.toDouble())
 
-    override fun setBandGainDb(band: Int, gainDb: Float) = engine.setEqBand(band, gainDb.toDouble())
+    // What the C side has: a drag moves one band, the others need not be sent again.
+    private var sentEqBands: List<EqBand> = emptyList()
+
+    override fun setEqBands(bands: List<EqBand>) {
+        val sent = bands.take(NativeEngine.EQ_MAX_BANDS)
+        sent.forEachIndexed { index, band ->
+            if (sentEqBands.getOrNull(index) == band) return@forEachIndexed
+            engine.setEqBandParams(index, band.frequencyHz.toDouble(), band.gainDb.toDouble(), band.q.toDouble())
+        }
+        if (sent.size != sentEqBands.size) engine.setEqBandCount(sent.size)
+        sentEqBands = sent
+    }
+
+    override fun setIsolation(mask: Int) = engine.setIsolation(mask)
 
     /** Bungee has no quality levels (other hop sizes degrade it): the choice is kept, the sound is the same. */
     override fun setQuality(quality: ProcessingQuality) {

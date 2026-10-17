@@ -1,6 +1,9 @@
 package com.damianogiusti.slowdowner.domain.practice
 
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
+import com.damianogiusti.slowdowner.domain.effects.ActiveEq
+import com.damianogiusti.slowdowner.domain.effects.EqBand
+import com.damianogiusti.slowdowner.domain.effects.EqCurve
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
@@ -9,8 +12,10 @@ import com.damianogiusti.slowdowner.fake.FakeLoopRepository
 import com.damianogiusti.slowdowner.fake.FakePracticeRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.Test
 
@@ -19,10 +24,12 @@ class PresetUseCasesTest {
     private val engine = FakeEngine()
     private val nowPlaying = InMemoryNowPlayingRepository()
     private val repository = FakePracticeRepository()
-    private val savePreset = SavePresetUseCase(engine, nowPlaying, repository)
+    private val activeEq = ActiveEq()
+    private val savePreset = SavePresetUseCase(engine, nowPlaying, repository, activeEq)
     private val song = LibraryTrack("a", "A", "/a.m4a", null, 0)
     private val loops = FakeLoopRepository()
-    private val applyPreset = ApplyPresetUseCase(engine, loops, nowPlaying)
+    private val applyPreset = ApplyPresetUseCase(engine, loops, nowPlaying, activeEq)
+    private val curve = EqCurve(enabled = true, preampDb = -1f, bands = listOf(EqBand(120f, 4f, 0.8f), EqBand(3_000f, -3f, 2f)))
 
     @Test
     fun `when the name is blank then the preset is rejected`() = runTest {
@@ -92,6 +99,43 @@ class PresetUseCasesTest {
         applyPreset(preset(LoopRegion(0.2f, 0.4f, isOn = false)))
 
         assertEquals(LoopRegion(0.3f, 0.5f, isOn = false), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+    }
+
+    @Test
+    fun `when saved then the preset holds the track's own EQ`() = runTest {
+        nowPlaying.set(song)
+        activeEq.publish("a", curve)
+
+        val result = savePreset("Bright") as SavePresetResult.Saved
+
+        assertEquals(curve, result.preset.eq)
+    }
+
+    @Test
+    fun `when the EQ shown belongs to another track then the preset is saved without one`() = runTest {
+        nowPlaying.set(song)
+        activeEq.publish("other", curve)
+
+        val result = savePreset("Plain") as SavePresetResult.Saved
+
+        assertNull(result.preset.eq)
+    }
+
+    @Test
+    fun `when a preset with an EQ is applied then the editor is asked to make it the track's`() = runTest {
+        nowPlaying.set(song)
+
+        applyPreset(preset(LoopRegion.WHOLE_FILE).copy(eq = curve))
+
+        assertEquals(ActiveEq.Current("a", curve), activeEq.requests.first())
+    }
+
+    @Test
+    fun `when a preset without an EQ is applied then the EQ is left alone`() = runTest {
+        nowPlaying.set(song)
+        applyPreset(preset(LoopRegion.WHOLE_FILE))
+
+        assertNull(withTimeoutOrNull(1_000) { activeEq.requests.first() })
     }
 
     private fun preset(loop: LoopRegion) = PracticePreset(1, "a", "Solo", PracticeSettings(75f, -2f, loop))

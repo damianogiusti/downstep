@@ -9,7 +9,10 @@ interface EffectsEngine {
     fun setMixFromSlider(position: Int)
     fun setEqEnabled(enabled: Boolean)
     fun setPreampDb(gainDb: Float)
-    fun setBandGainDb(band: Int, gainDb: Float)
+    /** The EQ's bells, at most [EqCurve.MAX_BANDS], each a peaking filter. Changes glide, without clicks. */
+    fun setEqBands(bands: List<EqBand>)
+    /** Isolate's stage after the EQ ([IsolationBands.mask]); 0 = the full mix. */
+    fun setIsolation(mask: Int)
     /** Rebuilds the native player: a short audio gap is expected. */
     fun setQuality(quality: ProcessingQuality)
 }

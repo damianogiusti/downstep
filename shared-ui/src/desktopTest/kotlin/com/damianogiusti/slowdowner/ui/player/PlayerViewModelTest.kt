@@ -10,6 +10,7 @@ import com.damianogiusti.slowdowner.domain.export.ExportResult
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.ExportedFile
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
+import com.damianogiusti.slowdowner.domain.effects.ActiveEq
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.loops.CreateLoopUseCase
 import com.damianogiusti.slowdowner.domain.loops.DeleteLoopUseCase
@@ -465,8 +466,8 @@ class PlayerViewModelTest {
                 StepSpeedUseCase(engine),
                 StepPitchUseCase(engine),
                 ObservePresetsUseCase(practiceRepository),
-                SavePresetUseCase(engine, nowPlaying, practiceRepository),
-                ApplyPresetUseCase(engine, loopRepository, nowPlaying),
+                SavePresetUseCase(engine, nowPlaying, practiceRepository, ActiveEq()),
+                ApplyPresetUseCase(engine, loopRepository, nowPlaying, ActiveEq()),
                 DeletePresetUseCase(practiceRepository),
             ),
             loops = LoopUseCases(

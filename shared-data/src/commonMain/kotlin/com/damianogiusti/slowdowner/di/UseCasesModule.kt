@@ -9,7 +9,9 @@ import com.damianogiusti.slowdowner.domain.backup.RestoreBackupUseCase
 import com.damianogiusti.slowdowner.domain.backup.SaveBackupUseCase
 import com.damianogiusti.slowdowner.domain.click.SetCountInUseCase
 import com.damianogiusti.slowdowner.domain.click.SetMetronomeUseCase
+import com.damianogiusti.slowdowner.domain.effects.ActiveEq
 import com.damianogiusti.slowdowner.domain.effects.ApplyEffectsSettingsUseCase
+import com.damianogiusti.slowdowner.domain.effects.LoadTrackEqUseCase
 import com.damianogiusti.slowdowner.domain.effects.ObserveEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.effects.RestoreEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.effects.SetBandIsolationUseCase
@@ -81,6 +83,9 @@ val useCasesModule = module {
     factoryOf(::UpdateEffectsSettingsUseCase)
     factoryOf(::RestoreEffectsSettingsUseCase)
     factoryOf(::SetBandIsolationUseCase)
+    factoryOf(::LoadTrackEqUseCase)
+    // Shared by the EQ editor and the presets.
+    single { ActiveEq() }
     factoryOf(::ExportTrackUseCase)
     factoryOf(::SaveExportUseCase)
     factoryOf(::SavePracticeStateUseCase)

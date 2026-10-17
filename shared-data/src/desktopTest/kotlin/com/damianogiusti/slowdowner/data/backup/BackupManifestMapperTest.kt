@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.data.backup
 
+import com.damianogiusti.slowdowner.data.effects.EqCurveCodec
 import com.damianogiusti.slowdowner.data.library.TrackEntity
 import com.damianogiusti.slowdowner.data.loops.LoopEntity
 import com.damianogiusti.slowdowner.data.loops.ProgressionColumns
@@ -8,6 +9,8 @@ import com.damianogiusti.slowdowner.data.practice.PracticePresetEntity
 import com.damianogiusti.slowdowner.data.practice.PracticeSettingsColumns
 import com.damianogiusti.slowdowner.data.practice.PracticeStateEntity
 import com.damianogiusti.slowdowner.domain.backup.BackupScope
+import com.damianogiusti.slowdowner.domain.effects.EqBand
+import com.damianogiusti.slowdowner.domain.effects.EqCurve
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -125,6 +128,69 @@ class BackupManifestMapperTest {
         assertEquals(emptyList<BackupLoopDto>(), track.loops)
         assertNull(track.activeLoop)
         assertNull(track.bpm)
+    }
+
+    @Test
+    fun `when a track and its presets have their own EQ then it goes into the backup and comes back`() {
+        val curve = EqCurve(enabled = true, preampDb = -2f, bands = listOf(EqBand(80f, 4f, 0.7f), EqBand(3_000f, -2.5f, 2f)))
+        val json = EqCurveCodec.encode(curve)
+        val rows = TrackBackupRows(
+            track = track,
+            state = PracticeStateEntity("yt_abc", columns, updatedAt = 1, eqCurve = json),
+            presets = listOf(
+                PracticePresetEntity(3, "yt_abc", "Bright", columns, createdAt = 2, eqCurve = json),
+                PracticePresetEntity(4, "yt_abc", "Plain", columns, createdAt = 2),
+            ),
+        )
+
+        val dto = BackupManifestMapper.toDto(rows, "audio/yt_abc.m4a")
+        val written = BackupArchive.json.encodeToString(BackupTrackDto.serializer(), dto)
+        val read = BackupArchive.json.decodeFromString(BackupTrackDto.serializer(), written)
+
+        val expected = BackupEqDto(true, -2f, listOf(BackupEqBandDto(80f, 4f, 0.7f), BackupEqBandDto(3_000f, -2.5f, 2f)))
+        assertEquals(expected, read.eq)
+        assertEquals(listOf(expected, null), read.presets.map { it.eq })
+        val state = BackupManifestMapper.toStateEntity(read, read.practiceState!!, updatedAt = 1)
+        assertEquals(curve, EqCurveCodec.decode(state.eqCurve))
+        assertEquals(curve, EqCurveCodec.decode(BackupManifestMapper.toEqColumn(read.presets[0].eq)))
+        assertNull(BackupManifestMapper.toEqColumn(read.presets[1].eq))
+    }
+
+    @Test
+    fun `when a track uses the global EQ then the backup has no EQ for it`() {
+        val rows = TrackBackupRows(track, PracticeStateEntity("yt_abc", columns, updatedAt = 1), emptyList())
+
+        val json = BackupArchive.json.encodeToString(BackupTrackDto.serializer(), BackupManifestMapper.toDto(rows, "audio/a.m4a"))
+
+        assertFalse(json.contains("\"eq\""))
+    }
+
+    @Test
+    fun `when a restored EQ is out of range then it is clamped and broken bands dropped`() {
+        val wild = BackupEqDto(
+            enabled = true,
+            preampDb = Float.NaN,
+            bands = listOf(BackupEqBandDto(5f, 40f, 0.01f), BackupEqBandDto(Float.NaN, 1f, 1f)),
+        )
+
+        val curve = EqCurveCodec.decode(BackupManifestMapper.toEqColumn(wild))!!
+
+        assertEquals(0f, curve.preampDb)
+        assertEquals(listOf(EqBand(EqBand.MIN_FREQUENCY_HZ, EqBand.MAX_GAIN_DB, EqBand.MIN_Q)), curve.bands)
+    }
+
+    @Test
+    fun `when a manifest from before the per-track EQ is read then the track keeps the global one`() {
+        val json = """{"format":"sldbackup","version":1,"createdAt":1,"kind":"track","tracks":[""" +
+            """{"id":"t","title":"T","addedAt":0,"audio":"audio/t.mp3","presets":[{"name":"Slow","settings":""" +
+            """{"speedPercent":75,"pitchSemitones":0,"loopStart":0.2,"loopEnd":0.4,"isLoopOn":true}}],""" +
+            """"practiceState":{"speedPercent":75,"pitchSemitones":0,"loopStart":0.2,"loopEnd":0.4,"isLoopOn":true}}]}"""
+
+        val track = BackupArchive.json.decodeFromString(BackupManifestDto.serializer(), json).tracks.single()
+
+        assertNull(track.eq)
+        assertNull(track.presets.single().eq)
+        assertNull(BackupManifestMapper.toStateEntity(track, track.practiceState!!, updatedAt = 1).eqCurve)
     }
 
     private fun loop(id: Long, name: String, start: Float, end: Float) = LoopEntity(

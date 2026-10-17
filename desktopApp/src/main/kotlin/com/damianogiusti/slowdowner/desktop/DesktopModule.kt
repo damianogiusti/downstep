@@ -7,6 +7,7 @@ import com.damianogiusti.slowdowner.data.database.RoomTransactionRunner
 import com.damianogiusti.slowdowner.data.database.SlowDownerDatabase
 import com.damianogiusti.slowdowner.data.database.desktopDatabase
 import com.damianogiusti.slowdowner.data.effects.DefaultEffectsSettingsRepository
+import com.damianogiusti.slowdowner.data.effects.DefaultTrackEqRepository
 import com.damianogiusti.slowdowner.data.effects.EffectsSettingsStore
 import com.damianogiusti.slowdowner.data.effects.PreferencesEffectsSettingsStore
 import com.damianogiusti.slowdowner.data.export.DefaultExportRepository
@@ -47,6 +48,7 @@ import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
 import com.damianogiusti.slowdowner.domain.backup.BackupRepository
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
 import com.damianogiusti.slowdowner.domain.effects.EffectsSettingsRepository
+import com.damianogiusti.slowdowner.domain.effects.TrackEqRepository
 import com.damianogiusti.slowdowner.domain.export.ExportRepository
 import com.damianogiusti.slowdowner.domain.library.LibraryRepository
 import com.damianogiusti.slowdowner.domain.loops.LoopRepository
@@ -135,6 +137,7 @@ fun desktopModule(
     }
     single { get<SlowDownerDatabase>().practiceDao() }
     single<PracticeRepository> { DefaultPracticeRepository(get(), Dispatchers.IO) }
+    single<TrackEqRepository> { DefaultTrackEqRepository(get(), Dispatchers.IO) }
     single<LoopRepository> { DefaultLoopRepository(get<SlowDownerDatabase>().loopDao(), Dispatchers.IO) }
     single<ThemeRepository> { DefaultThemeRepository(themeStore, Dispatchers.IO) }
     single { get<SlowDownerDatabase>().playlistDao() }
