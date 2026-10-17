@@ -84,6 +84,55 @@ class WindowFullscreenTest {
     }
 
     @Test
+    fun `entering again while leaving to a maximized window keeps maximized as the way back`() = runBlocking {
+        val state = windowState(WindowPlacement.Maximized)
+        var awt: WindowPlacement = WindowPlacement.Maximized
+        val fullscreen = WindowFullscreen(state, this) { awt }
+        val tracking = launch { fullscreen.trackRestorePlacement() }
+        settle()
+
+        fullscreen.enter()
+        awt = WindowPlacement.Fullscreen
+        settle()
+        assertTrue(fullscreen.exit())
+        settle()
+        // Out of the animation, but not maximized yet: F again.
+        awt = WindowPlacement.Floating
+        fullscreen.enter()
+        awt = WindowPlacement.Fullscreen
+        settle()
+        assertTrue(fullscreen.isFullscreen)
+        assertEquals(WindowPlacement.Maximized, fullscreen.restorePlacement, "the floating step is not where to go back")
+
+        assertTrue(fullscreen.exit())
+        awt = WindowPlacement.Floating
+        delay(200)
+        assertEquals(WindowPlacement.Maximized, state.placement)
+        tracking.cancelAndJoin()
+    }
+
+    @Test
+    fun `a press while the window is still animating out of fullscreen is dropped`() = runBlocking {
+        val state = windowState(WindowPlacement.Floating)
+        var awt: WindowPlacement = WindowPlacement.Floating
+        val fullscreen = WindowFullscreen(state, this) { awt }
+
+        fullscreen.enter()
+        awt = WindowPlacement.Fullscreen
+        assertTrue(fullscreen.exit())
+        // macOS still animates: AppKit would ignore the toggle, so the header must not show fullscreen.
+        fullscreen.toggle()
+        assertFalse(fullscreen.isFullscreen)
+        assertEquals(WindowPlacement.Floating, state.placement)
+
+        awt = WindowPlacement.Floating
+        delay(200)
+        fullscreen.toggle()
+        assertTrue(fullscreen.isFullscreen, "once out, the next press enters")
+        assertEquals(WindowPlacement.Floating, fullscreen.restorePlacement)
+    }
+
+    @Test
     fun `fullscreen entered and left by the OS keeps the toggle in step and leaves to where it was`() = runBlocking {
         val state = windowState(WindowPlacement.Floating)
         val fullscreen = WindowFullscreen(state, this)

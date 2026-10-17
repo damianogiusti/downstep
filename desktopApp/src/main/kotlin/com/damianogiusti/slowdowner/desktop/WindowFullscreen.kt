@@ -63,8 +63,13 @@ class WindowFullscreen(
 
     fun enter() {
         if (isFullscreen) return
+        val isLeaving = leaving?.isActive == true
+        // Still on its way out (macOS animates it): AppKit would ignore the toggle, and the header would
+        // show a fullscreen the window is leaving. The press is dropped; the next one, once out, enters.
+        if (isLeaving && awtPlacement() == WindowPlacement.Fullscreen) return
         leaving?.cancel()
-        restorePlacement = state.placement
+        // A leave cut short has not reached its target yet (Floating on the way to Maximized): keep it.
+        if (!isLeaving) restorePlacement = state.placement
         state.placement = WindowPlacement.Fullscreen
     }
 
@@ -74,13 +79,14 @@ class WindowFullscreen(
         val target = restorePlacement
         // Out of fullscreen first: Compose's Maximized only maximizes, a full-screen window stays so.
         state.placement = WindowPlacement.Floating
-        if (target == WindowPlacement.Maximized) {
-            leaving = scope.launch {
-                // Once the window has really left (macOS animates it), maximize it.
-                withTimeoutOrNull(LEAVE_TIMEOUT_MS) {
-                    while (awtPlacement() == WindowPlacement.Fullscreen) delay(POLL_MS)
-                }
-                if (state.placement == WindowPlacement.Floating) state.placement = WindowPlacement.Maximized
+        leaving = scope.launch {
+            // Once the window has really left (macOS animates it), maximize it if it was. Bounded, so a
+            // window that never reports the way out cannot keep the toggle ignored.
+            withTimeoutOrNull(LEAVE_TIMEOUT_MS) {
+                while (awtPlacement() == WindowPlacement.Fullscreen) delay(POLL_MS)
+            }
+            if (target == WindowPlacement.Maximized && state.placement == WindowPlacement.Floating) {
+                state.placement = WindowPlacement.Maximized
             }
         }
         return true
