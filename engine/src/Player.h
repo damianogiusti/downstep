@@ -213,9 +213,10 @@ private:
     double lastSourceFrame_ = -1; // < 0: no previous frame (start, seek)
     // Count-in in progress: clicks at round(k·interval) frames from its start, music at round(beats·interval).
     // After a speed change, beat k is at origin + round((k - originBeat)·interval), origin being the
-    // frame of the last click heard at the old speed.
+    // frame the last click was heard at (or the frame an overdue click is played at, see countIn()).
     bool isCountingIn_ = false;
     int countInTotalBeats_ = 0, countInNextBeat_ = 0, countInOriginBeat_ = 0;
     double countInInterval_ = 0, countInSpeed_ = 1.0;
     int64_t countInElapsed_ = 0, countInLength_ = 0, countInOrigin_ = 0;
+    int64_t countInLastClickAt_ = 0; // the frame the last click was actually heard at
 };

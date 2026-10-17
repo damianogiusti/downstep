@@ -410,6 +410,7 @@ void Player::armCountIn(int beats) {
     countInElapsed_ = 0;
     countInOrigin_ = 0;
     countInOriginBeat_ = 0;
+    countInLastClickAt_ = 0;
     countInLength_ = std::max<int64_t>(1, std::llround(beats * countInInterval_));
     isCountingIn_ = true;
     countInRemaining_.store(beats);
@@ -424,10 +425,10 @@ void Player::retimeCountIn() {
     const double speed = std::clamp(speed_.load(), 0.05, 4.0);
     if (std::abs(speed - countInSpeed_) < 1e-9 || countInNextBeat_ >= countInTotalBeats_) return;
     // The clicks already played stay where they were; the next ones, and the music after them, follow
-    // the new tempo from the last click heard (or from the start, before the first one).
+    // the new tempo from the last click heard, where it was heard (or from the start, before the first one).
     const int last = countInNextBeat_ - 1;
     if (last >= 0) {
-        countInOrigin_ += std::llround((last - countInOriginBeat_) * countInInterval_);
+        countInOrigin_ = countInLastClickAt_;
         countInOriginBeat_ = last;
     }
     countInSpeed_ = speed;
@@ -442,11 +443,20 @@ void Player::countIn(float *const *out, int from, int frames) {
     // Click k at round(k · interval) frames from the start (or from the click the tempo last changed
     // at): no drift over a long count-in.
     for (; countInNextBeat_ < countInTotalBeats_; ++countInNextBeat_) {
-        // Never before now: a faster tempo can bring a click still to play into the past.
-        const int64_t at = std::max(countInElapsed_, countInOrigin_ + std::llround((countInNextBeat_ - countInOriginBeat_) *
-                                                                                    countInInterval_));
+        int64_t at = countInOrigin_ + std::llround((countInNextBeat_ - countInOriginBeat_) * countInInterval_);
         if (at >= countInElapsed_ + frames) break;
+        if (at < countInElapsed_) {
+            // A faster tempo brought this click into the past: play it now, and count the ones after it,
+            // and the music, from here, so the pulse stays even. The length may grow past this segment:
+            // the render loop takes it up again.
+            at = countInElapsed_;
+            countInOrigin_ = at;
+            countInOriginBeat_ = countInNextBeat_;
+            countInLength_ = std::max<int64_t>(
+                countInElapsed_ + 1, countInOrigin_ + std::llround((countInTotalBeats_ - countInOriginBeat_) * countInInterval_));
+        }
         click_.trigger(from + int(at - countInElapsed_), countInNextBeat_ % beatsPerBar_ == 0);
+        countInLastClickAt_ = at;
     }
     countInElapsed_ += frames;
     if (countInElapsed_ >= countInLength_) isCountingIn_ = false; // the music starts on the next frame

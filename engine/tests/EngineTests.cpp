@@ -1622,6 +1622,33 @@ void aSpeedChangeDuringTheCountInRetimesTheClicksToCome() {
     sd_engine_destroy(loop);
 }
 
+void aClickOverdueAfterASpeedUpRestartsThePulse() {
+    // 1 s a beat, then twice as fast 0.8 s after the first click: the second click, due 0.5 s after the
+    // first, is already past. It plays at once, and the clicks after it, and the music, keep the new
+    // 0.5 s from it rather than from where it should have been.
+    SdEngine *e = openInMemory(toneOnTheLeft(20));
+    sd_engine_set_tempo(e, 120, 0, 4);
+    sd_engine_set_count_in(e, 4, 0);
+    sd_engine_set_speed(e, 0.5);
+    sd_engine_seek(e, 0.25);
+    sd_engine_set_playing(e, 1);
+    const int late = 4 * kRate / 5;
+    Rendered r = render(e, double(late) / kRate);
+    sd_engine_set_speed(e, 1.0);
+    const Rendered rest = render(e, 2.5);
+    r.left.insert(r.left.end(), rest.left.begin(), rest.left.end());
+    r.right.insert(r.right.end(), rest.right.begin(), rest.right.end());
+    const auto clicks = onsets(r.right, 1e-3f, 1000);
+    const std::vector<int> expected = {0, late, late + kRate / 2, late + kRate};
+    CHECK(clicks.size() == expected.size(), "%d count-in clicks", int(clicks.size()));
+    for (size_t k = 0; k < std::min(clicks.size(), expected.size()); ++k)
+        CHECK(std::abs(clicks[k] - expected[k]) <= 1, "click %d at %d, expected %d", int(k), clicks[k], expected[k]);
+    const int first = musicStart(r);
+    const int beat = late + 3 * kRate / 2;
+    CHECK(first >= beat && first <= beat + 2, "music starts at frame %d, the beat is at %d", first, beat);
+    sd_engine_destroy(e);
+}
+
 void countInFlowsIntoTheMetronome() {
     // Starting on a beat with the metronome on: the count-in's clicks and the metronome's are one even
     // pulse, the music's first beat the accent after the last count-in click.
@@ -1691,7 +1718,8 @@ int main() {
         {"detects the beat of drums and piano", [] { detectsTheBeatOfMusicLikePatterns(); }},
         {"a seek during the count-in moves where the music starts", [] { seekDuringTheCountInMovesWhereTheMusicStarts(); }},
         {"a speed change during the count-in retimes the clicks to come", [] { aSpeedChangeDuringTheCountInRetimesTheClicksToCome(); }},
-        {"the count-in flows into the metronome", [] { countInFlowsIntoTheMetronome(); }},
+        {"a click overdue after a speed-up restarts the pulse", [] { aClickOverdueAfterASpeedUpRestartsThePulse(); }},
+        {"the count-in flows into the metronome",[] { countInFlowsIntoTheMetronome(); }},
     };
     for (const auto &[name, test] : tests) {
         const int before = failures;
