@@ -330,6 +330,7 @@ int Player::render(float *const *out, int frames) {
             // The music must start with the requested position itself, not Bungee's run-in before it
             // (again after a seek during the count-in).
             stretcher_.skipPreroll();
+            retimeCountIn();
             const int n = int(std::min<int64_t>(frames - done, countInLength_ - countInElapsed_));
             countIn(out, done, n);
             done += n;
@@ -399,24 +400,50 @@ int Player::renderMusic(float *const *out, int from, int frames) {
 }
 
 void Player::armCountIn(int beats) {
-    const double bpm = bpm_ > 0 ? bpm_ : kCountInFallbackBpm;
-    // The effective tempo, as the music will play: the speed is read once, when the count-in starts.
-    const double speed = std::clamp(speed_.load(), 0.05, 4.0);
-    countInInterval_ = outputRate_ * 60.0 / (bpm * speed);
+    // The effective tempo, as the music will play. A speed change while counting in (a Progression
+    // step lands just after the loop restarts) re-times the clicks still to come: see countIn().
+    countInSpeed_ = std::clamp(speed_.load(), 0.05, 4.0);
+    countInInterval_ = countInBeatInterval(countInSpeed_);
     countInTotalBeats_ = beats;
     countInNextBeat_ = 0;
     countInElapsed_ = 0;
+    countInOrigin_ = 0;
+    countInOriginBeat_ = 0;
     countInLength_ = std::max<int64_t>(1, std::llround(beats * countInInterval_));
     isCountingIn_ = true;
     countInRemaining_.store(beats);
 }
 
+double Player::countInBeatInterval(double speed) const {
+    const double bpm = bpm_ > 0 ? bpm_ : kCountInFallbackBpm;
+    return outputRate_ * 60.0 / (bpm * speed);
+}
+
+void Player::retimeCountIn() {
+    const double speed = std::clamp(speed_.load(), 0.05, 4.0);
+    if (std::abs(speed - countInSpeed_) < 1e-9 || countInNextBeat_ >= countInTotalBeats_) return;
+    // The clicks already played stay where they were; the next ones, and the music after them, follow
+    // the new tempo from the last click heard (or from the start, before the first one).
+    const int last = countInNextBeat_ - 1;
+    if (last >= 0) {
+        countInOrigin_ += std::llround((last - countInOriginBeat_) * countInInterval_);
+        countInOriginBeat_ = last;
+    }
+    countInSpeed_ = speed;
+    countInInterval_ = countInBeatInterval(speed);
+    countInLength_ = std::max<int64_t>(
+        countInElapsed_ + 1, countInOrigin_ + std::llround((countInTotalBeats_ - countInOriginBeat_) * countInInterval_));
+}
+
 void Player::countIn(float *const *out, int from, int frames) {
     std::fill(out[0] + from, out[0] + from + frames, 0.f);
     std::fill(out[1] + from, out[1] + from + frames, 0.f);
-    // Click k at round(k · interval) frames from the start: no drift over a long count-in.
+    // Click k at round(k · interval) frames from the start (or from the click the tempo last changed
+    // at): no drift over a long count-in.
     for (; countInNextBeat_ < countInTotalBeats_; ++countInNextBeat_) {
-        const int64_t at = std::llround(countInNextBeat_ * countInInterval_);
+        // Never before now: a faster tempo can bring a click still to play into the past.
+        const int64_t at = std::max(countInElapsed_, countInOrigin_ + std::llround((countInNextBeat_ - countInOriginBeat_) *
+                                                                                    countInInterval_));
         if (at >= countInElapsed_ + frames) break;
         click_.trigger(from + int(at - countInElapsed_), countInNextBeat_ % beatsPerBar_ == 0);
     }

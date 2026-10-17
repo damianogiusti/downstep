@@ -133,6 +133,10 @@ private:
     /** Music into out[from..frames): stretch, EQ, gain, fade-in. Returns the frames that carry it. */
     int renderMusic(float *const *out, int from, int frames);
     void armCountIn(int beats);
+    /** Frames between count-in clicks at `speed`, at the track's tempo (or the fallback). */
+    double countInBeatInterval(double speed) const;
+    /** The speed changed while counting in: the clicks still to come and the music follow it. */
+    void retimeCountIn();
     /** Count-in clicks for out[from..from+frames), which stay silent otherwise. */
     void countIn(float *const *out, int from, int frames);
     /** Metronome clicks on the beats crossed by sourcePositions_[from..from+frames). */
@@ -210,8 +214,10 @@ private:
     int beatsPerBar_ = 4;
     double lastSourceFrame_ = -1; // < 0: no previous frame (start, seek)
     // Count-in in progress: clicks at round(k·interval) frames from its start, music at round(beats·interval).
+    // After a speed change, beat k is at origin + round((k - originBeat)·interval), origin being the
+    // frame of the last click heard at the old speed.
     bool isCountingIn_ = false;
-    int countInTotalBeats_ = 0, countInNextBeat_ = 0;
-    double countInInterval_ = 0;
-    int64_t countInElapsed_ = 0, countInLength_ = 0;
+    int countInTotalBeats_ = 0, countInNextBeat_ = 0, countInOriginBeat_ = 0;
+    double countInInterval_ = 0, countInSpeed_ = 1.0;
+    int64_t countInElapsed_ = 0, countInLength_ = 0, countInOrigin_ = 0;
 };

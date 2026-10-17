@@ -402,7 +402,9 @@ shows them disabled with the "not available yet" tooltip.
   tempo), the first accented; the music starts from the requested position exactly one beat after the last click
   (sample‑exact: Bungee's run‑in is skipped so the position itself is on the beat). With **Count in at every loop
   restart**, playback stops at B (short fade), counts in again and goes on from A; the position stays at A meanwhile,
-  a pass still counts once, and there is no end‑of‑track event. Pausing during a count‑in cancels it.
+  a pass still counts once, and there is no end‑of‑track event. Pausing during a count‑in cancels it. A speed
+  change during a count‑in (a Progression step lands just after the loop restarts) re‑times the clicks still to
+  come and the music after them; the clicks already heard stay where they were.
 - **Settings (⌄ menu):** click volume 0–100% (the count‑in's too; default 70%), count‑in length 2 / 4 / 8 beats
   (default 4 = one bar), every loop restart (default off). They are global, kept across launches (Java preferences
   node `com/damianogiusti/slowdowner/click`), like the toggles themselves.

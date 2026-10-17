@@ -97,7 +97,8 @@ SD_API void sd_engine_set_metronome(SdEngine *engine, int enabled, double volume
  * `beats` > 0: that many clicks at the effective tempo (bpm × speed) before playback starts, the
  * music starting from the requested position one beat after the last click; 0 = off. `everyLoop` = 1:
  * also at each loop restart (playback stops at the loop end, counts in, and goes on from the loop
- * start; the position stays at the loop start meanwhile, and there is no SD_EVENT_REACHED_END).
+ * start; the position stays at the loop start meanwhile, and there is no SD_EVENT_REACHED_END). A
+ * speed change while counting in re-times the clicks still to come, and the music after them.
  */
 SD_API void sd_engine_set_count_in(SdEngine *engine, int beats, int everyLoop);
 /** Count-in clicks still to play; 0 when not counting in. For the UI, from any thread. */

@@ -1516,6 +1516,66 @@ void seekDuringTheCountInMovesWhereTheMusicStarts() {
     sd_engine_destroy(e);
 }
 
+/** The first frame where the left channel differs from the right (the music, with clicks on both), or -1. */
+int musicStart(const Rendered &r, int from = 0) {
+    const auto music = difference(r);
+    for (size_t i = size_t(from); i < music.size(); ++i)
+        if (std::fabs(music[i]) > 1e-6f) return int(i);
+    return -1;
+}
+
+void aSpeedChangeDuringTheCountInRetimesTheClicksToCome() {
+    // The click already heard stays; the clicks still to come, and the music after them, follow the
+    // new tempo.
+    SdEngine *e = openInMemory(toneOnTheLeft(20));
+    sd_engine_set_tempo(e, 120, 0, 4);
+    sd_engine_set_count_in(e, 4, 0);
+    sd_engine_set_speed(e, 0.5); // 1 s a beat
+    sd_engine_seek(e, 0.25);
+    sd_engine_set_playing(e, 1);
+    Rendered r = render(e, 0.3);
+    sd_engine_set_speed(e, 1.0); // 0.5 s a beat, from the click at 0
+    const Rendered rest = render(e, 2.5);
+    r.left.insert(r.left.end(), rest.left.begin(), rest.left.end());
+    r.right.insert(r.right.end(), rest.right.begin(), rest.right.end());
+    const auto clicks = onsets(r.right, 1e-3f, 1000);
+    const std::vector<int> expected = {0, kRate / 2, kRate, 3 * kRate / 2};
+    CHECK(clicks.size() == expected.size(), "%d count-in clicks", int(clicks.size()));
+    for (size_t k = 0; k < std::min(clicks.size(), expected.size()); ++k)
+        CHECK(std::abs(clicks[k] - expected[k]) <= 1, "click %d at %d, expected %d", int(k), clicks[k], expected[k]);
+    const int first = musicStart(r);
+    CHECK(first >= 2 * kRate && first <= 2 * kRate + 2, "music starts at frame %d, the beat is at %d", first, 2 * kRate);
+    sd_engine_destroy(e);
+
+    // Count-in every loop with Progression: the step to the next pass's speed lands just after the
+    // loop restarts, while it counts in again. Loop 5..5.5 s, 2 beats at 120 BPM: clicks at 0 and
+    // 0.5 s, music 1..1.5 s, then clicks from 1.5 s; the speed halves at 1.6 s, after the first one,
+    // so the second comes 1 s after it and the music 1 s later still.
+    SdEngine *loop = openInMemory(toneOnTheLeft(20));
+    sd_engine_set_tempo(loop, 120, 0, 4);
+    sd_engine_set_count_in(loop, 2, 1);
+    sd_engine_set_loop_and_seek(loop, 0.25, 0.275, 1, 0.25);
+    sd_engine_set_playing(loop, 1);
+    Rendered passes = render(loop, 1.6);
+    sd_engine_set_speed(loop, 0.5); // 1 s a beat, from the click at 1.5 s
+    const Rendered next = render(loop, 2.5);
+    passes.left.insert(passes.left.end(), next.left.begin(), next.left.end());
+    passes.right.insert(passes.right.end(), next.right.begin(), next.right.end());
+    const auto wrapClicks = onsets(passes.right, 1e-3f, 1000);
+    CHECK(wrapClicks.size() == 4, "%d clicks over two count-ins", int(wrapClicks.size()));
+    if (wrapClicks.size() == 4) {
+        // The loop stops where the stretcher reaches B, about 1.5 s in: times from that restart.
+        const int restart = wrapClicks[2];
+        CHECK(std::abs(restart - 3 * kRate / 2) < kRate / 20, "the loop restarts at frame %d", restart);
+        CHECK(std::abs(wrapClicks[3] - restart - kRate) <= 1, "the second click %d frames after the first, not 1 s",
+              wrapClicks[3] - restart);
+        const int again = musicStart(passes, restart + kRate / 10);
+        CHECK(again >= restart + 2 * kRate && again <= restart + 2 * kRate + 2,
+              "the second pass starts %d frames after its count-in, not 2 s", again - restart);
+    }
+    sd_engine_destroy(loop);
+}
+
 void countInFlowsIntoTheMetronome() {
     // Starting on a beat with the metronome on: the count-in's clicks and the metronome's are one even
     // pulse, the music's first beat the accent after the last count-in click.
@@ -1583,6 +1643,7 @@ int main() {
         {"export has no clicks", [] { exportHasNoClicks(); }},
         {"detects the beat of drums and piano", [] { detectsTheBeatOfMusicLikePatterns(); }},
         {"a seek during the count-in moves where the music starts", [] { seekDuringTheCountInMovesWhereTheMusicStarts(); }},
+        {"a speed change during the count-in retimes the clicks to come", [] { aSpeedChangeDuringTheCountInRetimesTheClicksToCome(); }},
         {"the count-in flows into the metronome", [] { countInFlowsIntoTheMetronome(); }},
     };
     for (const auto &[name, test] : tests) {
