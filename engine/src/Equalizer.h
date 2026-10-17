@@ -84,6 +84,8 @@ public:
 
     // For the tests.
     double currentGainDb(int band) const { return bands_[size_t(band)].gainDb.current; }
+    double currentFrequencyHz(int band) const { return std::exp2(bands_[size_t(band)].octaves.current); }
+    double currentQ(int band) const { return std::exp(bands_[size_t(band)].logQ.current); }
     double currentPreampDb() const { return preampDb_.current; }
 
 private:

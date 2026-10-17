@@ -452,6 +452,41 @@ void eqChangesGlideWithoutSteps() {
     CHECK(pre.currentPreampDb() == 0 && dc.back() == 0.5f, "the preamp ended at %f dB", pre.currentPreampDb());
 }
 
+void eqFrequencyAndWidthGlide() {
+    // A boosted band thrown from 100 Hz to 6.4 kHz (six octaves) and from Q 0.5 to Q 8 at once: both
+    // travel there in small steps, settle on the target exactly, and the sound stays finite.
+    Equalizer eq;
+    eq.setSampleRate(kRate);
+    eq.setTarget(oneBand(100, 9, 0.5), true);
+    constexpr int kSub = 32;
+    const int frames = kRate / 2 / kSub * kSub;
+    std::vector<float> l = sine(1000, 0.2, frames), r = l;
+    eq.setTarget(oneBand(6400, 9, 8), false);
+    double previousOctave = std::log2(eq.currentFrequencyHz(0)), previousLogQ = std::log(eq.currentQ(0));
+    double largestOctaveStep = 0, largestLogQStep = 0;
+    int settledAt = -1;
+    for (int offset = 0; offset < frames; offset += kSub) {
+        float *block[2] = {l.data() + offset, r.data() + offset};
+        eq.process(block, kSub);
+        const double octave = std::log2(eq.currentFrequencyHz(0)), logQ = std::log(eq.currentQ(0));
+        largestOctaveStep = std::max(largestOctaveStep, std::fabs(octave - previousOctave));
+        largestLogQStep = std::max(largestLogQStep, std::fabs(logQ - previousLogQ));
+        previousOctave = octave;
+        previousLogQ = logQ;
+        if (settledAt < 0 && std::fabs(eq.currentFrequencyHz(0) - 6400) < 1e-9 && std::fabs(eq.currentQ(0) - 8) < 1e-9)
+            settledAt = offset + kSub;
+    }
+    // Six octaves in one jump would be a click; a glide moves a small fraction per 32-frame step.
+    CHECK(largestOctaveStep < 0.25, "the frequency moved %f octaves in one step", largestOctaveStep);
+    CHECK(largestLogQStep < 0.15, "Q moved by a factor %f in one step", std::exp(largestLogQStep));
+    CHECK(settledAt > 0 && settledAt <= kRate * 3 / 20, "the band settled %d frames after the change", settledAt);
+    bool finite = true;
+    for (float x : l) finite = finite && std::isfinite(x);
+    CHECK(finite, "the glide produced a non-finite sample");
+    const double centre = measuredGainDb(oneBand(6400, 9, 8), 6400);
+    CHECK(std::fabs(centre - 9) < 0.05, "after the glide the centre measures %f dB", centre);
+}
+
 void isolateCutsOutsideTheSelection() {
     // The test file's tone is 441 Hz: inside the mid range.
     const auto level = [](int mask, bool eqOn, bool throughSettings = false) {
@@ -819,6 +854,7 @@ int main() {
         {"peaking bands match the cookbook", [] { peakingBandsMatchTheCookbook(); }},
         {"a flat EQ is bit transparent", [] { flatEqIsBitTransparent(); }},
         {"EQ changes glide without steps", [] { eqChangesGlideWithoutSteps(); }},
+        {"EQ frequency and width glide", [] { eqFrequencyAndWidthGlide(); }},
         {"isolate cuts outside the selection", [] { isolateCutsOutsideTheSelection(); }},
         {"the first settings apply at once", [] { firstSettingsApplyAtOnce(); }},
         {"preamp only with the EQ on", [&] { preampOnlyWithEqOn(path); }},

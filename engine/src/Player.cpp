@@ -144,7 +144,10 @@ void Player::setLoop(double start, double end, bool enabled, double seek) {
 }
 
 template <typename Write> void Player::writeEq(Write write) {
-    eqVersion_.fetch_add(1, std::memory_order_acq_rel); // odd: being written
+    eqVersion_.fetch_add(1, std::memory_order_relaxed); // odd: being written
+    // Keeps the writes below after the odd version: a reader that sees any of them must also see it
+    // when it checks the version again (pairs with the acquire fence in applyControls).
+    std::atomic_thread_fence(std::memory_order_release);
     write();
     eqVersion_.fetch_add(1, std::memory_order_release);
 }

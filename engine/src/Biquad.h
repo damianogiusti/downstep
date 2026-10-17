@@ -55,9 +55,9 @@ struct Biquad {
 
     /** Steady-state gain at `frequency`, in dB: |H(e^jw)| of the current coefficients. */
     double magnitudeDb(double frequency, double sampleRate) const {
-        const std::complex<double> z1 = std::polar(1.0, -2 * M_PI * frequency / sampleRate);
-        const std::complex<double> z2 = z1 * z1;
-        const std::complex<double> h = (b0 + b1 * z1 + b2 * z2) / (1.0 + a1 * z1 + a2 * z2);
+        const std::complex<double> zm1 = std::polar(1.0, -2 * M_PI * frequency / sampleRate); // z^-1
+        const std::complex<double> zm2 = zm1 * zm1;
+        const std::complex<double> h = (b0 + b1 * zm1 + b2 * zm2) / (1.0 + a1 * zm1 + a2 * zm2);
         return 20 * std::log10(std::abs(h));
     }
 
