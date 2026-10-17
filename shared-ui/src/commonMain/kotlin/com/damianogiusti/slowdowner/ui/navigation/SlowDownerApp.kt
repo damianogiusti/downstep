@@ -53,10 +53,12 @@ import com.damianogiusti.slowdowner.ui.player.components.ExportReadyDialog
 import com.damianogiusti.slowdowner.ui.playlists.AddToPlaylistSheet
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistNavigation
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistScreen
+import com.damianogiusti.slowdowner.ui.theme.ThemeViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.viewmodel.koinViewModel
 
 /** What the app needs from the activity: pickers, share sheet, service, permissions. */
 class ActivityActions(
@@ -97,6 +99,8 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
     val playerViewModel = viewModels.player
     val importViewModel = viewModels.imports
     val backupViewModel = viewModels.backup
+    // The window's, as the root's: a destination's own would keep the theme menu's previews from the root.
+    val themeViewModel = koinViewModel<ThemeViewModel>()
     val navController = rememberNavController()
     val currentEntry by navController.currentBackStackEntryAsState()
     // The window's practice keys edit the player: only while it is the screen shown.
@@ -154,6 +158,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                     navigation = playerNavigation,
                     snackbarHostState = snackbarHostState,
                     effects = viewModels.effects,
+                    theme = themeViewModel,
                 )
             }
             composable<PlaylistRoute>(

@@ -281,7 +281,6 @@
     <string name="error_click_needs_bpm">Set the tempo of the track first.</string>
     <string name="focus_mode">Focus mode (F)</string>
     <string name="exit_focus">Exit focus</string>
-    <string name="theme_toggle">Light / dark</string>
     <string name="theme">Theme</string>
     <string name="theme_mode">Mode</string>
     <string name="theme_mode_dark">Dark</string>

@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.damianogiusti.slowdowner.domain.click.ClickSettings
 import com.damianogiusti.slowdowner.domain.practice.PracticePreset
+import com.damianogiusti.slowdowner.domain.theme.ThemeSelection
 import com.damianogiusti.slowdowner.ui.common.IconPill
 import com.damianogiusti.slowdowner.ui.common.Pill
 import com.damianogiusti.slowdowner.ui.common.PillToggle
@@ -58,8 +59,8 @@ import kotlin.math.roundToInt
 
 /**
  * Library pill (track count) · title + meta line (source · duration · BPM · loops; the BPM opens the
- * BPM dialog) · Analyze · Metronome / Count-in · Focus, Theme, Equalizer, Save preset (bookmark menu
- * with the presets), Export. Unavailable features are disabled with a tooltip (see [PlayerFeatures]).
+ * BPM dialog) · Analyze · Metronome / Count-in · Focus, Theme (menu, see [ThemeMenuButton]), Equalizer,
+ * Save preset (bookmark menu with the presets), Export. Unavailable features are disabled with a tooltip (see [PlayerFeatures]).
  */
 @Composable
 fun PlayerHeader(
@@ -69,7 +70,8 @@ fun PlayerHeader(
     analysis: AnalysisStatus,
     clicks: ClickUiState,
     presets: PresetsState,
-    isDarkTheme: Boolean,
+    /** The chosen theme, checked in the theme menu (the one on screen may be a preview). */
+    theme: ThemeSelection,
     actions: HeaderActions,
     modifier: Modifier = Modifier,
 ) {
@@ -96,11 +98,7 @@ fun PlayerHeader(
         ClickToggles(features, clicks, actions)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             HeaderIcon(Res.drawable.ic_h_focus, stringResource(Res.string.focus_mode), actions.onFocusToggled)
-            HeaderIcon(
-                if (isDarkTheme) Res.drawable.ic_h_sun else Res.drawable.ic_h_moon,
-                stringResource(Res.string.theme_toggle),
-                actions.onThemeToggled,
-            )
+            ThemeMenuButton(theme, actions)
             // Not in the design, which has no way to the Effects sheet: kept so the EQ is not lost.
             HeaderIcon(Res.drawable.ic_tune, stringResource(Res.string.eq_title), actions.onShowEffects)
             PresetsMenuButton(state.isOpen && !state.isLoading, presets, actions)

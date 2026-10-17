@@ -89,6 +89,7 @@ fun PlayerScreen(
     snackbarHostState: SnackbarHostState,
     // Scoped to the window like the player: the Isolate overlay outlives the effects sheet.
     effects: EffectsViewModel = koinViewModel(),
+    // The window's, which the root's theme follows: the menu's previews go through it.
     theme: ThemeViewModel = koinViewModel(),
 ) {
     val dialogs = remember { PlayerDialogs() }
@@ -107,7 +108,7 @@ fun PlayerScreen(
             if (layout.isFocusMode) {
                 FocusHeaderHost(viewModel, actions.onExitFocus)
             } else {
-                HeaderHost(viewModel, actions.header)
+                HeaderHost(viewModel, theme, actions.header)
                 LoadingHost(viewModel)
                 ExportBannerHost(viewModel)
                 ChipsHost(viewModel, actions.chips)
@@ -163,7 +164,9 @@ private fun playerActions(
         onMetronomeToggled = viewModel::onMetronomeToggled,
         onCountInToggled = viewModel::onCountInToggled,
         onFocusToggled = viewModel::onFocusToggled,
-        onThemeToggled = theme::onToggle,
+        onThemePreview = theme::onPreview,
+        onThemePreviewEnd = theme::onPreviewEnd,
+        onThemeApplied = theme::onApply,
         onSavePreset = { dialogs.showSavePreset = true },
         onPresetSelected = viewModel::onPresetSelected,
         onPresetDelete = { dialogs.presetToDelete = it },
@@ -221,12 +224,13 @@ private fun playerActions(
 private fun State<Float>.reader(): () -> Float = { value }
 
 @Composable
-private fun HeaderHost(viewModel: PlayerViewModel, actions: HeaderActions) {
+private fun HeaderHost(viewModel: PlayerViewModel, theme: ThemeViewModel, actions: HeaderActions) {
     val state by viewModel.header.collectAsStateWithLifecycle()
     val presets by viewModel.presets.collectAsStateWithLifecycle()
     val clicks by viewModel.clicks.collectAsStateWithLifecycle()
     val analysis by remember(viewModel) { viewModel.analysis.map { it.status }.distinctUntilChanged() }
         .collectAsStateWithLifecycle(AnalysisStatus.Idle)
+    val themeSelection by theme.selection.collectAsStateWithLifecycle()
     PlayerHeader(
         state = state,
         trackCount = rememberTrackCount(),
@@ -234,8 +238,8 @@ private fun HeaderHost(viewModel: PlayerViewModel, actions: HeaderActions) {
         analysis = analysis,
         clicks = clicks,
         presets = presets,
-        // The theme on screen, whatever the ThemeViewModel was asked last.
-        isDarkTheme = SlowDownerTheme.colors.isDark,
+        // The chosen theme, for the menu's checks: changes on a pick only, never on a preview.
+        theme = themeSelection,
         actions = actions,
     )
 }

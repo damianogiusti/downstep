@@ -279,7 +279,6 @@
     <string name="error_click_needs_bpm">Imposta prima il tempo del brano.</string>
     <string name="focus_mode">Modalità focus (F)</string>
     <string name="exit_focus">Esci dal focus</string>
-    <string name="theme_toggle">Chiaro / scuro</string>
     <string name="theme">Tema</string>
     <string name="theme_mode">Modalità</string>
     <string name="theme_mode_dark">Scuro</string>
