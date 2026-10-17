@@ -125,8 +125,9 @@ fun main() {
         ) {
             val scope = rememberCoroutineScope()
             // Windows: the header replaces the title bar, before the window first shows. Null elsewhere,
-            // or when it cannot: the window then keeps the system's title bar.
-            val titleBarHook = remember { if (isWindows) WindowsTitleBarHook.install(window, logger) else null }
+            // or when it cannot: the window then keeps the system's title bar. Without an engine there
+            // is no header, only the error screen: the system's title bar moves and closes the window.
+            val titleBarHook = remember { if (isWindows && engine != null) WindowsTitleBarHook.install(window, logger) else null }
             val fullscreen = remember(windowState) {
                 WindowFullscreen(windowState, scope, awtPlacement = { window.placement }, borderless = titleBarHook?.asBorderlessFullscreen())
             }
