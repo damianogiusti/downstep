@@ -138,7 +138,8 @@ internal suspend fun PointerInputScope.loopGestures(
         val region = hit?.let { h -> shown.first { it.loopId == h.loopId } }
         // A finger wobbles more than a mouse: touch keeps the platform's own slop.
         val slop = if (down.type == PointerType.Touch) max(viewConfiguration.touchSlop, threshold) else threshold
-        val press = LoopPress(hit, region, down.position.x, slop, currentAxis, durationSeconds())
+        val onBar = region != null && isOnBar(down.position.x, down.position.y, region, currentAxis, barHeight)
+        val press = LoopPress(hit, region, down.position.x, slop, currentAxis, durationSeconds(), onBar)
         if (hit != null) down.consume()
 
         var result: PressResult? = null

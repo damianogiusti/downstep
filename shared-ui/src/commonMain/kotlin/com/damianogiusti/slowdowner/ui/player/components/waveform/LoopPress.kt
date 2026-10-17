@@ -17,8 +17,9 @@ internal data class LoopHit(val loopId: Long, val handle: LoopHandle)
  *
  * - An edge within [edgeReach] pixels, at any height, resizes the loop (A or B).
  * - Above [barHeight] (the top bar's grab zone) and between the edges, the bar moves the whole loop.
- *   Where an edge and the bar meet, the edge wins; on a loop too narrow for both, the middle third is
- *   the bar and the outer thirds are the edges.
+ *   Where an edge and the bar meet, the edge wins for a drag; on a loop too narrow for both, the middle
+ *   third is the bar and the outer thirds are the edges. A click there is still a bar click (see
+ *   [isOnBar] and [LoopPress.release]).
  * - Loops may overlap. For the edges the active loop is tried first, then the others, shortest first.
  *   For the bar the shortest loop under the pointer wins, active or not, so a loop inside another (the
  *   active one included) stays reachable; [topBarOrder] draws the bars in the same order.
@@ -55,6 +56,13 @@ internal fun hitLoop(
 internal fun <T> topBarOrder(items: List<T>, length: (T) -> Float, isActive: (T) -> Boolean): List<T> =
     items.sortedWith(compareByDescending<T> { length(it) }.thenBy { isActive(it) })
 
+/**
+ * Whether ([x], [y]) is on [region]'s top bar as drawn: above [barHeight] and between its A and B. A
+ * press there that grabbed an edge resizes when dragged but is a bar click when not.
+ */
+internal fun isOnBar(x: Float, y: Float, region: HitRegion, axis: WaveformAxis, barHeight: Float): Boolean =
+    y < barHeight && x >= axis.x(region.bounds.start) && x <= axis.x(region.bounds.end)
+
 /** Narrower than this many edge reaches, a loop's bar and edges share its width by thirds. */
 private const val NARROW_LOOP_REACHES = 3f
 
@@ -78,7 +86,9 @@ internal sealed interface PressResult {
  * sideways; from then on it is a drag of what it [hit] (or, on the bare waveform, a click where it is
  * released, as before). A drag never turns back into a click.
  *
- * [region] is the loop that was hit, as it was when pressed; the drag starts from its bounds.
+ * [region] is the loop that was hit, as it was when pressed; the drag starts from its bounds. [onBar]
+ * says the press landed on its top bar as drawn (see [isOnBar]), even where an edge was grabbed: a
+ * click there plays the loop like any other click on the bar.
  */
 internal class LoopPress(
     val hit: LoopHit?,
@@ -87,6 +97,7 @@ internal class LoopPress(
     private val threshold: Float,
     private val axis: WaveformAxis,
     private val durationSeconds: Float,
+    private val onBar: Boolean = false,
 ) {
     init {
         require((hit == null) == (region == null) && (region == null || region.loopId == hit?.loopId))
@@ -122,7 +133,7 @@ internal class LoopPress(
         return when {
             hit == null || region == null -> PressResult.Seek(position)
             isDrag -> bounds?.takeIf { it != region.bounds }?.let { PressResult.Commit(hit.loopId, it) } ?: PressResult.None
-            hit.handle == LoopHandle.Bar -> PressResult.BarClick(hit.loopId, position)
+            hit.handle == LoopHandle.Bar || onBar -> PressResult.BarClick(hit.loopId, position)
             // A click on the active loop's own A or B stays in it (a click just outside B would turn
             // the loop off); on another loop's edge it is a click like any other.
             region.isActive -> PressResult.Seek(position.coerceIn(region.bounds.start, region.bounds.end))

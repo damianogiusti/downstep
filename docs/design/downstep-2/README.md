@@ -303,8 +303,10 @@ less is a click. On the overview a click means:
   selected); playback goes on if it was playing and stays paused if it was paused;
 - on a loop's **top bar**: *play this loop*: it becomes active, Loop on, the playhead jumps to its A and playback
   starts (also when paused). On the loop that is already being looped it is a click inside it: seek there, and
-  playing or paused stays as it was (when paused, only another loop's bar starts playback);
-- on an edge of the active loop: a seek kept inside the loop (a click just outside B does not turn the loop off).
+  playing or paused stays as it was (when paused, only another loop's bar starts playback). This holds over the
+  whole drawn bar, its ends too, where a drag would resize the loop: there the edge wins only for a drag;
+- on an edge of the active loop below its top bar (or just outside it): a seek kept inside the loop (a click just
+  outside B does not turn the loop off); on another loop's edge there, a click like any other.
 
 **Rename in place**: a double click on a loop chip (or *Rename* in its menu) turns the name into a text field with
 the name selected. Enter or clicking away saves (trimmed, at most 40 characters), Esc cancels, and an empty or

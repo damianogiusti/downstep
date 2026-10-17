@@ -171,10 +171,39 @@ class LoopPressTest {
     }
 
     @Test
-    fun `when an edge of another loop is clicked then it is a plain click`() {
+    fun `when an edge of another loop is clicked below its top bar then it is a plain click`() {
         val press = press(LoopHit(8, LoopHandle.Start), other, downX = 620f)
 
         assertEquals(PressResult.Seek(0.596f), press.release(620f).rounded())
+    }
+
+    @Test
+    fun `when a loop's top bar is clicked near its ends then it is a bar click, not a click on the edge`() {
+        assertTrue(isOnBar(820f, 4f, other, axis, barHeight = 16f))
+        val inactive = press(LoopHit(8, LoopHandle.End), other, downX = 820f, onBar = true)
+        assertEquals(PressResult.BarClick(8, 0.796f), inactive.release(820f).rounded())
+
+        assertTrue(isOnBar(226f, 4f, active, axis, barHeight = 16f))
+        val own = press(LoopHit(7, LoopHandle.Start), active, downX = 226f, onBar = true)
+        assertEquals(PressResult.BarClick(7, 0.202f), own.release(226f).rounded())
+    }
+
+    @Test
+    fun `when a loop's top bar is dragged from near its end then the loop is resized`() {
+        val press = press(LoopHit(8, LoopHandle.End), other, downX = 820f, onBar = true)
+
+        press.moveTo(920f)
+
+        assertEquals(PressResult.Commit(8, LoopBounds(0.6f, 0.896f)), press.release(920f).rounded(), "B follows the pointer")
+    }
+
+    @Test
+    fun `when an edge is pressed just outside the loop or below its top bar then it is not on the bar`() {
+        assertFalse(isOnBar(826f, 4f, other, axis, barHeight = 16f), "just outside B")
+        assertFalse(isOnBar(820f, 100f, other, axis, barHeight = 16f), "below the bar")
+
+        val below = press(LoopHit(8, LoopHandle.End), other, downX = 820f, onBar = false)
+        assertEquals(PressResult.Seek(0.796f), below.release(820f).rounded())
     }
 
     @Test
@@ -197,7 +226,8 @@ class LoopPressTest {
 
     private fun hit(x: Float, y: Float) = hitLoop(x, y, regions, axis, edgeReach = 8f, barHeight = 16f)
 
-    private fun press(hit: LoopHit, region: HitRegion, downX: Float) = LoopPress(hit, region, downX, threshold = 4f, axis, durationSeconds = 100f)
+    private fun press(hit: LoopHit, region: HitRegion, downX: Float, onBar: Boolean = false) =
+        LoopPress(hit, region, downX, threshold = 4f, axis, durationSeconds = 100f, onBar = onBar)
 
     /** Fractions from pixels carry float noise: compare at 1e-4. */
     private fun PressResult.rounded(): PressResult = when (this) {
