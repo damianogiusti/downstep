@@ -124,9 +124,15 @@ void sd_engine_set_mix(SdEngine *engine, double mixRight) { engine->player->setM
 
 void sd_engine_set_eq_enabled(SdEngine *engine, int enabled) { engine->player->setEqEnabled(enabled != 0); }
 
-void sd_engine_set_eq_band(SdEngine *engine, int band, double gainDb) { engine->player->setEqBand(band, gainDb); }
+void sd_engine_set_eq_band_params(SdEngine *engine, int band, double frequencyHz, double gainDb, double q) {
+    engine->player->setEqBandParams(band, frequencyHz, gainDb, q);
+}
+
+void sd_engine_set_eq_band_count(SdEngine *engine, int count) { engine->player->setEqBandCount(count); }
 
 void sd_engine_set_preamp(SdEngine *engine, double gainDb) { engine->player->setPreamp(gainDb); }
+
+void sd_engine_set_isolation(SdEngine *engine, int mask) { engine->player->setIsolation(mask); }
 
 void sd_engine_set_output_gain(SdEngine *engine, double gain) { engine->player->setOutputGain(gain); }
 

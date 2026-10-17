@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <cmath>
+#include <complex>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -260,24 +261,258 @@ void mixFadesTheFarSide(const std::string &path) {
     CHECK(rightOnly.first < 1e-3 && rightOnly.second < 1e-3, "1.0: %f %f", rightOnly.first, rightOnly.second);
 }
 
-void eqBoostsItsBandAndFlatIsTransparent() {
-    const auto gainAt = [](double frequency, const std::array<double, Equalizer::kBands> &gains) {
-        Equalizer eq;
-        eq.configure(kRate, gains);
-        std::vector<float> l(static_cast<size_t>(kRate)), r(static_cast<size_t>(kRate));
-        for (int i = 0; i < kRate; ++i) l[size_t(i)] = r[size_t(i)] = float(std::sin(2 * M_PI * frequency * i / kRate));
-        const double before = rms(l, kRate / 2);
-        float *channels[2] = {l.data(), r.data()};
-        eq.process(channels, kRate);
-        return 20 * std::log10(rms(l, kRate / 2) / before);
+/** Amplitude of the `frequency` component of x[from..to), by correlation: deaf to everything else. */
+double toneAmplitude(const std::vector<float> &x, size_t from, size_t to, double frequency, int rate = kRate) {
+    double s = 0, c = 0;
+    for (size_t i = from; i < to; ++i) {
+        const double w = 2 * M_PI * frequency * double(i) / rate;
+        s += x[i] * std::sin(w);
+        c += x[i] * std::cos(w);
+    }
+    return 2 * std::hypot(s, c) / double(to - from);
+}
+
+std::vector<float> sine(double frequency, double amplitude, int frames, int rate = kRate) {
+    std::vector<float> x(static_cast<size_t>(frames));
+    for (int i = 0; i < frames; ++i) x[size_t(i)] = float(amplitude * std::sin(2 * M_PI * frequency * i / rate));
+    return x;
+}
+
+/**
+ * The cookbook's peaking EQ (R. Bristow-Johnson), written out again here on purpose, evaluated as
+ * |H(e^jw)|: what the engine's bells must measure.
+ */
+double cookbookPeakingDb(double centre, double gainDb, double q, double rate, double at) {
+    const double a = std::pow(10.0, gainDb / 40), w0 = 2 * M_PI * centre / rate, alpha = std::sin(w0) / (2 * q);
+    const std::complex<double> z = std::polar(1.0, -2 * M_PI * at / rate);
+    const std::complex<double> num = (1 + alpha * a) - 2 * std::cos(w0) * z + (1 - alpha * a) * z * z;
+    const std::complex<double> den = (1 + alpha / a) - 2 * std::cos(w0) * z + (1 - alpha / a) * z * z;
+    return 20 * std::log10(std::abs(num / den));
+}
+
+EqParams oneBand(double frequency, double gainDb, double q) {
+    EqParams p;
+    p.enabled = true;
+    p.bandCount = 1;
+    p.bands[0] = {frequency, gainDb, q};
+    return p;
+}
+
+/** Steady-state gain of an EQ at `frequency`, measured on a sine through it. */
+double measuredGainDb(const EqParams &params, double frequency) {
+    Equalizer eq;
+    eq.setSampleRate(kRate);
+    eq.setTarget(params, true);
+    std::vector<float> l = sine(frequency, 0.25, kRate), r = l;
+    float *channels[2] = {l.data(), r.data()};
+    eq.process(channels, kRate);
+    return 20 * std::log10(toneAmplitude(l, kRate / 2, size_t(kRate), frequency) / 0.25);
+}
+
+void peakingBandsMatchTheCookbook() {
+    struct Case {
+        double centre, gainDb, q;
     };
-    CHECK(std::fabs(gainAt(1000, {})) < 1e-6, "flat EQ changed the signal");
-    const double boost = gainAt(1000, {0, 0, 0, 6, 0, 0, 0});
-    CHECK(std::fabs(boost - 6) < 0.5, "1 kHz +6 dB gave %f dB", boost);
-    const double cut = gainAt(30, {-6, 0, 0, 0, 0, 0, 0});
-    CHECK(std::fabs(cut + 6) < 0.7, "low shelf -6 dB at 30 Hz gave %f dB", cut);
-    const double neighbour = gainAt(6000, {0, 0, 0, 6, 0, 0, 0});
-    CHECK(std::fabs(neighbour) < 1.0, "1 kHz boost leaked %f dB at 6 kHz", neighbour);
+    for (const Case band : {Case{1000, 6, 1}, Case{100, -9, 0.7}, Case{4000, 12, 4}, Case{250, -12, 0.3},
+                            Case{12000, 3, 10}}) {
+        for (const double ratio : {1.0, 0.5, 2.0, 1.1, 0.25, 3.0}) {
+            const double at = band.centre * ratio;
+            if (at < 20 || at > kRate * 0.45) continue;
+            const double measured = measuredGainDb(oneBand(band.centre, band.gainDb, band.q), at);
+            const double expected = cookbookPeakingDb(band.centre, band.gainDb, band.q, kRate, at);
+            CHECK(std::fabs(measured - expected) < 0.05, "%g Hz %+g dB Q %g at %g Hz: %f dB, the formula %f dB",
+                  band.centre, band.gainDb, band.q, at, measured, expected);
+        }
+        const double centre = measuredGainDb(oneBand(band.centre, band.gainDb, band.q), band.centre);
+        CHECK(std::fabs(centre - band.gainDb) < 0.05, "%g Hz centre gave %f dB for %+g", band.centre, centre,
+              band.gainDb);
+    }
+    // A wider Q reaches further: an octave away, Q 0.5 keeps more of the boost than Q 4.
+    const double wide = measuredGainDb(oneBand(1000, 12, 0.5), 2000), narrow = measuredGainDb(oneBand(1000, 12, 4), 2000);
+    CHECK(wide > narrow + 3, "Q 0.5 gave %f dB an octave away, Q 4 %f dB", wide, narrow);
+    // Bands add up in dB.
+    EqParams two = oneBand(200, 6, 1);
+    two.bandCount = 2;
+    two.bands[1] = {5000, -6, 2};
+    const double both = measuredGainDb(two, 1000);
+    const double sum = cookbookPeakingDb(200, 6, 1, kRate, 1000) + cookbookPeakingDb(5000, -6, 2, kRate, 1000);
+    CHECK(std::fabs(both - sum) < 0.05, "two bands gave %f dB, their sum %f dB", both, sum);
+    // Off, the bands are kept but not heard.
+    EqParams off = oneBand(1000, 12, 1);
+    off.enabled = false;
+    CHECK(std::fabs(measuredGainDb(off, 1000)) < 1e-6, "a disabled EQ still shapes the sound");
+}
+
+void flatEqIsBitTransparent() {
+    const std::vector<float> input = sine(997, 0.5, kRate / 2);
+    const auto through = [&](Equalizer &eq) {
+        std::vector<float> l = input, r = input;
+        float *channels[2] = {l.data(), r.data()};
+        eq.process(channels, int(l.size()));
+        return l;
+    };
+    Equalizer eq;
+    eq.setSampleRate(kRate);
+    EqParams flat;
+    flat.enabled = true;
+    flat.bandCount = Equalizer::kMaxBands;
+    for (int b = 0; b < Equalizer::kMaxBands; ++b) flat.bands[size_t(b)] = {100.0 * (b + 1), 0, 1};
+    eq.setTarget(flat, true);
+    CHECK(eq.isFlat() && through(eq) == input, "eight bands at 0 dB changed the signal");
+
+    // Back to flat after a boost, once the glide has ended: exactly the input again.
+    EqParams boost = flat;
+    boost.bands[3].gainDb = 9;
+    boost.preampDb = -3;
+    eq.setTarget(boost, false);
+    through(eq);
+    eq.setTarget(flat, false);
+    through(eq); // half a second: long past the glide
+    CHECK(eq.isFlat() && through(eq) == input, "the EQ did not settle back to an exact flat");
+
+    // The whole engine: a flat EQ that is on sounds bit for bit like no EQ.
+    const auto rendered = [](bool eqOn) {
+        Player player(kRate, 512);
+        PcmBuffer pcm;
+        pcm.sampleRate = kRate;
+        pcm.channels = 1;
+        pcm.frames = kRate;
+        pcm.data.assign(1, sine(441, 0.5, kRate));
+        player.open(std::make_shared<PcmBuffer>(std::move(pcm)), "tone");
+        player.setEqBandCount(3);
+        for (int b = 0; b < 3; ++b) player.setEqBandParams(b, 300.0 * (b + 1), 0, 2);
+        player.setEqEnabled(eqOn);
+        player.setPlaying(true);
+        std::vector<float> l(4096), r(4096);
+        float *out[2] = {l.data(), r.data()};
+        player.render(out, 4096);
+        return l;
+    };
+    CHECK(rendered(true) == rendered(false), "a flat EQ that is on changed the sound");
+}
+
+void eqChangesGlideWithoutSteps() {
+    // A steady 1 kHz tone while its band jumps from -12 to +12 dB, sub-block by sub-block.
+    constexpr double kTone = 1000, kAmplitude = 0.2;
+    Equalizer eq;
+    eq.setSampleRate(kRate);
+    eq.setTarget(oneBand(kTone, -12, 1), true);
+    const int frames = kRate / 32 * 32; // whole sub-blocks
+    std::vector<float> l = sine(kTone, kAmplitude, frames), r = l;
+    float *channels[2] = {l.data(), r.data()};
+    constexpr int kSub = 32;
+    const int changeAt = kRate / 4 / kSub * kSub;
+    double previousGain = eq.currentGainDb(0), largestGainStep = 0;
+    int settledAt = -1;
+    for (int offset = 0; offset < frames; offset += kSub) {
+        if (offset == changeAt) eq.setTarget(oneBand(kTone, 12, 1), false);
+        float *block[2] = {channels[0] + offset, channels[1] + offset};
+        eq.process(block, kSub);
+        largestGainStep = std::max(largestGainStep, std::fabs(eq.currentGainDb(0) - previousGain));
+        previousGain = eq.currentGainDb(0);
+        if (settledAt < 0 && offset >= changeAt && eq.currentGainDb(0) == 12) settledAt = offset + kSub - changeAt;
+    }
+    CHECK(largestGainStep < 1.0, "the gain moved %f dB in one 32-frame step", largestGainStep);
+    CHECK(settledAt > 0 && settledAt <= kRate / 10, "reached +12 dB %d frames after the change", settledAt);
+    // No sample jumps further than the loudest steady tone ever does between two samples.
+    const double loudest = kAmplitude * std::pow(10.0, 12 / 20.0) * 2 * std::sin(M_PI * kTone / kRate);
+    double largestJump = 0;
+    for (int i = 1; i < frames; ++i) largestJump = std::max(largestJump, double(std::fabs(l[size_t(i)] - l[size_t(i - 1)])));
+    CHECK(largestJump <= loudest * 1.02, "a %f jump between samples, the +12 dB tone moves at most %f", largestJump,
+          loudest);
+    // Nor any click: the third difference (a steep high-pass) of a tone is tiny, a step is not.
+    const double tick = std::pow(2 * std::sin(M_PI * kTone / kRate), 3) * kAmplitude * std::pow(10.0, 12 / 20.0);
+    double largestTick = 0;
+    for (int i = 3; i < frames; ++i) {
+        const size_t n = size_t(i);
+        largestTick = std::max(largestTick, double(std::fabs(l[n] - 3 * l[n - 1] + 3 * l[n - 2] - l[n - 3])));
+    }
+    // An instant switch measures about ten times the tone's own.
+    CHECK(largestTick <= tick * 1.5, "a %f click, the +12 dB tone alone %f", largestTick, tick);
+    const double after = 20 * std::log10(toneAmplitude(l, size_t(changeAt + kRate / 10), size_t(frames), kTone) / kAmplitude);
+    CHECK(std::fabs(after - 12) < 0.05, "100 ms after the change the tone is at %f dB", after);
+
+    // The preamp ramps sample by sample: a 12 dB jump on a constant signal never steps.
+    Equalizer pre;
+    pre.setSampleRate(kRate);
+    EqParams quiet;
+    quiet.enabled = true;
+    quiet.preampDb = -12;
+    pre.setTarget(quiet, true);
+    std::vector<float> dc(size_t(kRate / 4), 0.5f), dcRight = dc;
+    float *dcChannels[2] = {dc.data(), dcRight.data()};
+    pre.process(dcChannels, 1024);
+    quiet.preampDb = 0;
+    pre.setTarget(quiet, false);
+    float *rest[2] = {dc.data() + 1024, dcRight.data() + 1024};
+    pre.process(rest, int(dc.size()) - 1024);
+    double largestStep = 0;
+    for (size_t i = 1; i < dc.size(); ++i) largestStep = std::max(largestStep, double(std::fabs(dc[i] - dc[i - 1])));
+    CHECK(largestStep < 0.002, "the preamp stepped %f at once", largestStep);
+    CHECK(pre.currentPreampDb() == 0 && dc.back() == 0.5f, "the preamp ended at %f dB", pre.currentPreampDb());
+}
+
+void isolateCutsOutsideTheSelection() {
+    // The test file's tone is 441 Hz: inside the mid range.
+    const auto level = [](int mask, bool eqOn, bool throughSettings = false) {
+        PcmBuffer pcm;
+        pcm.sampleRate = kRate;
+        pcm.channels = 1;
+        pcm.frames = kRate;
+        pcm.data.assign(1, sine(441, 0.25, kRate));
+        auto shared = std::make_shared<const PcmBuffer>(std::move(pcm));
+        Player player(kRate, 4096);
+        player.open(shared, "tone");
+        player.setEqEnabled(eqOn);
+        player.setIsolation(mask);
+        Player copy(kRate, 4096); // the export copies a player's sound through its settings
+        copy.open(shared, "tone");
+        copy.applySettings(player.settings());
+        Player &heard = throughSettings ? copy : player;
+        heard.setPlaying(true);
+        std::vector<float> l(kRate / 2), r(kRate / 2);
+        float *out[2] = {l.data(), r.data()};
+        for (int offset = 0; offset < kRate / 2; offset += 4096) {
+            float *block[2] = {out[0] + offset, out[1] + offset};
+            heard.render(block, std::min(4096, kRate / 2 - offset));
+        }
+        return 20 * std::log10(toneAmplitude(l, kRate / 8, kRate / 2, 441) / 0.25);
+    };
+    const double full = level(0, false);
+    const auto relative = [&](int mask, bool eqOn) { return level(mask, eqOn) - full; };
+    const double low = relative(1, false), mid = relative(2, true), high = relative(4, false);
+    const double lowAndHigh = relative(1 | 4, true), everything = relative(7, false);
+    CHECK(std::fabs(full) < 0.5, "the full mix is at %f dB", full);
+    CHECK(low < -9, "isolating low left the mid tone at %f dB", low);
+    CHECK(high < -9, "isolating high left the mid tone at %f dB", high);
+    CHECK(lowAndHigh < -9, "isolating low and high left the mid tone at %f dB", lowAndHigh);
+    CHECK(std::fabs(mid) < 2.5, "isolating mid moved the mid tone by %f dB", mid); // the neighbours' skirts
+    CHECK(std::fabs(everything) < 0.01, "isolating every range moved the tone by %f dB", everything);
+    const double exported = level(1, false, true) - full;
+    CHECK(std::fabs(exported) < 0.01, "the settings carried Isolate: %f dB", exported);
+}
+
+void firstSettingsApplyAtOnce() {
+    // A new player (as the export's) plays its EQ from the first block, without a glide from flat.
+    const auto firstBlock = [](bool eqOn) {
+        PcmBuffer pcm;
+        pcm.sampleRate = kRate;
+        pcm.channels = 1;
+        pcm.frames = kRate;
+        pcm.data.assign(1, sine(1000, 0.25, kRate));
+        Player player(kRate, 4096);
+        player.open(std::make_shared<PcmBuffer>(std::move(pcm)), "tone");
+        player.setEqBandParams(0, 1000, 6, 1);
+        player.setEqBandCount(1);
+        player.setEqEnabled(eqOn);
+        player.setPlaying(true);
+        std::vector<float> l(4096), r(4096);
+        float *out[2] = {l.data(), r.data()};
+        player.render(out, 4096);
+        return toneAmplitude(l, 882, 4096, 1000); // past the 10 ms fade-in
+    };
+    const double early = 20 * std::log10(firstBlock(true) / firstBlock(false));
+    CHECK(std::fabs(early - 6) < 0.1, "the first block played %f dB", early);
 }
 
 void preampOnlyWithEqOn(const std::string &path) {
@@ -469,7 +704,14 @@ void renderingDoesNotAllocate(const std::string &path) {
             const double t = i / 400.0;
             sd_engine_set_speed(e, 0.05 + 3.95 * t); // the stretcher's whole range
             sd_engine_set_pitch(e, -12 + 24 * t); // not snapped: the grain sizes move as much as they can
-            sd_engine_set_eq_band(e, i % 7, (i % 25) - 12);
+            // Bands dragged around while they glide: frequency, gain and Q, their number, the
+            // preamp, the switch and Isolate.
+            sd_engine_set_eq_band_params(e, i % SD_EQ_MAX_BANDS, 20 * std::pow(1000.0, t), (i % 25) - 12,
+                                         0.3 + 9.7 * t);
+            sd_engine_set_eq_band_count(e, i % (SD_EQ_MAX_BANDS + 1));
+            sd_engine_set_preamp(e, (i % 13) - 6);
+            if (i % 50 == 0) sd_engine_set_eq_enabled(e, (i / 50) % 2 == 0);
+            sd_engine_set_isolation(e, (i / 10) % 8);
             if (i == 200) sd_engine_set_loop_and_seek(e, 0.3, 0.5, 1, 0.3);
             sd_engine_render(e, block.data(), 512);
         }
@@ -574,7 +816,11 @@ int main() {
         {"loop stays inside its points", [&] { loopStaysInside(path); }},
         {"reaches the end with the loop off", [&] { reachesEndWithLoopOff(path); }},
         {"mix fades the far side", [&] { mixFadesTheFarSide(path); }},
-        {"EQ boosts its band and flat is transparent", [] { eqBoostsItsBandAndFlatIsTransparent(); }},
+        {"peaking bands match the cookbook", [] { peakingBandsMatchTheCookbook(); }},
+        {"a flat EQ is bit transparent", [] { flatEqIsBitTransparent(); }},
+        {"EQ changes glide without steps", [] { eqChangesGlideWithoutSteps(); }},
+        {"isolate cuts outside the selection", [] { isolateCutsOutsideTheSelection(); }},
+        {"the first settings apply at once", [] { firstSettingsApplyAtOnce(); }},
         {"preamp only with the EQ on", [&] { preampOnlyWithEqOn(path); }},
         {"decoder keeps every frame", [] { decoderKeepsEveryFrame(); }},
         {"an unreadable file fails cleanly", [] { unreadableFileFailsCleanly(); }},

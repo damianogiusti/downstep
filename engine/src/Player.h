@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Equalizer.h"
+#include "Isolation.h"
 #include "Pcm.h"
 #include "Peaks.h"
 #include "TimeStretcher.h"
@@ -12,7 +13,8 @@
 #include <string>
 
 /**
- * Everything between the decoded file and the output: mix → time stretch → EQ → preamp → fades.
+ * Everything between the decoded file and the output: mix → time stretch → EQ → preamp → isolation
+ * → fades.
  *
  * Controls are atomics written by the control thread. render() runs on the audio thread (or the
  * caller's thread in manual mode); it applies the controls at the start of each block and never
@@ -20,13 +22,17 @@
  */
 class Player {
 public:
-    /** Sound settings, to copy one player's sound onto another (export). */
+    /**
+     * Sound settings, to copy one player's sound onto another (export). Isolate is not part of it:
+     * it is a practice aid, like the loop, and an export never carries it.
+     */
     struct Settings {
         double speed = 1.0;
         double pitch = 0.0;
         double mix = 0.5;
         bool eqEnabled = false;
-        std::array<double, Equalizer::kBands> eqGainsDb{};
+        int eqBandCount = 0;
+        std::array<EqBandParams, Equalizer::kMaxBands> eqBands{};
         double preampDb = 0.0;
     };
 
@@ -71,8 +77,12 @@ public:
     void setLoop(double start, double end, bool enabled, double seek = -1.0);
     void setMix(double mixRight) { mix_.store(mixRight); }
     void setEqEnabled(bool enabled);
-    void setEqBand(int band, double gainDb);
+    /** A peaking bell: 20 Hz..20 kHz, ±12 dB, Q 0.3..10, the three set together. */
+    void setEqBandParams(int band, double frequencyHz, double gainDb, double q);
+    void setEqBandCount(int count);
     void setPreamp(double gainDb);
+    /** Isolate's mask: bit 0 low, bit 1 mid, bit 2 high; 0 = the full mix. */
+    void setIsolation(int mask);
     void setOutputGain(double gain) { outputGain_.store(gain); }
 
     /**
@@ -105,6 +115,7 @@ private:
     std::atomic<int> sourceSampleRate_{0};
     TimeStretcher stretcher_;
     Equalizer equalizer_;
+    IsolationFilter isolation_;
 
     // Its own lock: a waveform read must never make the audio thread skip a block.
     mutable std::mutex peaksLock_;
@@ -129,13 +140,16 @@ private:
     std::atomic<double> outputGain_{1.0};
     std::atomic<unsigned> events_{0};
 
-    // EQ settings: copied into the filters on the audio thread when the version changes.
+    // EQ and isolation settings: a seqlock like the loop's, so a band's frequency, gain and Q always
+    // arrive together. The audio thread hands them to the filters, which glide to them.
+    template <typename Write> void writeEq(Write write);
+    std::atomic<unsigned> eqVersion_{0};
     std::atomic<bool> eqEnabled_{false};
-    std::array<std::atomic<double>, Equalizer::kBands> eqGainsDb_{};
+    std::atomic<int> eqBandCount_{0};
+    std::array<std::atomic<double>, Equalizer::kMaxBands> eqFrequencyHz_{}, eqGainDb_{}, eqQ_{};
     std::atomic<double> preampDb_{0.0};
-    std::atomic<unsigned> eqVersion_{1};
-    unsigned appliedEqVersion_ = 0;
-    float preampGain_ = 1.f;
+    std::atomic<int> isolationMask_{0};
+    unsigned appliedEqVersion_ = ~0u;
 
     // Audio-thread state.
     bool isRunning_ = false; // producing audio, including a fade-out block

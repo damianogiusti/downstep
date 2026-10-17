@@ -24,7 +24,8 @@ typedef struct SdEngine SdEngine;
 /** Playback reached the end of the file with the loop off. Playback is already stopped. */
 #define SD_EVENT_REACHED_END 1u
 
-#define SD_EQ_BANDS 7
+/** How many bells the EQ has room for. */
+#define SD_EQ_MAX_BANDS 8
 
 /**
  * `withDevice` = 1 plays on the default output device. 0 = manual mode: nothing plays, the caller
@@ -56,11 +57,26 @@ SD_API void sd_engine_set_loop_and_seek(SdEngine *engine, double start, double e
 
 /** 0 = left channel on both outputs, 0.5 = unchanged, 1 = right channel on both. */
 SD_API void sd_engine_set_mix(SdEngine *engine, double mixRight);
+/**
+ * The EQ: up to SD_EQ_MAX_BANDS peaking (bell) filters, then the preamp. Every change glides over
+ * ~20 ms (each band's frequency, gain and Q, the preamp, on and off): no zipper noise, no clicks.
+ */
 SD_API void sd_engine_set_eq_enabled(SdEngine *engine, int enabled);
-/** Bands 0..6 at 60, 150, 400, 1k, 2.4k, 6k, 15k Hz. */
-SD_API void sd_engine_set_eq_band(SdEngine *engine, int band, double gainDb);
+/**
+ * Band `band` (0..SD_EQ_MAX_BANDS-1): a bell at frequencyHz (20..20k, kept below 0.45 × the output
+ * rate), gainDb (±12) and q (0.3..10), the three taking effect together.
+ */
+SD_API void sd_engine_set_eq_band_params(SdEngine *engine, int band, double frequencyHz, double gainDb, double q);
+/** How many bands are in use (0..SD_EQ_MAX_BANDS), from band 0; the others fade to 0 dB. */
+SD_API void sd_engine_set_eq_band_count(SdEngine *engine, int count);
 /** Applied only while the EQ is on. */
 SD_API void sd_engine_set_preamp(SdEngine *engine, double gainDb);
+/**
+ * Isolate: brings the selected range forward by cutting the rest 12 dB, after the EQ and whether it
+ * is on or off. `mask`: bit 0 low, bit 1 mid, bit 2 high; 0 = the full mix. A practice aid: an
+ * export never carries it.
+ */
+SD_API void sd_engine_set_isolation(SdEngine *engine, int mask);
 /** Linear output gain, 1 by default. 0 mutes a device engine (scripted checks). */
 SD_API void sd_engine_set_output_gain(SdEngine *engine, double gain);
 
