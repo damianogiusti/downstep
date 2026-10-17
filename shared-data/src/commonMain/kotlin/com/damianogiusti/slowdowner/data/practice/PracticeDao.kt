@@ -29,11 +29,16 @@ interface PracticeDao {
             now = now,
         )
 
-    // Room binds query arguments one by one; use upsertStateIfTrackExists instead.
+    // Room binds query arguments one by one; use upsertStateIfTrackExists instead. REPLACE rewrites
+    // the whole row: the loop columns are copied over from the old one, they are not ours to reset.
+    // (No ON CONFLICT DO UPDATE: Android's SQLite has it only from API 30.)
     @Query(
         "INSERT OR REPLACE INTO track_practice_state " +
-            "(track_id, speed_percent, pitch_semitones, loop_start, loop_end, is_loop_on, updated_at) " +
-            "SELECT :trackId, :speedPercent, :pitchSemitones, :loopStart, :loopEnd, :isLoopOn, :now " +
+            "(track_id, speed_percent, pitch_semitones, loop_start, loop_end, is_loop_on, updated_at, " +
+            "active_loop_id, bpm, snap_to_beat) " +
+            "SELECT :trackId, :speedPercent, :pitchSemitones, :loopStart, :loopEnd, :isLoopOn, :now, " +
+            "previous.active_loop_id, previous.bpm, COALESCE(previous.snap_to_beat, 1) " +
+            "FROM (SELECT 1) LEFT JOIN track_practice_state previous ON previous.track_id = :trackId " +
             "WHERE EXISTS (SELECT 1 FROM tracks WHERE id = :trackId)",
     )
     suspend fun insertOrReplaceStateWhereTrackExists(

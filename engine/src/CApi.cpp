@@ -1,5 +1,6 @@
 #include "sdengine.h"
 
+#include "Denormals.h"
 #include "Player.h"
 
 #include <miniaudio.h>
@@ -27,6 +28,7 @@ struct SdEngine {
 namespace {
 
 void onAudio(ma_device *device, void *output, const void *, ma_uint32 frameCount) {
+    const ScopedFlushDenormals flushDenormals;
     auto &engine = *static_cast<SdEngine *>(device->pUserData);
     auto *out = static_cast<float *>(output);
     float *planar[2] = {engine.left.data(), engine.right.data()};
@@ -62,6 +64,12 @@ SdEngine *sd_engine_create(int withDevice, int manualSampleRate) {
     config.playback.format = ma_format_f32;
     config.playback.channels = 2;
     config.sampleRate = 0; // the device's own rate: Bungee resamples, the OS does not have to
+    // The callback renders whatever the backend asks for (in kMaxBlock slices), so miniaudio's
+    // fixed-size intermediate buffer would only add a period of latency and a copy. A short
+    // explicit period keeps slider-to-sound delay low without depending on backend defaults.
+    config.noFixedSizedCallback = MA_TRUE;
+    config.performanceProfile = ma_performance_profile_low_latency;
+    config.periodSizeInMilliseconds = 10;
     config.dataCallback = onAudio;
     config.pUserData = engine.get();
     if (ma_device_init(nullptr, &config, engine->device.get()) != MA_SUCCESS) {
@@ -76,7 +84,15 @@ SdEngine *sd_engine_create(int withDevice, int manualSampleRate) {
 
 void sd_engine_destroy(SdEngine *engine) { delete engine; }
 
-int sd_engine_open(SdEngine *engine, const char *utf8Path) { return engine->player->open(utf8Path) ? 1 : 0; }
+int sd_engine_open(SdEngine *engine, const char *utf8Path) {
+    // A decode can run out of memory (a long file, a corrupt header): an exception crossing into the
+    // JVM would end the whole app. A file that cannot be decoded is all it is.
+    try {
+        return engine->player->open(utf8Path) ? 1 : 0;
+    } catch (...) {
+        return 0;
+    }
+}
 
 void sd_engine_close(SdEngine *engine) { engine->player->close(); }
 
@@ -114,12 +130,17 @@ void sd_engine_set_preamp(SdEngine *engine, double gainDb) { engine->player->set
 
 void sd_engine_set_output_gain(SdEngine *engine, double gain) { engine->player->setOutputGain(gain); }
 
+int sd_engine_peaks(SdEngine *engine, double from, double to, float *out, int buckets) {
+    return engine->player->peaks(from, to, out, buckets);
+}
+
 unsigned sd_engine_take_events(SdEngine *engine) { return engine->player->takeEvents(); }
 
 int sd_engine_sample_rate(const SdEngine *engine) { return engine->player->outputRate(); }
 
 int sd_engine_render(SdEngine *engine, float *interleaved, int frames) {
     if (engine->device) return 0;
+    const ScopedFlushDenormals flushDenormals;
     float *planar[2] = {engine->left.data(), engine->right.data()};
     for (int done = 0; done < frames;) {
         const int n = std::min(frames - done, kMaxBlock);

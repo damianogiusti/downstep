@@ -12,9 +12,10 @@ struct OutputChunk;
 } // namespace Bungee
 
 /**
- * Bungee's granular API over a stereo source. Every grain names the source position it wants, so
- * seek and loop are just a new position: no splice, no reset. Grains produce output in chunks of
- * varying size, kept in a FIFO together with the source positions they cover.
+ * Bungee's granular API over a stereo source (a mono one feeds both sides). Every grain names the
+ * source position it wants, so seek and loop are just a new position: no splice, no reset. Grains
+ * produce output in chunks of varying size, kept in a FIFO together with the source positions they
+ * cover.
  *
  * Single-threaded: only the render path calls it.
  */
@@ -24,8 +25,9 @@ public:
     ~TimeStretcher();
 
     /**
-     * Allocates our buffers. Bungee itself may still allocate inside a grain when the input chunk size
-     * changes (speed or pitch moves): a small glitch risk on the audio thread, accepted for now.
+     * Allocates every buffer, ours and Bungee's. Bungee reallocates a grain's input copy only when
+     * the input chunk size changes, which resampleMode_autoOut never does: speed, pitch, seek and
+     * loop changes render without allocating (the "rendering does not allocate" engine test).
      */
     void prepare(const PcmBuffer &source, int outputRate, int maxBlockFrames);
     void seek(double frame);

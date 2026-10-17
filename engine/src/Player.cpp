@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace {
 
@@ -18,37 +19,64 @@ Player::Player(int outputRate, int maxBlockFrames) : outputRate_(outputRate), ma
 
 bool Player::open(const std::string &path) {
     // Decode outside the lock: it can take a second, and playback of the old file can go on meanwhile.
-    PcmBuffer decoded;
+    auto decoded = std::make_shared<PcmBuffer>();
     std::string error;
-    if (!decodeFile(path, decoded, error)) return false;
-    if (decoded.channels == 1) {
-        decoded.data.push_back(decoded.data[0]);
-        decoded.channels = 2;
-    }
+    if (!decodeFile(path, *decoded, error)) return false;
+    // Also outside the lock, and only here: the export's player never draws a waveform.
+    auto summary = PeakSummary::of(*decoded);
+    if (!open(std::move(decoded), path)) return false;
+    std::lock_guard<std::mutex> guard(peaksLock_);
+    peaks_ = std::move(summary);
+    return true;
+}
 
-    std::lock_guard<std::mutex> guard(lock_);
-    wantsPlaying_.store(false);
-    isRunning_ = false;
-    source_ = std::move(decoded);
-    path_ = path;
-    sourceSampleRate_.store(source_.sampleRate);
-    stretcher_.prepare(source_, outputRate_, maxBlockFrames_);
-    equalizer_.reset();
-    sourceFrames_.store(source_.frames);
-    durationSeconds_.store(source_.seconds());
-    positionFrames_.store(0.0);
-    seekTo_.store(-1.0);
-    setLoop(0.0, 1.0, false);
-    isOpen_.store(true);
+int Player::peaks(double from, double to, float *out, int buckets) const {
+    std::shared_ptr<const PeakSummary> summary;
+    {
+        std::lock_guard<std::mutex> guard(peaksLock_);
+        summary = peaks_;
+    }
+    return summary ? summary->read(from, to, out, buckets) : 0;
+}
+
+bool Player::open(std::shared_ptr<const PcmBuffer> decoded, const std::string &path) {
+    if (!decoded || decoded->frames <= 0 || decoded->channels < 1) return false;
+    {
+        std::lock_guard<std::mutex> guard(peaksLock_);
+        peaks_.reset();
+    }
+    std::shared_ptr<const PcmBuffer> previous;
+    {
+        std::lock_guard<std::mutex> guard(lock_);
+        wantsPlaying_.store(false);
+        isRunning_ = false;
+        previous = std::exchange(source_, std::move(decoded));
+        path_ = path;
+        sourceSampleRate_.store(source_->sampleRate);
+        stretcher_.prepare(*source_, outputRate_, maxBlockFrames_);
+        equalizer_.reset();
+        sourceFrames_.store(source_->frames);
+        durationSeconds_.store(source_->seconds());
+        positionFrames_.store(0.0);
+        seekTo_.store(-1.0);
+        setLoop(0.0, 1.0, false);
+        isOpen_.store(true);
+    }
+    // `previous` (maybe the last owner of a 100 MB buffer) is freed here, outside the lock.
     return true;
 }
 
 void Player::close() {
+    {
+        std::lock_guard<std::mutex> peaksGuard(peaksLock_);
+        peaks_.reset();
+    }
+    std::shared_ptr<const PcmBuffer> previous; // declared before the guard: freed after unlocking
     std::lock_guard<std::mutex> guard(lock_);
     wantsPlaying_.store(false);
     isRunning_ = false;
     isOpen_.store(false);
-    source_ = PcmBuffer{};
+    previous = std::move(source_);
     path_.clear();
     sourceFrames_.store(0);
     durationSeconds_.store(0.0);
@@ -119,7 +147,7 @@ void Player::setPreamp(double gainDb) {
 }
 
 double Player::applyControls() {
-    const double frames = double(source_.frames);
+    const double frames = double(source_->frames);
     stretcher_.setSpeed(speed_.load());
     stretcher_.setPitch(pitch_.load());
     stretcher_.setMix(mix_.load());
@@ -164,7 +192,7 @@ int Player::render(float *const *out, int frames) {
     const double seek = loopSeek >= 0 ? loopSeek : plainSeek;
     const bool wantsPlaying = wantsPlaying_.load();
     if (seek >= 0) {
-        stretcher_.seek(seek * double(source_.frames));
+        stretcher_.seek(seek * double(source_->frames));
         equalizer_.reset();
         needsFadeIn_ = true;
     }
@@ -198,7 +226,7 @@ int Player::render(float *const *out, int frames) {
         // End of the file with the loop off: stop and tell the control side.
         isRunning_ = false;
         wantsPlaying_.store(false);
-        positionFrames_.store(double(source_.frames));
+        positionFrames_.store(double(source_->frames));
         events_.fetch_or(SD_EVENT_REACHED_END);
     } else if (!wantsPlaying) {
         applyFade(out, frames, false);

@@ -3,6 +3,8 @@ package com.damianogiusti.slowdowner.data.backup
 import com.damianogiusti.slowdowner.data.library.LegacyJsonLibraryIndex
 import com.damianogiusti.slowdowner.data.library.RoomLibraryStore
 import com.damianogiusti.slowdowner.data.library.TrackEntity
+import com.damianogiusti.slowdowner.data.loops.LoopEntity
+import com.damianogiusti.slowdowner.data.loops.ProgressionColumns
 import com.damianogiusti.slowdowner.data.practice.PracticePresetEntity
 import com.damianogiusti.slowdowner.data.practice.PracticeSettingsColumns
 import com.damianogiusti.slowdowner.data.practice.PracticeStateEntity
@@ -26,6 +28,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -181,6 +184,115 @@ class DefaultBackupRepositoryTest {
         assertArrayEquals(byteArrayOf(9), File(mine.filePath).readBytes())
         assertEquals(slow, target.dao.findState("yt_abc")?.settings)
         assertEquals(listOf("Solo" to slow, "Intro" to fast), target.dao.presets.map { it.name to it.settings })
+    }
+
+    @Test
+    fun `when a backup with loops is restored then loops, the active one and the tempo come back`() = runTest {
+        source.addTrack("yt_abc", "m4a", byteArrayOf(1))
+        // Ids are local: the restored loops get other ids, the active one must follow by position.
+        source.dao.addLoop(loop("yt_abc", "Unused", 0f, 0.1f)).also { source.dao.loops.clear() }
+        val verse = source.dao.addLoop(loop("yt_abc", "Verse", 0.1f, 0.2f))
+        val chorus = source.dao.addLoop(loop("yt_abc", "Chorus", 0.5f, 0.6f, notes = "Am - G"))
+        source.dao.states += PracticeStateEntity("yt_abc", slow, 1, activeLoopId = chorus.id, bpm = 92f, snapToBeat = false)
+        val backup = exportLibrary()
+
+        target.repository.restore(backup.path, Copy) {}
+
+        val restored = target.dao.loopsOf("yt_abc")
+        assertEquals(listOf("Verse" to 0.1f, "Chorus" to 0.5f), restored.map { it.name to it.start })
+        assertEquals("Am - G", restored[1].notes)
+        assertEquals(verse.progression, restored[0].progression)
+        val state = target.dao.findState("yt_abc")!!
+        assertEquals(restored[1].id, state.activeLoopId)
+        assertEquals(92f, state.bpm)
+        assertFalse(state.snapToBeat)
+    }
+
+    @Test
+    fun `when the track already has loops then the backup loops are not added`() = runTest {
+        source.addTrack("yt_abc", "m4a", byteArrayOf(1))
+        source.dao.addLoop(loop("yt_abc", "Theirs", 0.1f, 0.2f))
+        val backup = exportLibrary()
+        target.addTrack("yt_abc", "m4a", byteArrayOf(9))
+        target.dao.addLoop(loop("yt_abc", "Mine", 0.3f, 0.4f))
+
+        target.repository.restore(backup.path, Copy) {}
+        target.repository.restore(backup.path, Copy) {}
+
+        assertEquals(listOf("Mine"), target.dao.loopsOf("yt_abc").map { it.name })
+    }
+
+    @Test
+    fun `when a backup from before loops is restored then its region becomes the active Loop 1`() = runTest {
+        val manifest = BackupManifestDto(
+            format = BackupManifestDto.FORMAT,
+            version = 1,
+            createdAt = 1,
+            kind = BackupKindDto.Track,
+            tracks = listOf(
+                BackupTrackDto(id = "t", title = "Old", addedAt = 0, audio = "audio/t.mp3", practiceState = BackupManifestMapper.toDto(slow)),
+            ),
+        )
+
+        val result = target.repository.restore(zipOf(manifest, "audio/t.mp3" to byteArrayOf(5)).path, Copy) {}
+
+        assertEquals(RestoreResult.Success(tracksAdded = 1, tracksSkipped = 0, playlistsRestored = 0), result)
+        // As the 1→2 migration does: the region is never left looping with no loop to show it.
+        val loop = target.dao.loopsOf("t").single()
+        assertEquals("Loop 1", loop.name)
+        assertEquals(0.2f to 0.4f, loop.start to loop.end)
+        assertEquals(0, loop.passes)
+        assertFalse(loop.progression.enabled)
+        val state = target.dao.findState("t")!!
+        assertEquals(slow, state.settings)
+        assertEquals(loop.id, state.activeLoopId)
+        assertNull(state.bpm)
+    }
+
+    @Test
+    fun `when a backup from before loops has no region then no loop is made`() = runTest {
+        val manifest = BackupManifestDto(
+            format = BackupManifestDto.FORMAT,
+            version = 1,
+            createdAt = 1,
+            kind = BackupKindDto.Track,
+            tracks = listOf(
+                BackupTrackDto(id = "t", title = "Old", addedAt = 0, audio = "audio/t.mp3", practiceState = BackupManifestMapper.toDto(fast)),
+            ),
+        )
+
+        target.repository.restore(zipOf(manifest, "audio/t.mp3" to byteArrayOf(5)).path, Copy) {}
+
+        assertEquals(emptyList<LoopEntity>(), target.dao.loopsOf("t"))
+        assertNull(target.dao.findState("t")!!.activeLoopId)
+    }
+
+    @Test
+    fun `when the active loop of a backup is dropped as invalid then nothing loops`() = runTest {
+        val manifest = BackupManifestDto(
+            format = BackupManifestDto.FORMAT,
+            version = BackupManifestDto.VERSION,
+            createdAt = 1,
+            kind = BackupKindDto.Track,
+            tracks = listOf(
+                BackupTrackDto(
+                    id = "t",
+                    title = "New",
+                    addedAt = 0,
+                    audio = "audio/t.mp3",
+                    practiceState = BackupManifestMapper.toDto(slow),
+                    loops = listOf(BackupLoopDto("Verse", 0.6f, 0.7f), BackupLoopDto("Broken", 0.4f, 0.2f)),
+                    activeLoop = 1,
+                ),
+            ),
+        )
+
+        target.repository.restore(zipOf(manifest, "audio/t.mp3" to byteArrayOf(5)).path, Copy) {}
+
+        assertEquals(listOf("Verse"), target.dao.loopsOf("t").map { it.name })
+        val state = target.dao.findState("t")!!
+        assertNull(state.activeLoopId)
+        assertEquals(slow.copy(loopStart = 0f, loopEnd = 1f, isLoopOn = false), state.settings)
     }
 
     @Test
@@ -405,6 +517,17 @@ class DefaultBackupRepositoryTest {
         assertEquals(RestoreResult.UnsupportedVersion(3), target.repository.restore(zip.path, Copy) {})
         assertEquals(mapOf("version" to "3"), target.logger.at('W').single().properties)
     }
+
+    private fun loop(trackId: String, name: String, start: Float, end: Float, notes: String = "") = LoopEntity(
+        trackId = trackId,
+        name = name,
+        start = start,
+        end = end,
+        passes = 3,
+        notes = notes,
+        progression = ProgressionColumns(true, 60f, 95f, 5f, 3),
+        createdAt = 1,
+    )
 
     private suspend fun exportLibrary(): File {
         val result = source.repository.export(BackupScope.Library, "library.sldbackup") {}

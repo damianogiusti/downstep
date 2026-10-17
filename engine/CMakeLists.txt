@@ -76,7 +76,7 @@ target_compile_options(mp3lame PRIVATE -w)
 
 add_library(miniaudio STATIC ${miniaudio_SOURCE_DIR}/miniaudio.c)
 target_include_directories(miniaudio PUBLIC ${miniaudio_SOURCE_DIR})
-target_compile_definitions(miniaudio PUBLIC MA_NO_DECODING MA_NO_ENCODING MA_NO_GENERATION)
+target_compile_definitions(miniaudio PUBLIC MA_NO_ENCODING MA_NO_GENERATION)
 
 if(APPLE)
   set(DECODER_SOURCE src/DecoderApple.cpp)
@@ -84,8 +84,18 @@ if(APPLE)
 elseif(WIN32)
   set(DECODER_SOURCE src/DecoderWindows.cpp)
   set(DECODER_LIBRARIES mfplat mfreadwrite mfuuid ole32)
+elseif(UNIX)
+  # No system decoder on Linux: miniaudio's own (WAV, FLAC, MP3). It loads ALSA/PulseAudio at run
+  # time with dlopen, so only libc's thread, dl and math libraries are linked.
+  set(DECODER_SOURCE src/DecoderLinux.cpp)
+  find_package(Threads REQUIRED)
+  target_link_libraries(miniaudio PUBLIC Threads::Threads ${CMAKE_DL_LIBS} m)
 else()
   message(FATAL_ERROR "No audio decoder for ${CMAKE_SYSTEM_NAME} yet")
+endif()
+if(APPLE OR WIN32)
+  # The OS decodes there: keep miniaudio's decoders out of the library.
+  target_compile_definitions(miniaudio PUBLIC MA_NO_DECODING)
 endif()
 
 set(ENGINE_SOURCES
@@ -113,11 +123,20 @@ endif()
 if(APPLE)
   # Bungee and miniaudio are built with default visibility: keep their symbols out of the export table.
   target_link_options(sdengine PRIVATE "LINKER:-exported_symbol,_sd_engine_*" "LINKER:-exported_symbol,_sd_export_*")
+elseif(UNIX)
+  # Same on Linux: nothing from the static libraries goes into the export table.
+  target_link_options(sdengine PRIVATE "LINKER:--exclude-libs,ALL")
 endif()
 
 # Tests use the C API in manual mode plus a few internals, so they compile the sources directly.
 add_executable(sdengine_tests tests/EngineTests.cpp ${ENGINE_SOURCES})
 configure_engine_target(sdengine_tests)
+if(NOT APPLE)
+  # GNU ld only (Linux, MinGW): lets the tests count the mallocs made while rendering, Eigen's
+  # included. On macOS the tests count operator new only.
+  target_link_options(sdengine_tests PRIVATE "LINKER:--wrap=malloc,--wrap=calloc,--wrap=realloc")
+  target_compile_definitions(sdengine_tests PRIVATE SDENGINE_TESTS_WRAP_MALLOC)
+endif()
 
 enable_testing()
 add_test(NAME sdengine_tests COMMAND sdengine_tests)

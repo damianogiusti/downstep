@@ -1,4 +1,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.compose.desktop.application.tasks.AbstractJLinkTask
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
@@ -36,6 +39,7 @@ dependencies {
 
 val osName: String = System.getProperty("os.name")
 val isWindows = osName.startsWith("Windows")
+val isLinux = osName.startsWith("Linux")
 val engineBuildDir = rootProject.layout.projectDirectory.dir("engine-desktop/build/native")
 
 tasks.test {
@@ -47,17 +51,21 @@ tasks.test {
     // The real app swap (scripts, disk images, Trash) runs only in CI, on machines that are thrown away:
     // ./gradlew :desktopApp:test -PupdateSwapTests=true. Never on a developer's computer.
     systemProperty("slowdowner.updateSwapTests", providers.gradleProperty("updateSwapTests").getOrElse("false"))
-    enabled = osName.startsWith("Mac") || isWindows
+    enabled = osName.startsWith("Mac") || isWindows || isLinux
 }
 
 // The C engine travels inside the app, in Compose's per-OS resources folder. On Windows LAME is
-// a DLL of its own (LGPL), next to the engine.
+// a DLL of its own (LGPL), next to the engine. Compose names the Linux folder after the CPU.
 val appResources = layout.buildDirectory.dir("appResources")
 val syncEngineLibrary = tasks.register<Sync>("syncEngineLibrary") {
     dependsOn(":engine-desktop:buildNativeEngine")
     if (isWindows) {
         from(engineBuildDir.file("sdengine.dll"), engineBuildDir.file("mp3lame.dll"))
         into(appResources.map { it.dir("windows-x64") })
+    } else if (isLinux) {
+        val arch = if (System.getProperty("os.arch") == "aarch64") "arm64" else "x64"
+        from(engineBuildDir.file("libsdengine.so"))
+        into(appResources.map { it.dir("linux-$arch") })
     } else {
         from(engineBuildDir.file("libsdengine.dylib"))
         into(appResources.map { it.dir("macos-arm64") })
@@ -90,7 +98,8 @@ compose.desktop {
         }
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg)
+            // Each OS packages only its own formats: no .deb on macOS, no DMG on Linux.
+            targetFormats(TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "Downstep"
             packageVersion = appVersion
             description = "Slow down and loop audio to practise"
@@ -108,6 +117,57 @@ compose.desktop {
                 // Built with icons/make-icns.sh too.
                 iconFile.set(project.file("icons/SlowDowner.ico"))
             }
+            linux {
+                // downstep_<version>_<arch>.deb, installed in /opt/downstep.
+                packageName = "downstep"
+                menuGroup = "AudioVideo"
+                appCategory = "AudioVideo"
+                iconFile.set(project.file("icons/SlowDowner.png"))
+            }
+        }
+    }
+}
+
+// Class-data sharing (CDS), for a faster cold start: the JDK's classes come mapped from an archive
+// instead of being parsed and verified at every launch. A small gain, measured on Windows to the
+// first composition: 1.51 s instead of 1.54 s with a warm disk cache, 1.54 s instead of 1.76 s in a
+// colder series. jlink leaves the JDK's default archive out of the bundled runtime unless asked, and
+// this Compose plugin has no CDS option.
+//
+// The app's own classes are not archived. -XX:+AutoCreateSharedArchive (archive at the first exit,
+// map it after) made that first start take ~14 s instead of 1.5 and needs a writable app folder; the
+// macOS bundle is signed and read-only. That would need an archive made at build time by a training
+// run of the app.
+//
+// jlink's own --generate-cds-archive runs the image's java launcher, which Compose strips
+// (--strip-native-commands). Same dump by hand: borrow the launcher of the JDK the image comes from,
+// which loads the image's own JVM and modules, then remove it again.
+tasks.withType<AbstractJLinkTask>().configureEach {
+    val jdk = javaHome
+    val runtime = destinationDir
+    doLast {
+        val launcherName = if (isWindows) "java.exe" else "java"
+        val borrowed = runtime.get().asFile.resolve("bin/$launcherName")
+        // Only a slower start without it: any failure is worth a warning, not a failed release.
+        try {
+            borrowed.parentFile.mkdirs()
+            // With its attributes: File.copyTo drops the execute bit, and on Linux and macOS the
+            // launcher then cannot run (error=13).
+            Files.copy(
+                File(jdk.get(), "bin/$launcherName").toPath(),
+                borrowed.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.COPY_ATTRIBUTES,
+            )
+            borrowed.setExecutable(true)
+            val dump = ProcessBuilder(borrowed.path, "-Xshare:dump").redirectErrorStream(true).start()
+            val output = dump.inputStream.bufferedReader().readText()
+            if (dump.waitFor() != 0) logger.warn("No CDS archive in the bundled runtime: $output")
+        } catch (e: Exception) {
+            logger.warn("No CDS archive in the bundled runtime: ${e.message}")
+        } finally {
+            borrowed.delete()
+            borrowed.parentFile.delete() // only if the image had no bin folder of its own
         }
     }
 }
@@ -137,6 +197,6 @@ tasks.matching { it.name.startsWith("generateSentryBundleId") || it.name.startsW
     .configureEach { dependsOn("compileKotlin") }
 // The plugin uploads the sources on assemble, which the release does not run: it packages directly.
 if (sentryAuthToken != null) {
-    tasks.matching { it.name == "createDistributable" || it.name == "packageDmg" }
+    tasks.matching { it.name == "createDistributable" || it.name == "packageDmg" || it.name == "packageDeb" }
         .configureEach { dependsOn("sentryUploadSourceBundleJava") }
 }

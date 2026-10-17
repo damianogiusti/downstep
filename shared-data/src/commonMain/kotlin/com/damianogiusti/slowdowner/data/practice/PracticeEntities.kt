@@ -17,7 +17,11 @@ data class PracticeSettingsColumns(
     @ColumnInfo(name = "is_loop_on") val isLoopOn: Boolean,
 )
 
-/** The last settings used on a track, restored when it is opened again. */
+/**
+ * The last settings used on a track, restored when it is opened again. [settings] holds the region
+ * the engine plays: a mirror of the active loop. The loop columns are owned by the loops screen and
+ * kept when the auto-save replaces the row.
+ */
 @Entity(
     tableName = "track_practice_state",
     foreignKeys = [
@@ -33,6 +37,11 @@ data class PracticeStateEntity(
     @PrimaryKey @ColumnInfo(name = "track_id") val trackId: String,
     @Embedded val settings: PracticeSettingsColumns,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    /** Not a foreign key: a stale id reads as no active loop, and deleting a loop picks the next one. */
+    @ColumnInfo(name = "active_loop_id") val activeLoopId: Long? = null,
+    /** Set by the user, null when unknown. */
+    @ColumnInfo(name = "bpm") val bpm: Float? = null,
+    @ColumnInfo(name = "snap_to_beat", defaultValue = "1") val snapToBeat: Boolean = true,
 )
 
 @Entity(

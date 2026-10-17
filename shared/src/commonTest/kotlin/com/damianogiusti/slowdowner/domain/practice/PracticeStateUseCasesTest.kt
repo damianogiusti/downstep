@@ -2,11 +2,13 @@ package com.damianogiusti.slowdowner.domain.practice
 
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
+import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.OpenTrackUseCase
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEvent
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
+import com.damianogiusti.slowdowner.fake.FakeLoopRepository
 import com.damianogiusti.slowdowner.fake.FakePracticeRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -15,6 +17,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.test.Test
 
@@ -26,7 +29,8 @@ class PracticeStateUseCasesTest {
     private val nowPlaying = InMemoryNowPlayingRepository()
     private val repository = FakePracticeRepository()
     private val save = SavePracticeStateUseCase(engine, nowPlaying, repository)
-    private val open = OpenTrackForPracticeUseCase(OpenTrackUseCase(sources, nowPlaying), save, engine, repository)
+    private val loops = FakeLoopRepository()
+    private val open = OpenTrackForPracticeUseCase(OpenTrackUseCase(sources, nowPlaying), save, engine, repository, loops)
 
     private val songA = LibraryTrack("a", "A", "/a.m4a", null, 0)
     private val songB = LibraryTrack("b", "B", "/b.m4a", null, 0)
@@ -66,12 +70,44 @@ class PracticeStateUseCasesTest {
     @Test
     fun `when the track has a saved state then opening applies it`() = runTest {
         repository.saveLastState("b", practised)
+        activeLoop("b", LoopBounds(0.2f, 0.4f))
 
         assertTrue(open(songB))
 
         assertEquals(75f, engine.speedPercent)
         assertEquals(-2f, engine.pitchSemitones)
         assertEquals(LoopRegion(0.2f, 0.4f, isOn = true), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+    }
+
+    @Test
+    fun `when the active loop moved after the last save then opening loops the loop`() = runTest {
+        // B was moved to 0.55 and the app quit inside the auto-save's pause: the state still says 0.40.
+        repository.saveLastState("b", practised)
+        activeLoop("b", LoopBounds(0.2f, 0.55f))
+
+        open(songB)
+
+        assertEquals(LoopRegion(0.2f, 0.55f, isOn = true), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+        assertEquals(75f, engine.speedPercent)
+    }
+
+    @Test
+    fun `when the saved state loops but the track has no active loop then nothing loops`() = runTest {
+        repository.saveLastState("b", practised)
+
+        open(songB)
+
+        assertEquals(LoopRegion.WHOLE_FILE, LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+    }
+
+    @Test
+    fun `when the saved state has the loop off then the active loop is kept but off`() = runTest {
+        repository.saveLastState("b", practised.copy(loop = practised.loop.copy(isOn = false)))
+        activeLoop("b", LoopBounds(0.2f, 0.4f))
+
+        open(songB)
+
+        assertEquals(LoopRegion(0.2f, 0.4f, isOn = false), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
     }
 
     @Test
@@ -92,6 +128,11 @@ class PracticeStateUseCasesTest {
 
         assertFalse(open(songB))
         assertTrue(engine.practiceCalls.isEmpty())
+    }
+
+    private suspend fun activeLoop(trackId: String, bounds: LoopBounds) {
+        val loop = assertNotNull(loops.create(trackId, "Solo", bounds))
+        loops.setActiveLoop(trackId, loop.id)
     }
 
     @Test

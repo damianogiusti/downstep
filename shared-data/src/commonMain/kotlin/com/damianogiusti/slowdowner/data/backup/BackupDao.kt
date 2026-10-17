@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.damianogiusti.slowdowner.data.library.TrackEntity
+import com.damianogiusti.slowdowner.data.loops.LoopEntity
 import com.damianogiusti.slowdowner.data.playlists.PlaylistEntity
 import com.damianogiusti.slowdowner.data.playlists.PlaylistTrackEntity
 import com.damianogiusti.slowdowner.data.practice.PracticePresetEntity
@@ -61,6 +62,22 @@ interface BackupDao {
 
     @Query("SELECT * FROM practice_presets WHERE track_id = :trackId ORDER BY created_at")
     suspend fun presetsOf(trackId: String): List<PracticePresetEntity>
+
+    @Query("SELECT * FROM practice_loops WHERE track_id = :trackId ORDER BY loop_start, id")
+    suspend fun loopsOf(trackId: String): List<LoopEntity>
+
+    @Query("SELECT EXISTS (SELECT 1 FROM practice_loops WHERE track_id = :trackId)")
+    suspend fun hasLoops(trackId: String): Boolean
+
+    @Insert
+    suspend fun insertLoop(loop: LoopEntity): Long
+
+    @Query("UPDATE track_practice_state SET active_loop_id = :loopId WHERE track_id = :trackId")
+    suspend fun setActiveLoop(trackId: String, loopId: Long)
+
+    /** The whole file, looping off: for a state whose region has no loop to mirror. */
+    @Query("UPDATE track_practice_state SET loop_start = 0, loop_end = 1, is_loop_on = 0 WHERE track_id = :trackId")
+    suspend fun clearRegion(trackId: String)
 
     /** Returns -1 when the id exists: the existing row wins. */
     @Insert(onConflict = OnConflictStrategy.IGNORE)

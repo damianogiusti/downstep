@@ -2,6 +2,7 @@
 
 #include "Equalizer.h"
 #include "Pcm.h"
+#include "Peaks.h"
 #include "TimeStretcher.h"
 
 #include <array>
@@ -32,11 +33,28 @@ public:
     explicit Player(int outputRate, int maxBlockFrames);
 
     bool open(const std::string &path);
+    /** Plays audio decoded elsewhere, shared read-only: the export reuses the player's buffer this way. */
+    bool open(std::shared_ptr<const PcmBuffer> decoded, const std::string &path);
     void close();
     bool isOpen() const { return isOpen_.load(); }
     double durationSeconds() const { return durationSeconds_.load(); }
-    /** Control thread only. */
-    const std::string &path() const { return path_; }
+
+    /** The open file's decoded audio and path, read together; a null source when nothing is open. */
+    struct Snapshot {
+        std::shared_ptr<const PcmBuffer> source;
+        std::string path;
+    };
+    /**
+     * Any thread: takes the lock, so an open() or close() on another thread (the app decodes off the
+     * UI thread, and exports on yet another) cannot swap the buffer while it is copied. The audio
+     * thread only try-locks: at worst it plays one block of silence.
+     */
+    Snapshot snapshot() const {
+        std::lock_guard<std::mutex> guard(lock_);
+        return {source_, path_};
+    }
+    /** As snapshot(), the source alone. */
+    std::shared_ptr<const PcmBuffer> source() const { return snapshot().source; }
     int sourceSampleRate() const { return sourceSampleRate_.load(); }
     Settings settings() const;
     void applySettings(const Settings &settings);
@@ -57,6 +75,12 @@ public:
     void setPreamp(double gainDb);
     void setOutputGain(double gain) { outputGain_.store(gain); }
 
+    /**
+     * Waveform outline of the open file (see PeakSummary::read). Any thread: it never touches the
+     * audio thread's lock. 0 when no file is open, or one was opened from shared audio (export).
+     */
+    int peaks(double from, double to, float *out, int buckets) const;
+
     unsigned takeEvents() { return events_.exchange(0); }
     int outputRate() const { return outputRate_; }
 
@@ -74,12 +98,17 @@ private:
     const int outputRate_;
     const int maxBlockFrames_;
 
-    std::mutex lock_; // structure: source and stretcher
-    PcmBuffer source_;
+    mutable std::mutex lock_; // structure: source and stretcher
+    // Written only by the control thread, under the lock; the audio thread reads it under the lock.
+    std::shared_ptr<const PcmBuffer> source_;
     std::string path_;
     std::atomic<int> sourceSampleRate_{0};
     TimeStretcher stretcher_;
     Equalizer equalizer_;
+
+    // Its own lock: a waveform read must never make the audio thread skip a block.
+    mutable std::mutex peaksLock_;
+    std::shared_ptr<const PeakSummary> peaks_;
 
     std::atomic<bool> isOpen_{false};
     std::atomic<double> durationSeconds_{0};

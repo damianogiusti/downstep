@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:'Space Grotesk';font-weight:500;src:url('../../../../shared-ui/src/commonMain/composeResources/font/space_grotesk_medium.ttf')}
+@font-face{font-family:'Space Grotesk';font-weight:700;src:url('../../../../shared-ui/src/commonMain/composeResources/font/space_grotesk_bold.ttf')}
+@font-face{font-family:'Inter DS';font-weight:400;src:url('../../../../shared-ui/src/commonMain/composeResources/font/inter_regular.ttf')}
+@font-face{font-family:'Inter DS';font-weight:500;src:url('../../../../shared-ui/src/commonMain/composeResources/font/inter_medium.ttf')}
+@font-face{font-family:'Inter DS';font-weight:600;src:url('../../../../shared-ui/src/commonMain/composeResources/font/inter_semibold.ttf')}
+html,body{margin:0;font-family:'Inter DS',system-ui,sans-serif;font-feature-settings:'tnum'}
+a{color:#F2A541}a:hover{color:#A86400}
+button,input,textarea{font-family:inherit;color:inherit}
+button{cursor:pointer}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:color-mix(in srgb,currentColor 25%,transparent);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:currentColor;border:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+input[type=number]::-webkit-inner-spin-button{opacity:.4}
+@keyframes ds-pulse{0%,100%{opacity:.4}50%{opacity:1}}
+</style>
+</helmet>
+<div data-screen-label="Player v3" style="position:relative;min-height:100vh;background:{{ c.bg }};color:{{ c.fg }};display:flex;flex-direction:column;overflow:hidden;user-select:none">
+
+  <div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:{{ c.bgDeep }};font-size:12px;color:{{ c.fg2 }}">
+    <svg width="16" height="16" viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#15181D"/><rect x="400" y="290" width="224" height="500" rx="24" fill="#F2A541" fill-opacity="0.18"/><g fill="#6B6660"><rect x="206" y="465" width="40" height="150" rx="20"/><rect x="268" y="400" width="40" height="280" rx="20"/><rect x="330" y="440" width="40" height="200" rx="20"/><rect x="654" y="370" width="40" height="340" rx="20"/><rect x="716" y="430" width="40" height="220" rx="20"/><rect x="778" y="475" width="40" height="130" rx="20"/></g><g fill="#F2A541"><rect x="430" y="375" width="40" height="330" rx="20"/><rect x="492" y="330" width="40" height="420" rx="20"/><rect x="554" y="415" width="40" height="250" rx="20"/><rect x="395" y="270" width="10" height="520" rx="5"/><rect x="366" y="230" width="68" height="52" rx="18"/></g><g fill="#62B6B0"><rect x="619" y="270" width="10" height="520" rx="5"/><rect x="590" y="230" width="68" height="52" rx="18"/></g></svg>
+    <span>Downstep 2.0</span>
+  </div>
+
+  <!-- Header (hidden in focus) -->
+  <sc-if value="{{ notFocus }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex;align-items:center;gap:16px;padding:18px 24px 6px">
+    <button onClick="{{ openLibrary }}" style="display:flex;align-items:center;gap:10px;height:40px;padding:0 14px 0 12px;border:1px solid {{ c.s3 }};border-radius:999px;background:{{ c.s1 }};font-size:13px;font-weight:500" style-hover="background:{{ c.s2 }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:block"><path d="M4 6h16M4 12h10M4 18h16"/></svg>Library<span style="color:{{ c.fg2 }};font-weight:400">{{ trackCountLabel }}</span>
+    </button>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+      <div style="font-family:'Space Grotesk';font-weight:700;font-size:26px;line-height:30px;letter-spacing:-0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ track.name }}</div>
+      <div style="font-size:12px;color:{{ c.fg2 }}">{{ track.source }} · {{ durationLabel }} · {{ bpmLabel }} · {{ loopCountLabel }}</div>
+    </div>
+    <button onClick="{{ analyze }}" title="Detect sections, suggest loops" style="display:flex;align-items:center;gap:8px;height:40px;padding:0 16px 0 12px;border:1px solid {{ analyzeBorder }};border-radius:999px;background:{{ analyzeBg }};color:{{ analyzeFg }};font-size:13px;font-weight:500;white-space:nowrap" style-hover="filter:brightness(1.1)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/></svg>{{ analyzeLabel }}
+    </button>
+    <div style="display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;background:{{ c.s1 }};border:1px solid {{ c.s3 }}">
+      <button onClick="{{ toggleMetro }}" title="Metronome" style="display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:0;border-radius:999px;background:{{ metroBg }};color:{{ metroFg }};font-size:13px;font-weight:500;white-space:nowrap" style-hover="filter:brightness(1.15)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M8 3h8l3 18H5L8 3z"/><path d="M12 15l5-9"/></svg>Metronome</button>
+      <button onClick="{{ toggleCountIn }}" title="Count-in" style="display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:0;border-radius:999px;background:{{ countBg }};color:{{ countFg }};font-size:13px;font-weight:500;white-space:nowrap" style-hover="filter:brightness(1.15)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:block"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>Count‑in</button>
+    </div>
+    <div style="display:flex;gap:4px">
+      <button onClick="{{ toggleFocus }}" title="Focus mode (F)" style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid {{ c.s3 }};border-radius:999px;background:{{ c.s1 }}" style-hover="background:{{ c.s2 }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5"/></svg></button>
+      <button onClick="{{ toggleTheme }}" title="Light / dark" style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid {{ c.s3 }};border-radius:999px;background:{{ c.s1 }}" style-hover="background:{{ c.s2 }}"><sc-if value="{{ isDark }}" hint-placeholder-val="{{ true }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></sc-if><sc-if value="{{ isLight }}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></sc-if></button>
+      <button title="Save preset" style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid {{ c.s3 }};border-radius:999px;background:{{ c.s1 }}" style-hover="background:{{ c.s2 }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg></button>
+      <button title="Export" style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid {{ c.s3 }};border-radius:999px;background:{{ c.s1 }}" style-hover="background:{{ c.s2 }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M12 3v12M7 8l5-5 5 5M5 14v6h14v-6"/></svg></button>
+    </div>
+  </div>
+
+  <!-- Loop chips -->
+  <div style="display:flex;align-items:center;gap:8px;padding:12px 24px 10px;overflow-x:auto">
+    <sc-for list="{{ loops }}" as="lp" hint-placeholder-count="3">
+      <button onClick="{{ lp.select }}" style="display:flex;align-items:center;gap:8px;height:34px;padding:0 10px 0 10px;border:1px solid {{ lp.chipBorder }};border-radius:999px;background:{{ lp.chipBg }};color:{{ lp.chipFg }};font-size:13px;font-weight:500;white-space:nowrap;flex:none" style-hover="filter:brightness(1.15)">
+        <span style="width:8px;height:8px;border-radius:50%;background:{{ lp.color }}"></span>{{ lp.name }}<span style="opacity:.6;font-weight:400">{{ lp.lenLabel }}</span><span title="Passes" style="min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:{{ lp.badgeBg }};color:{{ lp.badgeFg }};font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center">{{ lp.passes }}</span>
+      </button>
+    </sc-for>
+    <sc-for list="{{ suggestions }}" as="sg" hint-placeholder-count="0">
+      <div style="display:flex;align-items:center;gap:6px;height:34px;padding:0 4px 0 12px;border:1px dashed {{ c.amber }};border-radius:999px;background:transparent;color:{{ c.amber }};font-size:13px;font-weight:500;white-space:nowrap;flex:none">
+        {{ sg.name }}<span style="opacity:.7;font-weight:400">{{ sg.lenLabel }}</span>
+        <button onClick="{{ sg.accept }}" title="Keep as loop" style="width:26px;height:26px;border:0;border-radius:50%;background:{{ c.amber }};color:{{ c.onAmber }};display:flex;align-items:center;justify-content:center;margin-left:4px" style-hover="filter:brightness(1.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M5 12l5 5L20 7"/></svg></button>
+        <button onClick="{{ sg.dismiss }}" title="Dismiss" style="width:26px;height:26px;border:0;border-radius:50%;background:transparent;color:{{ c.amber }};display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.s3 }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" style="display:block"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </sc-for>
+    <button onClick="{{ addLoop }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 12px 0 10px;border:1px dashed {{ c.s4 }};border-radius:999px;background:transparent;color:{{ c.fg2 }};font-size:13px;font-weight:500;white-space:nowrap;flex:none" style-hover="color:{{ c.fg }};border-color:{{ c.fg2 }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="display:block"><path d="M12 5v14M5 12h14"/></svg>New loop<kbd style="font-family:inherit;font-size:10px;padding:1px 5px;border-radius:4px;background:{{ c.s3 }};color:{{ c.fg }}">L</kbd></button>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ focus }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px 8px">
+      <div style="font-family:'Space Grotesk';font-weight:700;font-size:20px;letter-spacing:-0.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ track.name }}<span style="color:{{ c.fg2 }};font-weight:500"> — {{ focusLoopLabel }}</span></div>
+      <button onClick="{{ toggleFocus }}" style="display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid {{ c.s3 }};border-radius:999px;background:{{ c.s1 }};color:{{ c.fg2 }};font-size:12px;font-weight:500" style-hover="background:{{ c.s2 }}">Exit focus<kbd style="font-family:inherit;font-size:10px;padding:1px 5px;border-radius:4px;background:{{ c.s3 }};color:{{ c.fg }}">F</kbd></button>
+    </div>
+  </sc-if>
+
+  <!-- Overview waveform -->
+  <div ref="{{ waveRef }}" data-zone="wave" onPointerDown="{{ onPointerDown }}" onPointerMove="{{ onPointerMove }}" onPointerUp="{{ onPointerUp }}" style="position:relative;height:{{ waveHeight }};background:{{ c.bgDeep }};cursor:crosshair;touch-action:none">
+    <sc-for list="{{ loops }}" as="lp" hint-placeholder-count="2">
+      <div style="position:absolute;top:0;bottom:0;left:{{ lp.leftPct }};width:{{ lp.widthPct }};background:{{ lp.color }};opacity:{{ lp.regionOpacity }};pointer-events:none"></div>
+    </sc-for>
+    <sc-for list="{{ suggestions }}" as="sg" hint-placeholder-count="0">
+      <div style="position:absolute;top:4px;bottom:4px;left:{{ sg.leftPct }};width:{{ sg.widthPct }};border:1px dashed {{ c.amber }};border-radius:6px;opacity:.7;pointer-events:none"></div>
+      <div style="position:absolute;top:8px;left:{{ sg.leftPct }};margin-left:6px;font-size:10px;font-weight:600;color:{{ c.amber }};pointer-events:none">{{ sg.name }}</div>
+    </sc-for>
+    <sc-if value="{{ snap }}" hint-placeholder-val="{{ true }}">
+      <sc-for list="{{ barTicks }}" as="t" hint-placeholder-count="0">
+        <div style="position:absolute;top:0;bottom:0;left:{{ t.leftPct }};width:1px;background:{{ c.fg }};opacity:.08;pointer-events:none"></div>
+      </sc-for>
+    </sc-if>
+    <div style="position:absolute;inset:30px 0 30px 0;display:flex;align-items:center;gap:2px;padding:0 24px;pointer-events:none">
+      <sc-for list="{{ bars }}" as="b" hint-placeholder-count="120">
+        <div style="flex:1;height:{{ b.h }};border-radius:3px;background:{{ b.color }}"></div>
+      </sc-for>
+    </div>
+    <sc-for list="{{ loops }}" as="lp" hint-placeholder-count="2">
+      <div style="position:absolute;top:0;bottom:0;left:{{ lp.leftPct }};width:1px;background:{{ lp.color }};opacity:{{ lp.edgeOpacity }};pointer-events:none"></div>
+      <div style="position:absolute;top:0;bottom:0;left:{{ lp.rightPct }};width:1px;background:{{ lp.color }};opacity:{{ lp.edgeOpacity }};pointer-events:none"></div>
+      <div style="position:absolute;top:0;left:{{ lp.leftPct }};width:{{ lp.widthPct }};height:3px;background:{{ lp.color }};opacity:{{ lp.edgeOpacity }};pointer-events:none"></div>
+    </sc-for>
+    <sc-if value="{{ hasActive }}" hint-placeholder-val="{{ true }}">
+      <div data-handle="start" style="position:absolute;top:0;bottom:0;left:{{ active.leftPct }};width:16px;margin-left:-8px;cursor:ew-resize"></div>
+      <div data-handle="end" style="position:absolute;top:0;bottom:0;left:{{ active.rightPct }};width:16px;margin-left:-8px;cursor:ew-resize"></div>
+      <div style="position:absolute;bottom:8px;left:{{ active.leftPct }};transform:translateX(-50%);height:22px;padding:0 8px;border-radius:999px;background:{{ c.amber }};color:{{ c.onAmber }};font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;pointer-events:none;white-space:nowrap">A <span style="font-weight:500">{{ active.startLabel }}</span></div>
+      <div style="position:absolute;bottom:8px;left:{{ active.rightPct }};transform:translateX(-50%);height:22px;padding:0 8px;border-radius:999px;background:{{ c.teal }};color:{{ c.onTeal }};font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;pointer-events:none;white-space:nowrap">B <span style="font-weight:500">{{ active.endLabel }}</span></div>
+      <div style="position:absolute;top:0;bottom:0;left:{{ zoom.leftPct }};width:{{ zoom.widthPct }};border-left:1px solid {{ c.fg2 }};border-right:1px solid {{ c.fg2 }};opacity:.35;pointer-events:none"></div>
+    </sc-if>
+    <div style="position:absolute;top:0;bottom:0;left:{{ posPct }};width:2px;margin-left:-1px;background:{{ c.fg }};box-shadow:0 0 12px {{ c.fgGlow }};pointer-events:none"></div>
+    <div style="position:absolute;top:8px;left:{{ posPct }};transform:translateX(-50%);height:20px;padding:0 8px;border-radius:999px;background:{{ c.fg }};color:{{ c.bg }};font-size:11px;font-weight:600;display:flex;align-items:center;pointer-events:none">{{ posLabel }}</div>
+    <div style="position:absolute;right:24px;bottom:10px;font-size:11px;color:{{ c.fg2 }};pointer-events:none">{{ durationLabel }}</div>
+  </div>
+
+  <!-- Zoomed active loop -->
+  <sc-if value="{{ hasActive }}" hint-placeholder-val="{{ true }}">
+  <div ref="{{ zoomRef }}" data-zone="zoom" onPointerDown="{{ onPointerDown }}" onPointerMove="{{ onPointerMove }}" onPointerUp="{{ onPointerUp }}" style="position:relative;height:96px;margin:0 24px;border-radius:0 0 16px 16px;background:{{ c.s1 }};border:1px solid {{ c.s3 }};border-top:0;cursor:crosshair;touch-action:none;overflow:hidden">
+    <div style="position:absolute;top:0;bottom:0;left:{{ zoom.aPct }};width:{{ zoom.lenPct }};background:{{ active.color }};opacity:.14;pointer-events:none"></div>
+    <sc-if value="{{ snap }}" hint-placeholder-val="{{ true }}">
+      <sc-for list="{{ zoomBeats }}" as="t" hint-placeholder-count="0">
+        <div style="position:absolute;top:0;bottom:0;left:{{ t.leftPct }};width:1px;background:{{ c.fg }};opacity:{{ t.opacity }};pointer-events:none"></div>
+      </sc-for>
+    </sc-if>
+    <div style="position:absolute;inset:22px 0 14px 0;display:flex;align-items:center;gap:1px;padding:0 12px;pointer-events:none">
+      <sc-for list="{{ zoomBars }}" as="b" hint-placeholder-count="120">
+        <div style="flex:1;height:{{ b.h }};border-radius:2px;background:{{ b.color }}"></div>
+      </sc-for>
+    </div>
+    <div data-handle="start" style="position:absolute;top:0;bottom:0;left:{{ zoom.aPct }};width:18px;margin-left:-9px;cursor:ew-resize"></div>
+    <div data-handle="end" style="position:absolute;top:0;bottom:0;left:{{ zoom.bPct }};width:18px;margin-left:-9px;cursor:ew-resize"></div>
+    <div style="position:absolute;top:0;bottom:0;left:{{ zoom.aPct }};width:2px;margin-left:-1px;background:{{ c.amber }};pointer-events:none"></div>
+    <div style="position:absolute;top:0;bottom:0;left:{{ zoom.bPct }};width:2px;margin-left:-1px;background:{{ c.teal }};pointer-events:none"></div>
+    <div style="position:absolute;top:4px;left:{{ zoom.aPct }};transform:translateX(-50%);height:16px;padding:0 6px;border-radius:999px;background:{{ c.amber }};color:{{ c.onAmber }};font-size:10px;font-weight:700;display:flex;align-items:center;pointer-events:none">A</div>
+    <div style="position:absolute;top:4px;left:{{ zoom.bPct }};transform:translateX(-50%);height:16px;padding:0 6px;border-radius:999px;background:{{ c.teal }};color:{{ c.onTeal }};font-size:10px;font-weight:700;display:flex;align-items:center;pointer-events:none">B</div>
+    <sc-if value="{{ zoom.posVisible }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute;top:0;bottom:0;left:{{ zoom.posPct }};width:2px;margin-left:-1px;background:{{ c.fg }};pointer-events:none"></div>
+    </sc-if>
+    <div style="position:absolute;left:12px;top:5px;font-size:10px;font-weight:600;letter-spacing:.5px;color:{{ c.fg2 }};pointer-events:none">ZOOM · {{ active.name }} · {{ zoom.windowLabel }}</div>
+    <div style="position:absolute;right:12px;top:5px;font-size:10px;color:{{ c.fg2 }};pointer-events:none">{{ zoom.beatsLabel }}</div>
+  </div>
+  </sc-if>
+
+  <!-- Transport -->
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;padding:14px 24px">
+    <div style="display:flex;align-items:center;gap:6px;justify-self:start;flex-wrap:wrap">
+      <button onClick="{{ toggleLoopOn }}" title="Loop on/off (Shift+L)" style="display:flex;align-items:center;gap:8px;height:38px;padding:0 14px 0 12px;border:0;border-radius:999px;background:{{ loopBtnBg }};color:{{ loopBtnFg }};font-size:13px;font-weight:600;white-space:nowrap" style-hover="filter:brightness(1.1)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>{{ loopBtnLabel }}</button>
+      <sc-if value="{{ hasActive }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;gap:2px;padding:3px;border-radius:999px;background:{{ c.s1 }};border:1px solid {{ c.s3 }}">
+          <button onClick="{{ activeNudgeL }}" title="Move earlier" style="width:30px;height:30px;border:0;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.s3 }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <button onClick="{{ activeHalf }}" title="Halve loop" style="height:30px;padding:0 10px;border:0;border-radius:999px;background:transparent;font-size:12px;font-weight:600" style-hover="background:{{ c.s3 }}">½</button>
+          <button onClick="{{ activeDouble }}" title="Double loop" style="height:30px;padding:0 10px;border:0;border-radius:999px;background:transparent;font-size:12px;font-weight:600" style-hover="background:{{ c.s3 }}">×2</button>
+          <button onClick="{{ activeNudgeR }}" title="Move later" style="width:30px;height:30px;border:0;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.s3 }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M9 6l6 6-6 6"/></svg></button>
+          <button onClick="{{ activeRemove }}" title="Delete loop" style="width:30px;height:30px;border:0;border-radius:50%;background:transparent;color:{{ c.fg2 }};display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.errBg }};color:{{ c.errFg }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="display:block"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+      </sc-if>
+      <button onClick="{{ toggleSnap }}" title="Snap A/B to beats" style="display:flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid {{ snapBorder }};border-radius:999px;background:{{ snapBg }};color:{{ snapFg }};font-size:12px;font-weight:500;white-space:nowrap" style-hover="filter:brightness(1.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="display:block"><path d="M4 4v16M10 4v16M16 4v16M22 4v16"/></svg>Snap to beat</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button onClick="{{ toStart }}" title="Start" style="width:44px;height:44px;border:0;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.s1 }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display:block"><path d="M6 5h2v14H6zM19 5v14L9 12z"/></svg></button>
+      <button onClick="{{ back5 }}" title="Back 5 s" style="width:44px;height:44px;border:0;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.s1 }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:block"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v5h5"/></svg></button>
+      <button onClick="{{ togglePlay }}" style="width:68px;height:68px;border:0;border-radius:50%;background:{{ c.amber }};color:{{ c.onAmber }};display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px {{ c.amberGlow }}" style-hover="background:{{ c.amberHover }}">
+        <sc-if value="{{ isPlaying }}" hint-placeholder-val="{{ false }}"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" style="display:block"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg></sc-if>
+        <sc-if value="{{ notPlaying }}" hint-placeholder-val="{{ true }}"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" style="display:block;margin-left:3px"><path d="M8 5v14l11-7z"/></svg></sc-if>
+      </button>
+      <button onClick="{{ fwd5 }}" title="Forward 5 s" style="width:44px;height:44px;border:0;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.s1 }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:block"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/></svg></button>
+      <button onClick="{{ nextLoop }}" title="Next loop (])" style="width:44px;height:44px;border:0;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.s1 }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display:block"><path d="M16 5h2v14h-2zM5 5v14l10-7z"/></svg></button>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;justify-self:end;font-size:12px;color:{{ c.fg2 }};white-space:nowrap">
+      <sc-if value="{{ focus }}" hint-placeholder-val="{{ false }}">
+        <span style="font-family:'Space Grotesk';font-weight:700;font-size:18px;color:{{ c.amber }}">{{ speedLabel }}</span>
+        <span style="font-family:'Space Grotesk';font-weight:700;font-size:18px;color:{{ c.teal }}">{{ pitchLabel }}</span>
+      </sc-if>
+      <sc-if value="{{ hasActive }}" hint-placeholder-val="{{ true }}">
+        <span style="display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;background:{{ c.s1 }};border:1px solid {{ c.s3 }};color:{{ c.fg }}"><span style="color:{{ c.fg2 }}">Pass</span><span style="font-weight:600">{{ activePasses }}</span><span style="color:{{ c.fg2 }}">{{ rampHint }}</span></span>
+      </sc-if>
+      <sc-if value="{{ notFocus }}" hint-placeholder-val="{{ true }}">
+        <span style="font-size:11px"><kbd style="font-family:inherit;padding:1px 5px;border-radius:4px;background:{{ c.s1 }};border:1px solid {{ c.s3 }};color:{{ c.fg }}">A</kbd> <kbd style="font-family:inherit;padding:1px 5px;border-radius:4px;background:{{ c.s1 }};border:1px solid {{ c.s3 }};color:{{ c.fg }}">B</kbd> set · <kbd style="font-family:inherit;padding:1px 5px;border-radius:4px;background:{{ c.s1 }};border:1px solid {{ c.s3 }};color:{{ c.fg }}">[</kbd> <kbd style="font-family:inherit;padding:1px 5px;border-radius:4px;background:{{ c.s1 }};border:1px solid {{ c.s3 }};color:{{ c.fg }}">]</kbd> loops · <kbd style="font-family:inherit;padding:1px 5px;border-radius:4px;background:{{ c.s1 }};border:1px solid {{ c.s3 }};color:{{ c.fg }}">F</kbd> focus</span>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ notFocus }}" hint-placeholder-val="{{ true }}">
+  <!-- Speed / Pitch / Isolate -->
+  <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr);gap:12px;padding:4px 24px 12px">
+    <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;padding:16px 20px;border-radius:20px;background:{{ c.s1 }};border:1px solid {{ c.s3 }}">
+      <div style="display:flex;flex-direction:column;gap:2px;min-width:96px">
+        <span style="font-size:11px;font-weight:500;letter-spacing:.6px;color:{{ c.fg2 }}">SPEED</span>
+        <span style="font-family:'Space Grotesk';font-weight:700;font-size:34px;line-height:38px;color:{{ c.amber }}">{{ speedLabel }}</span>
+      </div>
+      <input type="range" min="25" max="200" value="{{ speed }}" onChange="{{ setSpeed }}" style="width:100%;min-width:60px;accent-color:{{ c.amber }}">
+      <div style="display:flex;gap:4px">
+        <button onClick="{{ speedDown }}" style="width:40px;height:36px;border:0;border-radius:10px;background:{{ c.s3 }};font-size:13px;font-weight:500" style-hover="background:{{ c.s4 }}">−5</button>
+        <button onClick="{{ speedUp }}" style="width:40px;height:36px;border:0;border-radius:10px;background:{{ c.s3 }};font-size:13px;font-weight:500" style-hover="background:{{ c.s4 }}">+5</button>
+        <button onClick="{{ resetSpeed }}" title="Reset" style="width:36px;height:36px;border:0;border-radius:10px;background:transparent;color:{{ c.fg2 }};display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.s3 }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="display:block"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/></svg></button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;padding:16px 20px;border-radius:20px;background:{{ c.s1 }};border:1px solid {{ c.s3 }}">
+      <div style="display:flex;flex-direction:column;gap:2px;min-width:96px">
+        <span style="font-size:11px;font-weight:500;letter-spacing:.6px;color:{{ c.fg2 }}">PITCH</span>
+        <span style="font-family:'Space Grotesk';font-weight:700;font-size:34px;line-height:38px;color:{{ c.teal }}">{{ pitchLabel }}</span>
+      </div>
+      <input type="range" min="-12" max="12" value="{{ pitch }}" onChange="{{ setPitch }}" style="width:100%;min-width:60px;accent-color:{{ c.teal }}">
+      <div style="display:flex;gap:4px">
+        <button onClick="{{ pitchDown }}" style="width:40px;height:36px;border:0;border-radius:10px;background:{{ c.s3 }};font-size:13px;font-weight:500" style-hover="background:{{ c.s4 }}">−1</button>
+        <button onClick="{{ pitchUp }}" style="width:40px;height:36px;border:0;border-radius:10px;background:{{ c.s3 }};font-size:13px;font-weight:500" style-hover="background:{{ c.s4 }}">+1</button>
+        <button onClick="{{ resetPitch }}" title="Reset" style="width:36px;height:36px;border:0;border-radius:10px;background:transparent;color:{{ c.fg2 }};display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.s3 }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="display:block"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/></svg></button>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:10px;padding:16px 20px;border-radius:20px;background:{{ c.s1 }};border:1px solid {{ c.s3 }}">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:11px;font-weight:500;letter-spacing:.6px;color:{{ c.fg2 }}">ISOLATE</span><span style="font-size:12px;color:{{ c.fg2 }}">{{ bandsLabel }}</span></div>
+      <div style="display:flex;gap:4px;padding:3px;border-radius:999px;background:{{ c.bg }}">
+        <button onClick="{{ toggleLow }}" style="flex:1;height:32px;border:0;border-radius:999px;background:{{ lowBg }};color:{{ lowFg }};font-size:12px;font-weight:600" style-hover="filter:brightness(1.1)">Low</button>
+        <button onClick="{{ toggleMid }}" style="flex:1;height:32px;border:0;border-radius:999px;background:{{ midBg }};color:{{ midFg }};font-size:12px;font-weight:600" style-hover="filter:brightness(1.1)">Mid</button>
+        <button onClick="{{ toggleHigh }}" style="flex:1;height:32px;border:0;border-radius:999px;background:{{ highBg }};color:{{ highFg }};font-size:12px;font-weight:600" style-hover="filter:brightness(1.1)">High</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progression / Notes -->
+  <sc-if value="{{ hasActive }}" hint-placeholder-val="{{ true }}">
+  <div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px;padding:0 24px 24px">
+    <div style="display:flex;flex-direction:column;gap:12px;padding:16px 20px;border-radius:20px;background:{{ c.s1 }};border:1px solid {{ c.s3 }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+          <span style="font-size:11px;font-weight:500;letter-spacing:.6px;color:{{ c.fg2 }}">PROGRESSION · {{ active.name }}</span>
+          <span style="font-size:13px;color:{{ c.fg }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ rampSummary }}</span>
+        </div>
+        <button onClick="{{ toggleRamp }}" title="Progression on/off" style="position:relative;flex:none;width:44px;height:26px;padding:0;border:0;border-radius:999px;background:{{ rampBg }}" style-hover="filter:brightness(1.1)"><span style="position:absolute;top:3px;left:{{ rampKnobLeft }};width:20px;height:20px;border-radius:50%;background:{{ c.fg }};transition:left .15s"></span></button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;font-size:14px;line-height:32px;color:{{ c.fg2 }}">
+        <span>From</span>
+        <span style="display:inline-flex;align-items:center;height:30px;border-radius:999px;background:{{ c.bg }};overflow:hidden"><button onClick="{{ rampFromDown }}" style="width:28px;height:30px;border:0;background:transparent;color:{{ c.fg2 }};font-size:14px" style-hover="background:{{ c.s3 }};color:{{ c.fg }}">−</button><span style="min-width:44px;text-align:center;font-weight:600;color:{{ c.amber }};font-feature-settings:'tnum'">{{ rampFromLabel }}</span><button onClick="{{ rampFromUp }}" style="width:28px;height:30px;border:0;background:transparent;color:{{ c.fg2 }};font-size:14px" style-hover="background:{{ c.s3 }};color:{{ c.fg }}">+</button></span>
+        <span>to</span>
+        <span style="display:inline-flex;align-items:center;height:30px;border-radius:999px;background:{{ c.bg }};overflow:hidden"><button onClick="{{ rampToDown }}" style="width:28px;height:30px;border:0;background:transparent;color:{{ c.fg2 }};font-size:14px" style-hover="background:{{ c.s3 }};color:{{ c.fg }}">−</button><span style="min-width:44px;text-align:center;font-weight:600;color:{{ c.amber }};font-feature-settings:'tnum'">{{ rampToLabel }}</span><button onClick="{{ rampToUp }}" style="width:28px;height:30px;border:0;background:transparent;color:{{ c.fg2 }};font-size:14px" style-hover="background:{{ c.s3 }};color:{{ c.fg }}">+</button></span>
+        <span>, raise</span>
+        <span style="display:inline-flex;align-items:center;height:30px;border-radius:999px;background:{{ c.bg }};overflow:hidden"><button onClick="{{ rampStepDown }}" style="width:28px;height:30px;border:0;background:transparent;color:{{ c.fg2 }};font-size:14px" style-hover="background:{{ c.s3 }};color:{{ c.fg }}">−</button><span style="min-width:36px;text-align:center;font-weight:600;color:{{ c.fg }};font-feature-settings:'tnum'">{{ rampStepLabel }}</span><button onClick="{{ rampStepUp }}" style="width:28px;height:30px;border:0;background:transparent;color:{{ c.fg2 }};font-size:14px" style-hover="background:{{ c.s3 }};color:{{ c.fg }}">+</button></span>
+        <span>every</span>
+        <span style="display:inline-flex;align-items:center;height:30px;border-radius:999px;background:{{ c.bg }};overflow:hidden"><button onClick="{{ rampEveryDown }}" style="width:28px;height:30px;border:0;background:transparent;color:{{ c.fg2 }};font-size:14px" style-hover="background:{{ c.s3 }};color:{{ c.fg }}">−</button><span style="min-width:24px;text-align:center;font-weight:600;color:{{ c.fg }};font-feature-settings:'tnum'">{{ ramp.every }}</span><button onClick="{{ rampEveryUp }}" style="width:28px;height:30px;border:0;background:transparent;color:{{ c.fg2 }};font-size:14px" style-hover="background:{{ c.s3 }};color:{{ c.fg }}">+</button></span>
+        <span>{{ rampPassesWord }}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:{{ c.fg2 }};font-feature-settings:'tnum'">
+        <span style="min-width:34px">{{ rampFromLabel }}</span>
+        <div style="position:relative;flex:1;height:4px;border-radius:2px;background:{{ c.bg }}"><div style="position:absolute;top:0;bottom:0;left:0;width:{{ rampProgressPct }};background:{{ c.amber }};border-radius:2px"></div><div style="position:absolute;top:50%;left:{{ rampProgressPct }};width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:{{ rampDotBg }};border:2px solid {{ c.s1 }}"></div></div>
+        <span style="min-width:34px;text-align:right">{{ rampToLabel }}</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;padding:16px 20px;border-radius:20px;background:{{ c.s1 }};border:1px solid {{ c.s3 }}">
+      <span style="font-size:11px;font-weight:500;letter-spacing:.6px;color:{{ c.fg2 }}">NOTES · {{ active.name }}</span>
+      <textarea value="{{ activeNotes }}" onChange="{{ setNotes }}" placeholder="Chords, fingering, what to listen for…" style="flex:1;min-height:72px;resize:none;border:0;border-radius:12px;padding:10px 12px;background:{{ c.bg }};color:{{ c.fg }};font-size:13px;line-height:1.45;outline:none"></textarea>
+    </div>
+  </div>
+  </sc-if>
+  </sc-if>
+
+  <!-- Library drawer -->
+  <sc-if value="{{ libraryOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeLibrary }}" style="position:absolute;inset:0;background:{{ c.scrim }};z-index:10"></div>
+    <div data-screen-label="Library drawer" style="position:absolute;top:0;bottom:0;left:0;width:360px;max-width:88vw;background:{{ c.s1 }};border-right:1px solid {{ c.s3 }};z-index:11;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:10px;padding:18px 16px 10px">
+        <div style="font-family:'Space Grotesk';font-weight:700;font-size:24px;flex:1">Library</div>
+        <button style="width:36px;height:36px;border:0;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.s3 }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:block"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button>
+        <button onClick="{{ closeLibrary }}" style="width:36px;height:36px;border:0;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center" style-hover="background:{{ c.s3 }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:block"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div style="display:flex;gap:4px;margin:0 16px;padding:4px;border-radius:999px;background:{{ c.bg }}">
+        <button onClick="{{ tabTracks }}" style="flex:1;height:34px;border:0;border-radius:999px;background:{{ tracksTabBg }};color:{{ tracksTabFg }};font-size:13px;font-weight:500">Tracks</button>
+        <button onClick="{{ tabPlaylists }}" style="flex:1;height:34px;border:0;border-radius:999px;background:{{ playlistsTabBg }};color:{{ playlistsTabFg }};font-size:13px;font-weight:500">Playlists</button>
+      </div>
+      <div style="padding:16px 16px 4px;font-size:11px;font-weight:500;letter-spacing:.6px;color:{{ c.fg2 }}">{{ libSectionLabel }}</div>
+      <div style="flex:1;overflow:auto;padding:0 10px">
+        <sc-for list="{{ libItems }}" as="it" hint-placeholder-count="3">
+          <div onClick="{{ it.open }}" style="display:flex;align-items:center;gap:12px;padding:10px 8px;border-radius:14px;background:{{ it.bg }};cursor:pointer" style-hover="filter:brightness(1.15)">
+            <div style="width:40px;height:40px;border-radius:12px;background:{{ it.art }};display:flex;align-items:center;justify-content:center;color:{{ it.artFg }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="display:block"><path d="M4 12v2M8 8v8M12 5v14M16 9v6M20 11v2"/></svg></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:600;color:{{ it.titleColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.name }}</div>
+              <div style="font-size:12px;color:{{ c.fg2 }}">{{ it.meta }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding:14px 16px">
+        <button style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:48px;border:0;border-radius:999px;background:{{ c.amber }};color:{{ c.onAmber }};font-size:15px;font-weight:600" style-hover="background:{{ c.amberHover }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="display:block"><path d="M12 5v14M5 12h14"/></svg>Import</button>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:1000}}">
+class Component extends DCLogic {
+  constructor(p){ super(p);
+    let s=7; const rnd=()=>{s=(s*16807)%2147483647;return s/2147483647};
+    const N=2400; this.N=N; this.fine=Array.from({length:N},(_,i)=>{const t=i/N*220; const env=0.35+0.65*Math.abs(Math.sin(t/13))*(0.6+0.4*Math.sin(t/41)); return Math.max(0.06,Math.min(1,env*(0.55+0.45*rnd())))});
+    this.waveRef=React.createRef(); this.zoomRef=React.createRef(); this.drag=null; this.dragZone=null;
+    this.state={ pos:0.168, dur:357, bpm:92, playing:false, loopOn:true, active:2, speed:100, pitch:0, metro:false, countIn:false, libraryOpen:false, tab:'tracks', trackIdx:0,
+      dark:(localStorage.getItem('downstep-v3-theme')||'dark')==='dark', focus:false, snap:true, bands:{low:false,mid:false,high:false},
+      ramp:{on:false,from:70,to:100,step:3,every:2}, analyzing:false, analyzed:false, suggestions:[],
+      loops:[{id:1,name:'Intro',start:0.03,end:0.125,passes:12,notes:'Shuffle feel — swing the 8ths, light palm mute.'},{id:2,name:'Solo',start:0.168,end:0.29,passes:4,notes:''},{id:3,name:'Turnaround',start:0.61,end:0.665,passes:0,notes:'E7 – D7 – A7 – E7'}], nextId:4 };
+    this.tracks=[{name:'Easy_Blues[1]',source:'Local file',dur:357,loops:3},{name:'Autumn Leaves (backing)',source:'Local file',dur:244,loops:1},{name:'Little Wing',source:'YouTube',dur:222,loops:0}];
+    this.palettes={
+      dark:{bg:'#0F1114',bgDeep:'#0B0D10',s1:'#1A1E24',s2:'#20252C',s3:'#2C323B',s4:'#3B424C',fg:'#ECE8E2',fg2:'#A4AAB4',amber:'#F2A541',amberHover:'#FFB85A',onAmber:'#2A1800',teal:'#62B6B0',onTeal:'#00201E',errBg:'#93000A',errFg:'#FFDAD6',amberGlow:'rgba(242,165,65,.3)',fgGlow:'rgba(236,232,226,.6)',scrim:'rgba(0,0,0,.55)',loopOnBg:'#5B3B0B',loopOnFg:'#FFDDB0',barMuted:'#2E343D',barPlayed:'#A4AAB4',loops:['#F2A541','#62B6B0','#E07A5F','#B8C46A'],chipFgActive:'#0F1114'},
+      light:{bg:'#FAF6F0',bgDeep:'#F4EEE5',s1:'#EEE7DC',s2:'#E6DED1',s3:'#DDD4C6',s4:'#D3CABD',fg:'#1C1B19',fg2:'#5E5A54',amber:'#A86400',amberHover:'#8f5500',onAmber:'#FFFFFF',teal:'#2D7C77',onTeal:'#FFFFFF',errBg:'#FFDAD6',errFg:'#BA1A1A',amberGlow:'rgba(168,100,0,.28)',fgGlow:'rgba(28,27,25,.3)',scrim:'rgba(28,27,25,.35)',loopOnBg:'#FFE1B8',loopOnFg:'#3A2300',barMuted:'#D3CABD',barPlayed:'#5E5A54',loops:['#A86400','#2D7C77','#B0533A','#3F7A5A'],chipFgActive:'#FAF6F0'}};
+  }
+  componentDidMount(){
+    this.tick=setInterval(()=>{ if(!this.state.playing) return; this.setState(st=>{
+      let p=st.pos+(0.1*st.speed/100)/st.dur; const lp=st.loops.find(l=>l.id===st.active); const out={};
+      if(st.loopOn&&lp&&p>=lp.end){ p=lp.start; const passes=lp.passes+1; out.loops=st.loops.map(l=>l.id===lp.id?{...l,passes}:l);
+        if(st.ramp.on&&passes%st.ramp.every===0&&st.speed<st.ramp.to) out.speed=Math.min(st.ramp.to,st.speed+st.ramp.step); }
+      if(p>=1){return{pos:0,playing:false}} out.pos=p; return out }) },100);
+    this.onKey=e=>{ if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return; const k=e.key.toLowerCase();
+      if(k===' '){e.preventDefault();this.togglePlay()} else if(k==='l'){e.shiftKey?this.setState(s=>({loopOn:!s.loopOn})):this.addLoop()} else if(k==='a'){this.setEdge('start')} else if(k==='b'){this.setEdge('end')} else if(k==='['){this.cycle(-1)} else if(k===']'){this.cycle(1)} else if(k==='f'){this.setState(s=>({focus:!s.focus}))} else if(e.key==='ArrowLeft'){this.seekBy(-5)} else if(e.key==='ArrowRight'){this.seekBy(5)} else if(k==='escape'){this.setState({libraryOpen:false,focus:false})} };
+    window.addEventListener('keydown',this.onKey);
+  }
+  componentWillUnmount(){ clearInterval(this.tick); clearTimeout(this.an); window.removeEventListener('keydown',this.onKey) }
+  fmt(f,ms){ const t=ms?Math.round(f*this.state.dur*10)/10:Math.round(f*this.state.dur); const m=Math.floor(t/60), sec=t-m*60; return ms? m+':'+sec.toFixed(1).padStart(4,'0') : m+':'+String(sec).padStart(2,'0') }
+  beat(){ return 60/this.state.bpm/this.state.dur }
+  snapF(f,st){ st=st||this.state; if(!st.snap) return f; const b=this.beat(); return Math.max(0,Math.min(1,Math.round(f/b)*b)) }
+  togglePlay=()=>this.setState(s=>({playing:!s.playing}));
+  seekBy(sec){ this.setState(s=>({pos:Math.max(0,Math.min(1,s.pos+sec/s.dur))})) }
+  setEdge(which){ this.setState(s=>{const i=s.loops.findIndex(l=>l.id===s.active); if(i<0) return null; const loops=s.loops.map(l=>({...l})); const lp=loops[i]; const f=this.snapF(s.pos,s); if(which==='start'){lp.start=Math.min(f,lp.end-0.005)} else {lp.end=Math.max(f,lp.start+0.005)} return{loops,loopOn:true}}) }
+  cycle(d){ this.setState(s=>{ if(!s.loops.length) return null; const i=s.loops.findIndex(l=>l.id===s.active); const j=(i+d+s.loops.length)%s.loops.length; const lp=s.loops[j]; return{active:lp.id,pos:lp.start,loopOn:true}}) }
+  addLoop=()=>this.setState(s=>{const start=this.snapF(s.pos,s), end=Math.min(1,this.snapF(s.pos+8*this.beat(),s)); const lp={id:s.nextId,name:'Loop '+s.nextId,start,end,passes:0,notes:''}; return{loops:[...s.loops,lp].sort((a,b)=>a.start-b.start),active:lp.id,nextId:s.nextId+1,loopOn:true}});
+  editActive(fn){ this.setState(s=>({loops:s.loops.map(x=>x.id===s.active?fn({...x},s):x)})) }
+  window(st){ const lp=st.loops.find(l=>l.id===st.active); if(!lp) return [0,1]; const len=lp.end-lp.start, pad=Math.max(len*0.35,4*this.beat()); return [Math.max(0,lp.start-pad),Math.min(1,lp.end+pad)] }
+  frac(e,zone){ const el=zone==='zoom'?this.zoomRef.current:this.waveRef.current; const r=el.getBoundingClientRect(); const x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)); if(zone!=='zoom') return x; const [w0,w1]=this.window(this.state); return w0+x*(w1-w0) }
+  onPointerDown=e=>{ const zone=e.currentTarget.getAttribute('data-zone'); const h=e.target.getAttribute&&e.target.getAttribute('data-handle'); if(h){this.drag=h; this.dragZone=zone; e.currentTarget.setPointerCapture(e.pointerId); return} this.setState({pos:this.frac(e,zone)}) };
+  onPointerMove=e=>{ if(!this.drag) return; const f=this.snapF(this.frac(e,this.dragZone)); this.setState(s=>{const loops=s.loops.map(l=>({...l})); const lp=loops.find(l=>l.id===s.active); if(!lp) return null; if(this.drag==='start') lp.start=Math.min(f,lp.end-0.005); else lp.end=Math.max(f,lp.start+0.005); return{loops}}) };
+  onPointerUp=()=>{ this.drag=null; this.dragZone=null };
+  analyze=()=>{ if(this.state.analyzing) return; this.setState({analyzing:true,suggestions:[]}); this.an=setTimeout(()=>this.setState({analyzing:false,analyzed:true,suggestions:[{id:'s1',name:'Verse 1',start:0.13,end:0.168},{id:'s2',name:'Chorus',start:0.33,end:0.44},{id:'s3',name:'Bridge',start:0.5,end:0.6}]}),1600) };
+  renderVals(){
+    const s=this.state, pct=v=>(v*100).toFixed(3)+'%'; const c=this.palettes[s.dark?'dark':'light']; const colors=c.loops;
+    const active=s.loops.find(l=>l.id===s.active);
+    const colorOf=l=>colors[(l.id-1)%colors.length];
+    const loops=s.loops.map(l=>{ const isA=l.id===s.active; const lc=colorOf(l); return {
+      ...l, color:lc, leftPct:pct(l.start), rightPct:pct(l.end), widthPct:pct(l.end-l.start),
+      regionOpacity:isA?(s.loopOn?0.16:0.08):0.05, edgeOpacity:isA?1:0.35,
+      chipBg:isA?c.fg:c.s1, chipFg:isA?c.chipFgActive:c.fg, chipBorder:isA?c.fg:c.s3, badgeBg:isA?c.amber:c.s3, badgeFg:isA?c.onAmber:c.fg2,
+      lenLabel:Math.round((l.end-l.start)*s.dur)+' s',
+      select:()=>this.setState({active:l.id,pos:l.start,loopOn:true}) }});
+    const suggestions=s.suggestions.map(g=>({...g,leftPct:pct(g.start),widthPct:pct(g.end-g.start),lenLabel:Math.round((g.end-g.start)*s.dur)+' s',
+      accept:()=>this.setState(st=>{const lp={id:st.nextId,name:g.name,start:g.start,end:g.end,passes:0,notes:''}; return{loops:[...st.loops,lp].sort((a,b)=>a.start-b.start),nextId:st.nextId+1,active:lp.id,pos:lp.start,suggestions:st.suggestions.filter(x=>x.id!==g.id)}}),
+      dismiss:()=>this.setState(st=>({suggestions:st.suggestions.filter(x=>x.id!==g.id)}))}));
+    const nb=220, N=this.N, lcA=active?colorOf(active):c.amber;
+    const bars=Array.from({length:nb},(_,i)=>{ let h=0; for(let k=Math.floor(i*N/nb);k<Math.floor((i+1)*N/nb);k++) h=Math.max(h,this.fine[k]); const f=(i+0.5)/nb; const inA=active&&f>=active.start&&f<active.end; const played=f<=s.pos; return {h:pct(h), color: inA?(played?lcA:lcA+'80'):(played?c.barPlayed:c.barMuted)} });
+    const [w0,w1]=this.window(s), wl=w1-w0, zp=f=>pct((f-w0)/wl);
+    const zoomBars=active?Array.from({length:180},(_,j)=>{ const f=w0+(j+0.5)/180*wl; const h=this.fine[Math.min(N-1,Math.floor(f*N))]; const inA=f>=active.start&&f<active.end; const played=f<=s.pos; return {h:pct(h), color: inA?(played?lcA:lcA+'80'):(played?c.barPlayed:c.barMuted)} }):[];
+    const b=this.beat(); const barTicks=[]; for(let f=0;f<1;f+=4*b) barTicks.push({leftPct:pct(f)});
+    const zoomBeats=[]; if(active){ for(let i=Math.ceil(w0/b);i*b<w1;i++) zoomBeats.push({leftPct:zp(i*b),opacity:i%4===0?0.22:0.08}) }
+    const zoom=active?{leftPct:pct(w0),widthPct:pct(wl),aPct:zp(active.start),bPct:zp(active.end),lenPct:pct((active.end-active.start)/wl),posVisible:s.pos>=w0&&s.pos<=w1,posPct:zp(s.pos),windowLabel:this.fmt(w0,true)+' – '+this.fmt(w1,true),beatsLabel:((active.end-active.start)/b).toFixed(1)+' beats · '+((active.end-active.start)/b/4).toFixed(1)+' bars'}:null;
+    const track=this.tracks[s.trackIdx];
+    const libItems=(s.tab==='tracks'?this.tracks.map((t,i)=>({name:t.name,meta:t.source+' · '+(t.loops?t.loops+' loops':'no loops'),art:i===s.trackIdx?c.amber:c.s3,artFg:i===s.trackIdx?c.onAmber:c.fg2,bg:i===s.trackIdx?c.amber+'14':'transparent',titleColor:i===s.trackIdx?c.amber:c.fg,open:()=>this.setState({trackIdx:i,dur:t.dur,pos:0,playing:false,libraryOpen:false})}))
+      :[{name:'Blues standards',meta:'2 tracks',art:'linear-gradient(135deg,#F2A541,#E07A5F)',artFg:'#fff',bg:'transparent',titleColor:c.fg,open:()=>{}},{name:'Jazz practice',meta:'1 track',art:'linear-gradient(135deg,#62B6B0,#33598C)',artFg:'#fff',bg:'transparent',titleColor:c.fg,open:()=>{}}]);
+    const on=c.amber, onFg=c.onAmber, off='transparent', offFg=c.fg;
+    const bandsOn=Object.entries(s.bands).filter(([k,v])=>v).map(([k])=>k[0].toUpperCase()+k.slice(1));
+    const r=s.ramp; const passes=active?active.passes:0; const toGo=r.every-(passes%r.every);
+    const rampProgress=r.on?Math.max(0,Math.min(1,(s.speed-r.from)/Math.max(1,r.to-r.from))):0;
+    const bump=(k,d,lo,hi)=>()=>this.setState(st=>({ramp:{...st.ramp,[k]:Math.max(lo,Math.min(hi,st.ramp[k]+d))}}));
+    const band=k=>({bg:s.bands[k]?c.teal:'transparent',fg:s.bands[k]?c.onTeal:c.fg2,toggle:()=>this.setState(st=>({bands:{...st.bands,[k]:!st.bands[k]}}))});
+    const L=band('low'),M=band('mid'),H=band('high');
+    return { c, isDark:s.dark, isLight:!s.dark, toggleTheme:()=>this.setState(st=>{const d=!st.dark; localStorage.setItem('downstep-v3-theme',d?'dark':'light'); return{dark:d}}),
+      focus:s.focus, notFocus:!s.focus, toggleFocus:()=>this.setState(st=>({focus:!st.focus})), focusLoopLabel:active?active.name:'no loop', waveHeight:s.focus?'260px':'200px',
+      track, trackCountLabel:this.tracks.length, durationLabel:this.fmt(1), bpmLabel:s.bpm+' BPM', posLabel:this.fmt(s.pos), posPct:pct(s.pos),
+      loops, suggestions, bars, barTicks, zoomBars, zoomBeats, zoom, hasActive:!!active, active:active?{...active,color:lcA,leftPct:pct(active.start),rightPct:pct(active.end),startLabel:this.fmt(active.start,true),endLabel:this.fmt(active.end,true)}:null,
+      loopCountLabel:s.loops.length?s.loops.length+' loops':'no loops', waveRef:this.waveRef, zoomRef:this.zoomRef,
+      onPointerDown:this.onPointerDown,onPointerMove:this.onPointerMove,onPointerUp:this.onPointerUp,
+      analyze:this.analyze, analyzeLabel:s.analyzing?'Analyzing…':(s.analyzed?'Re-analyze':'Analyze'), analyzeBg:s.analyzing?c.amber+'22':c.s1, analyzeFg:s.analyzing?c.amber:c.fg, analyzeBorder:s.analyzing?c.amber:c.s3,
+      snap:s.snap, toggleSnap:()=>this.setState(st=>({snap:!st.snap})), snapBg:s.snap?c.s3:'transparent', snapFg:s.snap?c.fg:c.fg2, snapBorder:s.snap?c.s4:c.s3,
+      isPlaying:s.playing, notPlaying:!s.playing, togglePlay:this.togglePlay, toStart:()=>this.setState({pos:active&&s.loopOn?active.start:0}), back5:()=>this.seekBy(-5), fwd5:()=>this.seekBy(5), nextLoop:()=>this.cycle(1),
+      toggleLoopOn:()=>this.setState(st=>({loopOn:!st.loopOn})), loopBtnBg:s.loopOn?c.loopOnBg:c.s1, loopBtnFg:s.loopOn?c.loopOnFg:c.fg2, loopBtnLabel:s.loopOn?(active?active.name:'Loop'):'Loop off', addLoop:this.addLoop,
+      activeHalf:()=>this.editActive(x=>({...x,end:x.start+(x.end-x.start)/2})), activeDouble:()=>this.editActive(x=>({...x,end:Math.min(1,x.start+(x.end-x.start)*2)})),
+      activeNudgeL:()=>this.editActive((x,st)=>{const d=Math.min(x.start,st.snap?this.beat():1/st.dur);return{...x,start:x.start-d,end:x.end-d}}), activeNudgeR:()=>this.editActive((x,st)=>{const d=Math.min(1-x.end,st.snap?this.beat():1/st.dur);return{...x,start:x.start+d,end:x.end+d}}),
+      activeRemove:()=>this.setState(st=>{const loops=st.loops.filter(x=>x.id!==st.active);return{loops,active:loops[0]?loops[0].id:null}}),
+      activePasses:passes, rampHint:r.on?(s.speed>=r.to?'· at target':'· +'+r.step+'% in '+toGo):'',
+      ramp:r, rampOn:r.on, toggleRamp:()=>this.setState(st=>({ramp:{...st.ramp,on:!st.ramp.on},speed:st.ramp.on?st.speed:st.ramp.from})), rampBg:r.on?c.amber:c.s3, rampKnobLeft:r.on?'21px':'3px', rampDotBg:r.on?c.amber:c.s4,
+      rampSummary:r.on?(s.speed>=r.to?'At target — '+s.speed+'%':'Now '+s.speed+'% · next +'+r.step+'% in '+toGo+(toGo===1?' pass':' passes')):'Off — speed stays where you set it',
+      rampProgressPct:pct(rampProgress), rampFromLabel:r.from+'%', rampToLabel:r.to+'%', rampStepLabel:'+'+r.step+'%', rampPassesWord:r.every===1?'pass':'passes',
+      rampFromDown:bump('from',-5,25,200), rampFromUp:bump('from',5,25,200), rampToDown:bump('to',-5,25,200), rampToUp:bump('to',5,25,200), rampStepDown:bump('step',-1,1,25), rampStepUp:bump('step',1,1,25), rampEveryDown:bump('every',-1,1,20), rampEveryUp:bump('every',1,1,20),
+      activeNotes:active?active.notes:'', setNotes:e=>{const v=e.target.value; this.editActive(x=>({...x,notes:v}))},
+      bandsLabel:bandsOn.length?bandsOn.join(' + ')+' only':'Full mix', toggleLow:L.toggle,lowBg:L.bg,lowFg:L.fg, toggleMid:M.toggle,midBg:M.bg,midFg:M.fg, toggleHigh:H.toggle,highBg:H.bg,highFg:H.fg,
+      speed:s.speed, speedLabel:s.speed+'%', setSpeed:e=>this.setState({speed:+e.target.value}), speedDown:()=>this.setState(st=>({speed:Math.max(25,st.speed-5)})), speedUp:()=>this.setState(st=>({speed:Math.min(200,st.speed+5)})), resetSpeed:()=>this.setState({speed:100}),
+      pitch:s.pitch, pitchLabel:(s.pitch>0?'+':'')+s.pitch+' st', setPitch:e=>this.setState({pitch:+e.target.value}), pitchDown:()=>this.setState(st=>({pitch:Math.max(-12,st.pitch-1)})), pitchUp:()=>this.setState(st=>({pitch:Math.min(12,st.pitch+1)})), resetPitch:()=>this.setState({pitch:0}),
+      toggleMetro:()=>this.setState(st=>({metro:!st.metro})), metroBg:s.metro?on:off, metroFg:s.metro?onFg:offFg, toggleCountIn:()=>this.setState(st=>({countIn:!st.countIn})), countBg:s.countIn?on:off, countFg:s.countIn?onFg:offFg,
+      libraryOpen:s.libraryOpen, openLibrary:()=>this.setState({libraryOpen:true}), closeLibrary:()=>this.setState({libraryOpen:false}), tabTracks:()=>this.setState({tab:'tracks'}), tabPlaylists:()=>this.setState({tab:'playlists'}),
+      tracksTabBg:s.tab==='tracks'?c.fg:'transparent', tracksTabFg:s.tab==='tracks'?c.chipFgActive:c.fg, playlistsTabBg:s.tab==='playlists'?c.fg:'transparent', playlistsTabFg:s.tab==='playlists'?c.chipFgActive:c.fg, libSectionLabel:s.tab==='tracks'?'RECENTLY ADDED':'PLAYLISTS', libItems };
+  }
+}
+</script>
+</body>
+</html>

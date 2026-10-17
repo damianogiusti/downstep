@@ -249,4 +249,121 @@
     <string name="update_failed">L'aggiornamento non è riuscito. Puoi scaricarlo dal sito.</string>
     <string name="update_banner">È disponibile Downstep %1$s</string>
     <string name="update_banner_action">Aggiorna</string>
+
+    <!-- Downstep 2.0 player. Component groups: H header, chips, transport · W waveform · C cards · D drawer, focus, title bar -->
+    <!-- Header (H) -->
+    <string name="library_open_description">Apri la libreria</string>
+    <string name="header_bpm">%1$s BPM</string>
+    <string name="header_bpm_unset">BPM —</string>
+    <string name="bpm_edit_description">Imposta il tempo di questo brano</string>
+    <string name="bpm_dialog_title">Tempo di questo brano</string>
+    <string name="bpm_dialog_message">Downstep non rileva ancora il tempo. Inseriscilo per agganciare i loop alla battuta (%1$d–%2$d BPM).</string>
+    <string name="bpm_label">BPM</string>
+    <string name="bpm_clear">Cancella</string>
+    <string name="error_bpm_range">Inserisci un tempo tra %1$d e %2$d BPM.</string>
+    <plurals name="loops_count">
+        <item quantity="one">%1$d loop</item>
+        <item quantity="other">%1$d loop</item>
+    </plurals>
+    <string name="loops_none">nessun loop</string>
+    <string name="analyze">Analizza</string>
+    <string name="analyze_running">Analisi…</string>
+    <string name="analyze_again">Rianalizza</string>
+    <string name="analyze_tooltip">Trova le sezioni e suggerisce dei loop</string>
+    <string name="analyze_unavailable">Il rilevamento delle sezioni non è ancora disponibile</string>
+    <string name="error_analyze">Analisi non riuscita: %1$s</string>
+    <string name="metronome">Metronomo</string>
+    <string name="metronome_unavailable">Il metronomo non è ancora disponibile</string>
+    <string name="count_in">Conteggio</string>
+    <string name="count_in_unavailable">Il conteggio iniziale non è ancora disponibile</string>
+    <string name="error_click_needs_bpm">Imposta prima il tempo del brano.</string>
+    <string name="focus_mode">Modalità focus (F)</string>
+    <string name="exit_focus">Esci dal focus</string>
+    <string name="theme_toggle">Chiaro / scuro</string>
+    <string name="presets_none">Ancora nessun preset per questo brano</string>
+    <string name="external_meta">Aperto da un\'altra app</string>
+    <string name="loading_track">Apro “%1$s”…</string>
+    <!-- Loop chips (H) -->
+    <string name="new_loop">Nuovo loop</string>
+    <string name="key_new_loop">L</string>
+    <string name="loop_length_seconds">%1$d s</string>
+    <plurals name="loop_passes">
+        <item quantity="one">%1$d passaggio</item>
+        <item quantity="other">%1$d passaggi</item>
+    </plurals>
+    <string name="loop_rename">Rinomina il loop</string>
+    <string name="loop_delete">Elimina il loop</string>
+    <string name="error_loop_name">Il nome deve avere da 1 a %1$d caratteri.</string>
+    <string name="suggestion_accept">Tieni come loop</string>
+    <string name="suggestion_dismiss">Scarta</string>
+    <!-- Transport and loop tools (H) -->
+    <string name="loop_off">Loop spento</string>
+    <string name="loop_toggle_tooltip">Loop sì/no (Maiusc+L)</string>
+    <string name="snap_to_beat">Aggancia al battito</string>
+    <string name="snap_tooltip">Aggancia A/B ai battiti</string>
+    <string name="snap_needs_bpm">Imposta i BPM del brano per agganciare al battito</string>
+    <string name="to_start_description">Inizio</string>
+    <string name="next_loop_description">Loop successivo (])</string>
+    <string name="pause">Pausa</string>
+    <string name="pass_count">Passaggio %1$d</string>
+    <string name="pass_ramp">+%1$s tra %2$d</string>
+    <string name="pass_at_target">obiettivo raggiunto</string>
+    <string name="hint_set">imposta</string>
+    <string name="hint_loops">loop</string>
+    <string name="hint_focus">focus</string>
+    <!-- Waveform and zoom strip (W) -->
+    <string name="waveform_description">Forma d\'onda, durata %1$s</string>
+    <string name="zoom_title">ZOOM · %1$s · %2$s – %3$s</string>
+    <string name="zoom_beats">%1$s battiti · %2$s battute</string>
+    <string name="zoom_seconds">%1$s s</string>
+    <string name="marker_a">A %1$s</string>
+    <string name="marker_b">B %1$s</string>
+    <string name="marker_a_description">Inizio del loop (A): trascina per spostarlo</string>
+    <string name="marker_b_description">Fine del loop (B): trascina per spostarla</string>
+    <string name="waveform_empty">Apri un brano dalla libreria per vederne la forma d\'onda.</string>
+    <!-- Speed, pitch, isolate, progression, notes cards (C) -->
+    <string name="speed_down_description">Più lento del 5 per cento</string>
+    <string name="speed_up_description">Più veloce del 5 per cento</string>
+    <string name="pitch_down_description">Giù di un semitono</string>
+    <string name="pitch_up_description">Su di un semitono</string>
+    <string name="isolate">Isola</string>
+    <string name="isolate_full_mix">Mix completo</string>
+    <string name="isolate_only">Solo %1$s</string>
+    <string name="band_low">Bassi</string>
+    <string name="band_mid">Medi</string>
+    <string name="band_high">Alti</string>
+    <string name="progression">Progressione</string>
+    <string name="progression_toggle">Progressione sì/no</string>
+    <string name="progression_off">Spenta — la velocità resta quella che imposti</string>
+    <plurals name="progression_ramping">
+        <item quantity="one">Ora %2$s · prossimo +%3$s tra %1$d passaggio</item>
+        <item quantity="other">Ora %2$s · prossimo +%3$s tra %1$d passaggi</item>
+    </plurals>
+    <string name="progression_at_target">Obiettivo raggiunto — %1$s</string>
+    <string name="progression_from">Da</string>
+    <string name="progression_to">a</string>
+    <string name="progression_raise">, aumenta di</string>
+    <string name="progression_every">ogni</string>
+    <plurals name="progression_passes_word">
+        <item quantity="one">passaggio</item>
+        <item quantity="other">passaggi</item>
+    </plurals>
+    <string name="stepper_decrease">Diminuisci %1$s</string>
+    <string name="stepper_increase">Aumenta %1$s</string>
+    <string name="notes">Note</string>
+    <string name="notes_placeholder">Accordi, diteggiatura, cosa ascoltare…</string>
+    <!-- Library drawer, focus mode, title bar (D) -->
+    <string name="close">Chiudi</string>
+    <string name="drawer_track_meta">%1$s · %2$s</string>
+    <string name="focus_title">%1$s — %2$s</string>
+    <string name="focus_no_loop">nessun loop</string>
+    <string name="title_bar">Downstep %1$s</string>
+    <!-- Group H additions (component agents append here only) -->
+    <!-- Group W additions -->
+    <!-- Group C additions -->
+    <string name="progression_from_value">velocità di partenza</string>
+    <string name="progression_to_value">velocità obiettivo</string>
+    <string name="progression_step_value">incremento di velocità</string>
+    <string name="progression_every_value">passaggi per incremento</string>
+    <!-- Group D additions -->
 </resources>

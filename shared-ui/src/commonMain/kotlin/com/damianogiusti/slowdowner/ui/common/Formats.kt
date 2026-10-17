@@ -14,6 +14,13 @@ fun formatClock(seconds: Float): String {
     return "${total / 60}:${(total % 60).toString().padStart(2, '0')}"
 }
 
+/** "1:43.5" — minutes, seconds and tenths, for A/B pills and the zoom window. */
+fun formatTimecode(seconds: Float, separator: String = "."): String {
+    val tenths = (seconds * 10).roundToLong().coerceAtLeast(0)
+    val wholeSeconds = tenths / 10
+    return "${wholeSeconds / 60}:${(wholeSeconds % 60).toString().padStart(2, '0')}$separator${tenths % 10}"
+}
+
 /**
  * "2.4": one decimal. Compose Resources only fills `%1$s` and `%1$d`, so decimals are formatted
  * here, not in strings.xml. [separator] comes from `decimal_separator`, so Italian gets "2,4".

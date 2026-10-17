@@ -6,12 +6,16 @@ import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEvent
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class FakeEngine : PlaybackEngine, EffectsEngine {
     override val events = MutableSharedFlow<PlaybackEvent>(extraBufferCapacity = 64)
     override var isOpen = true
     override var isPlaying = false
-    override var position = 0.5f
+    override val positionFlow = MutableStateFlow(0.5f)
+    override var position
+        get() = positionFlow.value
+        set(value) { positionFlow.value = value }
     override var durationSeconds = 100f
     var speed = 100f
     override val speedPercent get() = speed
@@ -53,6 +57,12 @@ class FakeEngine : PlaybackEngine, EffectsEngine {
     override fun doubleLoop() = Unit
     override fun shiftLoopForward() = Unit
     override fun shiftLoopBackward() = Unit
+    /** Peak levels of the whole file: [peaks] slices them like the real engine. */
+    var outline = FloatArray(0)
+    override fun peaks(from: Float, to: Float, buckets: Int): FloatArray {
+        if (!isOpen || outline.isEmpty()) return FloatArray(0)
+        return FloatArray(buckets) { i -> outline[((from + (to - from) * i / buckets) * outline.size).toInt().coerceIn(0, outline.lastIndex)] }
+    }
 
     override val mixRight = 0.5f
     override val mixSliderPosition = 0

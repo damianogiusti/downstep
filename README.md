@@ -21,20 +21,66 @@ service.
 
 ## Build
 
-Requirements: JDK 23 (the desktop modules use FFM), CMake, the Android SDK (the shared modules also
-have an Android target, so Gradle needs it to configure), and on macOS the Xcode command line tools.
-On Windows the engine builds with MinGW-w64; Bungee does not build with MSVC.
+Requirements on every system: JDK 23 (the desktop modules use FFM), CMake 3.30 or later, and the
+Android SDK (the shared modules also have an Android target, so Gradle needs it to configure). Set
+`JAVA_HOME` and `ANDROID_HOME`, or put the SDK path in `local.properties`.
+
+- macOS: the Xcode command line tools.
+- Windows: MinGW-w64 GCC and Ninja, for example from MSYS2 (`mingw-w64-ucrt-x86_64-gcc`,
+  `-cmake`, `-ninja`), as in the release workflow. Bungee does not build with MSVC. The scripts find
+  them on `PATH`, in `C:\msys64\ucrt64\bin` and in a few other usual places.
+  The engine's CMake build checks out Bungee and Eigen with git, which a deep folder takes past
+  Windows' path limit: the scripts turn on git's `core.longpaths` for it. Running Gradle or CMake
+  directly from a deep folder needs `git config --global core.longpaths true`.
+- Linux: GCC or Clang, and `fakeroot` and `dpkg` for the `.deb`.
+- For the Docker targets: Docker only. The image has everything else.
+
+The tasks run with GNU make (Linux, macOS and Windows) or with [just](https://github.com/casey/just).
+Both call the same scripts: PowerShell in `scripts/windows`, sh in `scripts/linux` (also used on
+macOS). On Windows nothing needs bash, Git Bash or WSL: make and just run PowerShell 7, or Windows
+PowerShell when 7 is missing (make only).
+
+```sh
+make help     # or: just --list
+make test     # or: just test
+```
+
+| Target | What it does |
+| --- | --- |
+| `build` | compile the desktop app and the native engine |
+| `test` | the Kotlin tests of every module |
+| `engine` | the native engine, in `engine-desktop/build/native` |
+| `engine-test` | the engine's C++ tests |
+| `package` | the app in `build/dist`: zip on Windows, `.tar.gz` and `.deb` on Linux, DMG on macOS |
+| `run` | start the app |
+| `clean` | remove the build outputs |
+| `docker-image` | build the Linux build image (`docker/Dockerfile`) |
+| `docker-build`, `docker-test`, `docker-engine`, `docker-engine-test`, `docker-package` | the same targets in the Linux container |
+| `docker-shell` | a shell in the container |
+| `docker-clean` | remove the container's volumes and `build/docker-out` |
+
+`APP_VERSION=1.2.3` sets the version of a package, as in the release workflow.
+
+The Docker targets build the image if needed and run the Linux build from Windows, macOS or Linux.
+The container gets the repository read-only and copies the sources into its own volume, with LF line
+endings, so its build never mixes with the host's (the engine's CMake folder, for one). Gradle's caches
+stay in a second volume, so the second run is much faster. Test reports, the engine and the packages
+come back to `build/docker-out`.
+
+Gradle directly works as well:
 
 ```sh
 ./gradlew :desktopApp:run                 # start the app
 ./gradlew :desktopApp:packageDmg          # unsigned DMG (macOS)
-./gradlew :desktopApp:createDistributable # app folder (macOS or Windows)
+./gradlew :desktopApp:packageDeb          # .deb (Linux)
+./gradlew :desktopApp:createDistributable # app folder
 ./gradlew :shared:jvmTest :shared-data:desktopTest :shared-ui:desktopTest
 ./gradlew :engine-desktop:test :desktopApp:test
 ```
 
-The app keeps its data in `~/Library/Application Support/SlowDowner` on macOS and in
-`%APPDATA%\SlowDowner` on Windows. The folder has the app's first name.
+The app keeps its data in `~/Library/Application Support/SlowDowner` on macOS, in
+`%APPDATA%\SlowDowner` on Windows and in `~/.local/share/SlowDowner` on Linux. The folder has the
+app's first name.
 
 ## How it works
 

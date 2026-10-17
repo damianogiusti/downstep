@@ -1,17 +1,28 @@
 package com.damianogiusti.slowdowner.data.library
 
 import org.schabi.newpipe.extractor.MediaFormat
+import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.StreamInfo
 
-class NewPipeYouTubeStreamDataSource : YouTubeStreamDataSource {
+/**
+ * [downloader] initialises NewPipe on the first [resolve], not at app start: building the HTTP client
+ * and the extractor cost startup time for an import that may never happen. Null when the app has
+ * initialised NewPipe itself.
+ */
+class NewPipeYouTubeStreamDataSource(downloader: (() -> Downloader)? = null) : YouTubeStreamDataSource {
+
+    // NewPipe keeps its downloader in a static: once per process, whichever thread imports first.
+    private val initialized = lazy { downloader?.let { NewPipe.init(it()) } }
 
     override fun findSupportedUrl(text: String?): String? =
         text?.let { URL.find(it)?.value }?.takeIf { YOUTUBE_URL.containsMatchIn(it) }
 
     override fun resolve(url: String): ResolvedAudioDto {
+        initialized.value
         val info = try {
             StreamInfo.getInfo(url)
         } catch (e: ContentNotAvailableException) {

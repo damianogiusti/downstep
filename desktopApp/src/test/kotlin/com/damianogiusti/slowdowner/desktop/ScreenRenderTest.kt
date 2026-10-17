@@ -134,7 +134,7 @@ class ScreenRenderTest {
             scene = ImageComposeScene(width = widthDp * 2, height = heightDp * 2, density = Density(2f)) {
                 CompositionLocalProvider(LocalLifecycleOwner provides lifecycle, LocalViewModelStoreOwner provides store) {
                     SlowDownerTheme {
-                        val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel())
+                        val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel(), koinViewModel())
                         player = viewModels.player
                         Column(modifier = Modifier.fillMaxSize()) {
                             UpdateBanner()

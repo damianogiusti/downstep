@@ -21,6 +21,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.concurrent.thread
 import kotlin.math.sin
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -53,6 +54,30 @@ class DesktopPlaybackEngineTest {
             engine.close()
         }
         scope.cancel()
+    }
+
+    @Test
+    fun `when closed while a track decodes then close waits for the decode`() {
+        // The decode runs on the IO dispatcher: quitting during it used to free the engine under sd_engine_open.
+        val long = toneFile(seconds = 120)
+        try {
+            repeat(12) { round ->
+                val scope = CoroutineScope(Dispatchers.Default)
+                val engine = DesktopPlaybackEngine(NativeEngine.manual(RATE), scope)
+                var opened: Boolean? = null
+                val decode = thread { opened = engine.openFile(long.path) }
+                Thread.sleep((round * 7 % 40).toLong())
+                engine.close()
+                decode.join(30_000)
+                assertFalse(decode.isAlive, "the decode never returned")
+                assertTrue(opened != null)
+                // Closed: a later open is refused, not a call into freed memory.
+                assertFalse(engine.openFile(long.path))
+                scope.cancel()
+            }
+        } finally {
+            long.delete()
+        }
     }
 
     @Test
@@ -106,6 +131,54 @@ class DesktopPlaybackEngineTest {
         runCurrent()
         assertTrue(PlaybackEvent.ReachedEnd in events, "events: $events")
         assertFalse(engine.isPlaying)
+    }
+
+    @Test
+    fun `the poll publishes the position as a state, not as events`() = runTest {
+        val engine = openEngine()
+        val events = mutableListOf<PlaybackEvent>()
+        backgroundScope.launch { engine.events.toList(events) }
+        runCurrent()
+        engine.togglePlayStop()
+        runCurrent()
+        events.clear()
+
+        playFor(2.0)
+        advanceTimeBy(60)
+        runCurrent()
+
+        assertEquals(0.2f, engine.positionFlow.value, 0.01f)
+        assertTrue(events.isEmpty(), "events: $events")
+    }
+
+    @Test
+    fun `a seek moves the position state at once`() = runTest {
+        val engine = openEngine()
+
+        engine.seekTo(0.6f)
+
+        assertEquals(0.6f, engine.positionFlow.value, 0.001f)
+    }
+
+    @Test
+    fun `a pitch step that snaps to the same semitone changes nothing`() = runTest {
+        val engine = openEngine()
+        val events = mutableListOf<PlaybackEvent>()
+        backgroundScope.launch { engine.events.toList(events) }
+        runCurrent()
+        engine.setPitchSemitones(2f)
+        engine.setSpeedPercent(80f)
+        runCurrent()
+        events.clear()
+
+        engine.setPitchSemitones(2f)
+        engine.setSpeedPercent(80f)
+        // A drag inside the same semitone: the slider snaps to where it already is.
+        engine.setPitchFromSlider(engine.pitchSliderPosition + 1)
+        runCurrent()
+
+        assertTrue(events.isEmpty(), "events: $events")
+        assertEquals(2f, engine.pitchSemitones)
     }
 
     @Test
@@ -178,9 +251,9 @@ class DesktopPlaybackEngineTest {
     private companion object {
         const val RATE = 44_100
 
-        /** 10 s, 16-bit stereo, 441 Hz. */
-        fun toneFile(): File {
-            val frames = 10 * RATE
+        /** 16-bit stereo, 441 Hz; 10 s by default. */
+        fun toneFile(seconds: Int = 10): File {
+            val frames = seconds * RATE
             val data = ByteBuffer.allocate(frames * 4).order(ByteOrder.LITTLE_ENDIAN)
             repeat(frames) { i ->
                 val sample = (sin(2 * PI * 441 * i / RATE) * 16_000).toInt().toShort()

@@ -64,6 +64,13 @@ SD_API void sd_engine_set_preamp(SdEngine *engine, double gainDb);
 /** Linear output gain, 1 by default. 0 mutes a device engine (scripted checks). */
 SD_API void sd_engine_set_output_gain(SdEngine *engine, double gain);
 
+/**
+ * Waveform of the open file for drawing: fills `buckets` values 0..1, the peak level of each equal
+ * slice of from..to (fractions 0..1 of the file). Cheap (read from a summary made at open) and safe
+ * from any thread. Returns the number of values written: `buckets`, or 0 when no file is open.
+ */
+SD_API int sd_engine_peaks(SdEngine *engine, double from, double to, float *out, int buckets);
+
 /** Returns and clears the SD_EVENT_* bits raised since the previous call. */
 SD_API unsigned sd_engine_take_events(SdEngine *engine);
 
@@ -76,8 +83,10 @@ typedef struct SdExport SdExport;
 
 /**
  * Starts an MP3 export of the open file with the engine's current sound (speed, pitch, mix, EQ),
- * from the start to the end, loop ignored. It decodes the file again into its own engine: playback
- * is not disturbed. NULL if no file is open or the output cannot be written.
+ * from the start to the end, loop ignored. It renders in its own engine over the audio already
+ * decoded (shared, not decoded again): playback is not disturbed, and closing or replacing the
+ * open file meanwhile does not affect the export. NULL if no file is open or the output cannot be
+ * written.
  */
 SD_API SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps);
 /** Encodes the next chunk. Returns the progress 0..1, or -1 once everything is encoded. */

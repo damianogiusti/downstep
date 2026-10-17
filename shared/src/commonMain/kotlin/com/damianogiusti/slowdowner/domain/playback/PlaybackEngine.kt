@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.domain.playback
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Transport and DSP controls of the audio engine. Sliders use slider positions because the
@@ -14,6 +15,11 @@ interface PlaybackEngine {
     val isPlaying: Boolean
     /** 0..1 over the whole file. */
     val position: Float
+    /**
+     * [position] as it moves: polled while playing, and set at once by seeks, loop jumps, open and close.
+     * The only position source for the UI: [events] carry no per-tick position change.
+     */
+    val positionFlow: StateFlow<Float>
     val durationSeconds: Float
 
     val speedPercent: Float
@@ -41,6 +47,13 @@ interface PlaybackEngine {
     fun doubleLoop()
     fun shiftLoopForward()
     fun shiftLoopBackward()
+
+    /**
+     * Waveform of the open file for drawing: [buckets] peak levels 0..1, one per equal slice of
+     * [from]..[to] (fractions 0..1 of the file). Cheap, any thread. Empty when nothing is open, or
+     * on an engine that cannot outline its audio: the waveform then draws flat.
+     */
+    fun peaks(from: Float, to: Float, buckets: Int): FloatArray = FloatArray(0)
 
     companion object {
         const val SLIDER_MAX = 10_000
