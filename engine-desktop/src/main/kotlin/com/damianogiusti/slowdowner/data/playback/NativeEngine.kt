@@ -99,6 +99,45 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         api.setOutputGain.invokeExact(handle, gain)
     }
 
+    /** The beat grid at 100% speed; [bpm] <= 0 clears it. */
+    fun setTempo(bpm: Double, beatOffsetSeconds: Double, beatsPerBar: Int) {
+        api.setTempo.invokeExact(handle, bpm, beatOffsetSeconds, beatsPerBar)
+    }
+
+    /** [volume] 0..1, the click's own level (the count-in's too). */
+    fun setMetronome(enabled: Boolean, volume: Double) {
+        api.setMetronome.invokeExact(handle, if (enabled) 1 else 0, volume)
+    }
+
+    /** [beats] clicks before playback starts, 0 = off; [everyLoop] also before each loop restart. */
+    fun setCountIn(beats: Int, everyLoop: Boolean) {
+        api.setCountIn.invokeExact(handle, beats, if (everyLoop) 1 else 0)
+    }
+
+    /** Count-in clicks still to play; 0 when not counting in. */
+    val countInRemaining: Int get() = api.countInRemaining.invokeExact(handle) as Int
+
+    /**
+     * The open file's tempo, from its onsets. Blocking (a fraction of a second): off the UI thread.
+     * [hintBpm] > 0 keeps that tempo and finds only where its beats fall. Null when nothing is open or
+     * the track has no steady pulse.
+     */
+    fun detectTempo(hintBpm: Double = 0.0): NativeTempo? = Arena.ofConfined().use { arena ->
+        val bpm: MemorySegment = arena.allocate(JAVA_DOUBLE)
+        val offset: MemorySegment = arena.allocate(JAVA_DOUBLE)
+        val confidence: MemorySegment = arena.allocate(JAVA_DOUBLE)
+        bpm.set(JAVA_DOUBLE, 0, hintBpm)
+        val found = api.detectTempo.invokeExact(handle, bpm, offset, confidence) as Int != 0
+        if (!found) {
+            null
+        } else {
+            NativeTempo(bpm.get(JAVA_DOUBLE, 0), offset.get(JAVA_DOUBLE, 0), confidence.get(JAVA_DOUBLE, 0))
+        }
+    }
+
+    /** What [detectTempo] found: the first beat at [beatOffsetSeconds], [confidence] 0..1. */
+    data class NativeTempo(val bpm: Double, val beatOffsetSeconds: Double, val confidence: Double)
+
     /** [buckets] peak levels 0..1 over [from]..[to] of the open file; empty when nothing is open. */
     fun peaks(from: Double, to: Double, buckets: Int): FloatArray = Arena.ofConfined().use { arena ->
         if (buckets <= 0) return FloatArray(0)
@@ -218,6 +257,12 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         val setEqBand = function("sd_engine_set_eq_band", null, ADDRESS, JAVA_INT, JAVA_DOUBLE, critical = true)
         val setPreamp = function("sd_engine_set_preamp", null, ADDRESS, JAVA_DOUBLE, critical = true)
         val setOutputGain = function("sd_engine_set_output_gain", null, ADDRESS, JAVA_DOUBLE, critical = true)
+        val setTempo = function("sd_engine_set_tempo", null, ADDRESS, JAVA_DOUBLE, JAVA_DOUBLE, JAVA_INT, critical = true)
+        val setMetronome = function("sd_engine_set_metronome", null, ADDRESS, JAVA_INT, JAVA_DOUBLE, critical = true)
+        val setCountIn = function("sd_engine_set_count_in", null, ADDRESS, JAVA_INT, JAVA_INT, critical = true)
+        val countInRemaining = function("sd_engine_count_in_remaining", JAVA_INT, ADDRESS, critical = true)
+        // Not critical: it analyses the whole track (and briefly takes the engine's lock).
+        val detectTempo = function("sd_engine_detect_tempo", JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS)
         // Not critical: it takes a (short, uncontended) lock.
         val peaks = function("sd_engine_peaks", JAVA_INT, ADDRESS, JAVA_DOUBLE, JAVA_DOUBLE, ADDRESS, JAVA_INT)
         val takeEvents = function("sd_engine_take_events", JAVA_INT, ADDRESS, critical = true)
