@@ -65,13 +65,17 @@ class UpdateEffectsSettingsUseCase(
     suspend fun saveNow(edit: EffectsEdit) = save(edit)
 
     private suspend fun save(edit: EffectsEdit) {
-        val trackId = edit.trackId
+        val trackId = edit.trackId ?: return repository.save(edit.settings)
+        val global = repository.current()
+        // Only a curve the track does not already play becomes its own: a quality change on a track
+        // that plays the global EQ must not tie it to that curve for good.
+        val playing = (trackEq.trackEq(trackId) ?: global.eq).sanitised()
+        val curveChanged = edit.settings.eq.sanitised() != playing
         // A track outside the library keeps nothing of its own: its EQ is the global one.
-        if (trackId == null || !trackEq.saveTrackEq(trackId, edit.settings.eq)) {
+        if (curveChanged && !trackEq.saveTrackEq(trackId, edit.settings.eq)) {
             repository.save(edit.settings)
             return
         }
-        val global = repository.current()
         if (global.quality != edit.settings.quality) repository.save(global.copy(quality = edit.settings.quality))
     }
 

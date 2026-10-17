@@ -143,6 +143,33 @@ class EffectsUseCasesTest {
     }
 
     @Test
+    fun `a quality change on a track that plays the global EQ does not make that EQ its own`() = runTest {
+        repository.save(EffectsSettings(eq = curve))
+        val saves = repository.saves
+
+        update(flowOf(onTrack("a", EffectsSettings(eq = curve, quality = ProcessingQuality.LOW))))
+
+        assertTrue(trackEq.saves.isEmpty())
+        assertNull(trackEq.curves["a"])
+        assertEquals(ProcessingQuality.LOW, repository.current().quality)
+        assertEquals(curve, repository.current().eq)
+        assertEquals(saves + 1, repository.saves)
+    }
+
+    @Test
+    fun `a quality change on a track with its own EQ leaves that EQ as it is`() = runTest {
+        trackEq.saveTrackEq("a", curve)
+        trackEq.saves.clear()
+
+        update(flowOf(onTrack("a", EffectsSettings(eq = curve, quality = ProcessingQuality.LOW))))
+
+        assertTrue(trackEq.saves.isEmpty())
+        assertEquals(curve, trackEq.curves["a"])
+        assertEquals(ProcessingQuality.LOW, repository.current().quality)
+        assertEquals(EqCurve.FLAT, repository.current().eq)
+    }
+
+    @Test
     fun `an edit on a track outside the library is saved as the global EQ`() = runTest {
         update(flowOf(onTrack("spotify", custom)))
 

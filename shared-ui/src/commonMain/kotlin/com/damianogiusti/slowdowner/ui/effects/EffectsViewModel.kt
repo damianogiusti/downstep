@@ -60,6 +60,9 @@ class EffectsViewModel(
     @Volatile
     private var saved: EffectsEdit? = null
 
+    // A preset's EQ asked for while its track's own was still loading (Main only).
+    private var waitingRequest: ActiveEq.Current? = null
+
     init {
         viewModelScope.launch {
             val initial = observeSettings().first()
@@ -76,7 +79,8 @@ class EffectsViewModel(
             launch {
                 // A preset with an EQ: as if the user had shaped it, so it is saved with the track.
                 activeEq.requests.collect { request ->
-                    if (request.trackId == _state.value?.trackId) edit { it.copy(eq = request.curve) }
+                    // For a track whose EQ is still loading: kept until it is in, then laid over it.
+                    if (request.trackId == _state.value?.trackId) applyRequest(request) else waitingRequest = request
                 }
             }
         }
@@ -135,7 +139,12 @@ class EffectsViewModel(
         _state.value = current.copy(settings = settings, trackId = trackId)
         activeEq.publish(trackId, curve)
         changes.trySend(EffectsEdit(trackId, settings, isLoad = true))
+        val request = waitingRequest
+        waitingRequest = null
+        if (request != null && request.trackId == trackId) applyRequest(request)
     }
+
+    private fun applyRequest(request: ActiveEq.Current) = edit { it.copy(eq = request.curve) }
 
     private fun editEq(transform: (EqCurve) -> EqCurve) = edit { it.copy(eq = transform(it.eq)) }
 

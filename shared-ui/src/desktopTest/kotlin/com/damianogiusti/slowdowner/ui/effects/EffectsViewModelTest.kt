@@ -201,6 +201,29 @@ class EffectsViewModelTest {
     }
 
     @Test
+    fun `a preset's EQ asked for while its track is still loading is applied once it is in`() = runTest {
+        nowPlaying.set(songA)
+        val viewModel = viewModel()
+        runCurrent()
+
+        trackEq.readDelayMillis = 1_000
+        nowPlaying.set(songB)
+        runCurrent()
+        activeEq.request("b", ownCurve)
+        runCurrent()
+        assertEquals("a", viewModel.state.value!!.trackId)
+
+        advanceTimeBy(1_001)
+        assertEquals("b", viewModel.state.value!!.trackId)
+        assertEquals(ownCurve, viewModel.state.value!!.settings.eq)
+        assertEquals(ownCurve.bands, engine.bands)
+
+        advanceTimeBy(UpdateEffectsSettingsUseCase.SAVE_DEBOUNCE_MS + 2_000)
+        assertEquals(ownCurve, trackEq.curves["b"])
+        assertNull(trackEq.curves["a"])
+    }
+
+    @Test
     fun `a double click puts a band back to 0 dB where it is, and reset brings the starting layout back`() = runTest {
         nowPlaying.set(songA)
         trackEq.curves["a"] = ownCurve
@@ -242,7 +265,7 @@ class EffectsViewModelTest {
     }
 
     @Test
-    fun `a quality change is saved to the preferences while the curve stays with the track`() = runTest {
+    fun `a quality change is saved to the preferences and does not tie the global EQ to the track`() = runTest {
         nowPlaying.set(songA)
         val viewModel = viewModel()
         runCurrent()
@@ -253,7 +276,9 @@ class EffectsViewModelTest {
 
         assertEquals(ProcessingQuality.LOW, engine.quality)
         assertEquals(ProcessingQuality.LOW, repository.settings.value.quality)
-        assertEquals(listOf("a"), trackEq.saves)
+        // The track still plays the global EQ: it keeps following it.
+        assertEquals(emptyList(), trackEq.saves)
+        assertNull(trackEq.curves["a"])
     }
 
     private fun viewModel() = EffectsViewModel(
