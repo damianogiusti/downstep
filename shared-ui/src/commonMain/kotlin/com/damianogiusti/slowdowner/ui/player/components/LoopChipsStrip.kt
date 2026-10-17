@@ -8,45 +8,67 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.damianogiusti.slowdowner.domain.loops.Loop
 import com.damianogiusti.slowdowner.ui.common.CountBadge
 import com.damianogiusti.slowdowner.ui.common.DISABLED_ALPHA
-import com.damianogiusti.slowdowner.ui.common.TextInputDialog
-import com.damianogiusti.slowdowner.ui.common.TextInputDialogTexts
 import com.damianogiusti.slowdowner.ui.common.Tooltip
 import com.damianogiusti.slowdowner.ui.common.dashedPillBorder
+import com.damianogiusti.slowdowner.ui.common.reportsTextInputFocus
 import com.damianogiusti.slowdowner.ui.player.LoopChipActions
 import com.damianogiusti.slowdowner.ui.player.LoopChipModel
 import com.damianogiusti.slowdowner.ui.player.LoopChipsState
@@ -58,12 +80,16 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 /**
  * One chip per loop in time order (colour dot · name · length · pass badge; the active one inverted),
  * then the dashed suggestions with ✓ / ✕ (only when Analyze returned some), then "+ New loop L".
- * Rename and delete from a chip's context menu (secondary click or long press). Scrolls horizontally.
+ * A double click on a chip renames it in place (as does Rename in its context menu: secondary click
+ * or long press), and the menu deletes it. Scrolls horizontally.
  */
 @Composable
 fun LoopChipsStrip(
@@ -72,7 +98,11 @@ fun LoopChipsStrip(
     actions: LoopChipActions,
     modifier: Modifier = Modifier,
 ) {
-    var renaming by remember { mutableStateOf<LoopChipModel?>(null) }
+    // The chip whose name is being edited; one at a time.
+    var editingId by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(state.chips, state.enabled) {
+        if (!state.enabled || state.chips.none { it.id == editingId }) editingId = null
+    }
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -80,7 +110,14 @@ fun LoopChipsStrip(
         modifier = modifier,
     ) {
         items(state.chips, key = { it.id }) { chip ->
-            LoopChip(chip, state.enabled, actions, onRename = { renaming = chip })
+            LoopChip(
+                chip = chip,
+                enabled = state.enabled,
+                actions = actions,
+                isEditing = chip.id == editingId,
+                onStartRename = { editingId = chip.id },
+                onEndRename = { if (editingId == chip.id) editingId = null },
+            )
         }
         items(suggestions, key = { "suggestion-${it.id}" }) { suggestion ->
             SuggestionChip(suggestion, state.enabled, actions)
@@ -89,28 +126,24 @@ fun LoopChipsStrip(
             NewLoopChip(state.enabled, actions.onNewLoop)
         }
     }
-    renaming?.let { chip ->
-        TextInputDialog(
-            texts = TextInputDialogTexts(
-                title = stringResource(Res.string.loop_rename),
-                label = stringResource(Res.string.loop_rename),
-                confirm = stringResource(Res.string.save),
-            ),
-            initialText = chip.name,
-            onConfirm = { name ->
-                renaming = null
-                actions.onRename(chip.id, name)
-            },
-            onDismiss = { renaming = null },
-        )
-    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun LoopChip(chip: LoopChipModel, enabled: Boolean, actions: LoopChipActions, onRename: () -> Unit) {
+private fun LoopChip(
+    chip: LoopChipModel,
+    enabled: Boolean,
+    actions: LoopChipActions,
+    isEditing: Boolean,
+    onStartRename: () -> Unit,
+    onEndRename: () -> Unit,
+) {
     val colors = SlowDownerTheme.colors
     var menuOpen by remember { mutableStateOf(false) }
+    // Double click by hand: combinedClickable's onDoubleClick would hold every single click (select
+    // and seek) back for the double-click timeout.
+    val doubleClickMillis = LocalViewConfiguration.current.doubleTapTimeoutMillis
+    val lastClick = remember { arrayOfNulls<TimeMark>(1) }
     val passesDescription = pluralStringResource(Res.plurals.loop_passes, chip.passes, chip.passes)
     Box {
         Row(
@@ -122,8 +155,8 @@ private fun LoopChip(chip: LoopChipModel, enabled: Boolean, actions: LoopChipAct
                 .clip(DownstepShapes.pill)
                 .background(if (chip.isActive) colors.fg else colors.surface1, DownstepShapes.pill)
                 .border(1.dp, if (chip.isActive) colors.fg else colors.surface3, DownstepShapes.pill)
-                .pointerInput(enabled) {
-                    if (!enabled) return@pointerInput
+                .pointerInput(enabled, isEditing) {
+                    if (!enabled || isEditing) return@pointerInput
                     awaitPointerEventScope {
                         while (true) {
                             // Initial pass: the menu takes the right click before the chip selects.
@@ -136,16 +169,37 @@ private fun LoopChip(chip: LoopChipModel, enabled: Boolean, actions: LoopChipAct
                     }
                 }
                 .combinedClickable(
-                    enabled = enabled,
+                    enabled = enabled && !isEditing,
                     role = Role.Button,
                     onLongClick = { menuOpen = true },
-                    onClick = { actions.onSelect(chip.id) },
+                    onClick = {
+                        val previous = lastClick[0]
+                        if (previous != null && previous.elapsedNow().inWholeMilliseconds <= doubleClickMillis) {
+                            lastClick[0] = null
+                            onStartRename()
+                        } else {
+                            lastClick[0] = TimeSource.Monotonic.markNow()
+                            actions.onSelect(chip.id)
+                        }
+                    },
                 )
                 .padding(horizontal = 10.dp),
         ) {
             val text = if (chip.isActive) colors.chipFgActive else colors.fg
             Box(Modifier.size(8.dp).background(colors.loopColor(chip.colorIndex), CircleShape))
-            Text(chip.name, style = SlowDownerTheme.type.controlStrong, color = text, maxLines = 1)
+            if (isEditing) {
+                LoopNameEditor(
+                    initial = chip.name,
+                    color = text,
+                    onCommit = { name ->
+                        onEndRename()
+                        actions.onRename(chip.id, name)
+                    },
+                    onCancel = onEndRename,
+                )
+            } else {
+                Text(chip.name, style = SlowDownerTheme.type.controlStrong, color = text, maxLines = 1)
+            }
             Text(
                 stringResource(Res.string.loop_length_seconds, chip.lengthSeconds.roundToInt()),
                 style = SlowDownerTheme.type.control.copy(fontWeight = FontWeight.Normal),
@@ -165,7 +219,7 @@ private fun LoopChip(chip: LoopChipModel, enabled: Boolean, actions: LoopChipAct
                 leadingIcon = { Icon(painterResource(Res.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(18.dp)) },
                 onClick = {
                     menuOpen = false
-                    onRename()
+                    onStartRename()
                 },
             )
             DropdownMenuItem(
@@ -178,6 +232,81 @@ private fun LoopChip(chip: LoopChipModel, enabled: Boolean, actions: LoopChipAct
             )
         }
     }
+}
+
+/**
+ * The chip's name as a text field, focused with the name selected. Enter or leaving the field saves,
+ * Esc cancels, and an empty or unchanged name keeps the old one. While it has the focus, the window's
+ * shortcuts are off ([reportsTextInputFocus]), so typing "L" or Space types.
+ */
+@Composable
+private fun LoopNameEditor(initial: String, color: Color, onCommit: (String) -> Unit, onCancel: () -> Unit) {
+    val colors = SlowDownerTheme.colors
+    val scope = rememberCoroutineScope()
+    val focus = remember { FocusRequester() }
+    var value by remember { mutableStateOf(TextFieldValue(initial, TextRange(0, initial.length))) }
+    // [0] focused now, [1] focused once, [2] finished (saved or cancelled: only once).
+    val flags = remember { booleanArrayOf(false, false, false) }
+    val description = stringResource(Res.string.loop_rename)
+
+    fun finish(save: Boolean) {
+        if (flags[2]) return
+        flags[2] = true
+        when (val name = loopNameEdit(initial, value.text, save)) {
+            null -> onCancel()
+            else -> onCommit(name)
+        }
+    }
+
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    BasicTextField(
+        value = value,
+        onValueChange = { value = it.copy(text = it.text.take(Loop.MAX_NAME_LENGTH)) },
+        singleLine = true,
+        textStyle = SlowDownerTheme.type.controlStrong.copy(color = color),
+        cursorBrush = SolidColor(colors.amber),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { finish(save = true) }),
+        modifier = Modifier
+            .width(IntrinsicSize.Min)
+            .widthIn(min = EDITOR_MIN_WIDTH, max = EDITOR_MAX_WIDTH)
+            .focusRequester(focus)
+            .reportsTextInputFocus()
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.Enter, Key.NumPadEnter -> finish(save = true)
+                    Key.Escape -> finish(save = false)
+                    else -> return@onPreviewKeyEvent false
+                }
+                true
+            }
+            .onFocusChanged { state ->
+                flags[0] = state.isFocused
+                if (state.isFocused) {
+                    flags[1] = true
+                } else if (flags[1]) {
+                    // A press anywhere first clears the focus (clearsFocusOnPress), and a press inside
+                    // the field focuses it again in the same gesture: only a blur still there a frame
+                    // later is the user leaving the field.
+                    scope.launch {
+                        withFrameNanos { }
+                        if (!flags[0]) finish(save = true)
+                    }
+                }
+            }
+            .semantics { contentDescription = description },
+    )
+}
+
+/**
+ * The name a rename saves: the trimmed text, or null to keep [initial] (cancelled, empty, or the same
+ * name). Never longer than [Loop.MAX_NAME_LENGTH].
+ */
+internal fun loopNameEdit(initial: String, text: String, save: Boolean): String? {
+    if (!save) return null
+    val name = text.trim().take(Loop.MAX_NAME_LENGTH)
+    return name.takeIf { it.isNotEmpty() && it != initial }
 }
 
 /** A loop Analyze suggests: dashed amber until kept (✓) or dismissed (✕), README §4.8. */
@@ -276,5 +405,7 @@ private fun NewLoopChip(enabled: Boolean, onClick: () -> Unit) {
 }
 
 private const val LENGTH_ALPHA = 0.6f
+private val EDITOR_MIN_WIDTH = 48.dp
+private val EDITOR_MAX_WIDTH = 220.dp
 private const val SUGGESTION_LENGTH_ALPHA = 0.7f
 private val KeyShape = RoundedCornerShape(4.dp)
