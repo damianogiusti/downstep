@@ -98,6 +98,10 @@ fun ZoomStrip(
     val description = stringResource(Res.string.waveform_description, formatClock(duration))
     val markerStyle = type.tag.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold)
     val headerStyle = type.tag.copy(fontSize = 10.sp, letterSpacing = 0.5.sp)
+    // Outside the draw cache, which every recomposition (a theme preview, a chip) rebuilds.
+    val levels = remember(state.peaks, state.window) {
+        state.peaks?.let { normalizeLevels(resamplePeaks(it, state.window.start, state.window.end, BAR_COUNT)) }
+    }
 
     Box(
         modifier = modifier
@@ -133,9 +137,8 @@ fun ZoomStrip(
                 val axis = zoomAxis(state.window, size.width, INNER_PADDING.toPx())
                 val barsTop = BARS_TOP.toPx()
                 val barsHeight = (size.height - barsTop - BARS_BOTTOM.toPx()).coerceAtLeast(0f)
-                val bars = state.peaks?.let {
-                    val levels = normalizeLevels(resamplePeaks(it, state.window.start, state.window.end, BAR_COUNT))
-                    barShapes(levels, axis, barsTop + barsHeight / 2, barsHeight, 1.dp.toPx(), 2.dp.toPx(), MIN_BAR.toPx())
+                val bars = levels?.let {
+                    barShapes(it, axis, barsTop + barsHeight / 2, barsHeight, 1.dp.toPx(), 2.dp.toPx(), MIN_BAR.toPx())
                 }
                 val loopColor = colors.loopColor(state.colorIndex)
                 val barColors = BarColors(colors.barPlayed, colors.barMuted, loopColor, loopColor.copy(alpha = 0.5f))
