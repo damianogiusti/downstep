@@ -89,7 +89,17 @@ typedef struct SdExport SdExport;
  * written.
  */
 SD_API SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps);
-/** Encodes the next chunk. Returns the progress 0..1, or -1 once everything is encoded. */
+/**
+ * As sd_export_begin, but only `start`..`end` (fractions 0..1 of the file, end > start): a loop's
+ * slice. The file lasts (end - start) × duration / speed, starts with the usual short fade-in and
+ * ends with a short fade-out. sd_export_begin is the range 0..1. Each call shares the same decoded
+ * audio, so a batch of slices never decodes again. Exports carry only the sound settings: never the
+ * loop, the metronome or the count-in. NULL if nothing is open, the range is empty, or the output
+ * cannot be written.
+ */
+SD_API SdExport *sd_export_begin_range(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps, double start,
+                                       double end);
+/** Encodes the next chunk. Returns the progress 0..1 within the range, or -1 once everything is encoded. */
 SD_API double sd_export_next(SdExport *exporter);
 /** Finishes the file and frees the exporter. 1 = complete file, 0 = failed or cut short. */
 SD_API int sd_export_end(SdExport *exporter);
