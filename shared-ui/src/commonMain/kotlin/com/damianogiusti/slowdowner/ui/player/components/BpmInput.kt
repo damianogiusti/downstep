@@ -55,7 +55,7 @@ fun BpmDialog(
     onConfirm: (bpm: Float?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val initialText = remember(currentBpm, detectedBpm) { (currentBpm ?: detectedBpm)?.let(::bpmText).orEmpty() }
+    val initialText = remember(currentBpm, detectedBpm) { bpmPrefill(currentBpm, detectedBpm) }
     var value by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(initialText, selection = TextRange(0, initialText.length)))
     }
@@ -77,6 +77,9 @@ fun BpmDialog(
     val canSave = parsed != null && !isOutOfRange
     val min = BeatGrid.MIN_BPM.toInt()
     val max = BeatGrid.MAX_BPM.toInt()
+    // The tempo in use, untouched: nothing to save. Saving it would make a detected tempo a typed one,
+    // rounded to a tenth (its beat grid drifting from the music's), or round a typed one again.
+    val save: () -> Unit = { if (isPrefilledBpm(currentBpm, detectedBpm, value.text)) onDismiss() else onConfirm(parsed) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -108,7 +111,7 @@ fun BpmDialog(
                             null
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { if (canSave) onConfirm(parsed) }),
+                        keyboardActions = KeyboardActions(onDone = { if (canSave) save() }),
                         modifier = Modifier
                             .weight(1f)
                             .focusRequester(focusRequester)
@@ -131,7 +134,7 @@ fun BpmDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(parsed) }, enabled = canSave) { Text(stringResource(Res.string.save)) }
+            Button(onClick = save, enabled = canSave) { Text(stringResource(Res.string.save)) }
         },
         dismissButton = {
             Row {
@@ -150,6 +153,13 @@ fun BpmDialog(
 internal fun parseBpm(text: String): Float? =
     text.trim().replace(',', '.').toFloatOrNull()?.takeIf { it.isFinite() }
 
-/** The field's starting text: whole tempos without decimals. */
+/** The field's starting text: the typed tempo, else the detected one, else empty. */
+internal fun bpmPrefill(currentBpm: Float?, detectedBpm: Float?): String = (currentBpm ?: detectedBpm)?.let(::bpmText).orEmpty()
+
+/** Whether [text] is still the field's starting text, the tempo in use: Save then changes nothing. */
+internal fun isPrefilledBpm(currentBpm: Float?, detectedBpm: Float?, text: String): Boolean =
+    text.isNotEmpty() && text == bpmPrefill(currentBpm, detectedBpm)
+
+/** Whole tempos without decimals. */
 private fun bpmText(bpm: Float): String =
     if (bpm == bpm.roundToInt().toFloat()) bpm.roundToInt().toString() else formatDecimal(bpm)
