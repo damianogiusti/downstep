@@ -625,22 +625,28 @@ void sliceHoldsTheRangeAndNothingElse() {
     SdEngine *e = openEngine(source);
     // Loop and playback state of the live player never reach the export.
     sd_engine_set_loop(e, 0.1, 0.2, 1);
-    const SliceExport slice = exportSlice(e, tempPath("sdengine-slice-range.mp3"), 0.4, 0.6);
-    const auto &left = slice.decoded.data.empty() ? std::vector<float>() : slice.decoded.data[0];
-    CHECK(std::fabs(slice.decoded.seconds() - 2.0) < 0.1, "slice lasts %f s", slice.decoded.seconds());
-    if (left.size() > size_t(2 * kRate - kRate / 10)) {
-        const std::vector<float> before(left.begin(), left.begin() + kRate * 9 / 10);
-        const std::vector<float> after(left.begin() + kRate * 11 / 10, left.begin() + kRate * 19 / 10);
-        CHECK(rms(before) < 0.01, "audio before the tone starts: %f", rms(before));
-        CHECK(rms(after) > 0.3, "the tone is missing: %f", rms(after));
+    // At half speed too: the slice still starts at A, so the tone still comes half way through.
+    for (const double speed : {1.0, 0.5}) {
+        sd_engine_set_speed(e, speed);
+        const SliceExport slice = exportSlice(e, tempPath("sdengine-slice-range.mp3"), 0.4, 0.6);
+        const auto &left = slice.decoded.data.empty() ? std::vector<float>() : slice.decoded.data[0];
+        const size_t second = size_t(double(kRate) / speed); // one second of the file, in output frames
+        CHECK(std::fabs(slice.decoded.seconds() - 2.0 / speed) < 0.1, "speed %.1f: slice lasts %f s", speed,
+              slice.decoded.seconds());
+        if (left.size() < 2 * second - second / 10) continue;
+        const std::vector<float> before(left.begin(), left.begin() + long(second * 9 / 10));
+        const std::vector<float> after(left.begin() + long(second * 11 / 10), left.begin() + long(second * 19 / 10));
+        CHECK(rms(before) < 0.01, "speed %.1f: audio before the tone starts: %f", speed, rms(before));
+        CHECK(rms(after) > 0.3, "speed %.1f: the tone is missing: %f", speed, rms(after));
         // Only the music: the silent right channel stays silent (no click, no count-in).
-        CHECK(rms(slice.decoded.data[1]) < 0.01, "sound on the silent side: %f", rms(slice.decoded.data[1]));
+        CHECK(rms(slice.decoded.data[1]) < 0.01, "speed %.1f: sound on the silent side: %f", speed,
+              rms(slice.decoded.data[1]));
         // The cut fades out: the last 2 ms of sound (before the MP3's padding) are already quiet.
         size_t end = left.size();
         while (end > 0 && std::fabs(left[end - 1]) < 0.01f) --end;
         if (end > size_t(kRate / 500)) {
             const std::vector<float> tail(left.begin() + long(end - kRate / 500), left.begin() + long(end));
-            CHECK(rms(tail) < 0.15, "no fade-out at the cut: %f", rms(tail));
+            CHECK(rms(tail) < 0.15, "speed %.1f: no fade-out at the cut: %f", speed, rms(tail));
         }
     }
     sd_engine_destroy(e);
