@@ -167,6 +167,9 @@ private fun playerActions(
         onExport = viewModel::onExportClicked,
         onShowEffects = { dialogs.showEffects = true },
         onAddToPlaylist = { viewModel.currentTrack()?.let(navigation.onAddToPlaylist) },
+        onClickVolumeChanged = viewModel::onClickVolumeChanged,
+        onCountInBeatsChanged = viewModel::onCountInBeatsChanged,
+        onCountInEveryLoopToggled = viewModel::onCountInEveryLoopToggled,
     ),
     chips = LoopChipActions(
         onSelect = viewModel::onLoopSelected,
@@ -372,9 +375,10 @@ private fun PlayerDialogsHost(viewModel: PlayerViewModel, effects: EffectsViewMo
         )
     }
     if (dialogs.showBpm) {
-        val currentBpm = remember { viewModel.header.value.bpm }
+        val header = remember { viewModel.header.value }
         BpmDialog(
-            currentBpm = currentBpm,
+            currentBpm = header.typedBpm,
+            detectedBpm = header.detectedBpm,
             onConfirm = {
                 viewModel.onBpmChanged(it)
                 dialogs.showBpm = false

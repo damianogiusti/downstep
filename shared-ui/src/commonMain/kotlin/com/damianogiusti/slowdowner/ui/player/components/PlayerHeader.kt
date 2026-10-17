@@ -18,6 +18,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +33,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.damianogiusti.slowdowner.domain.click.ClickSettings
 import com.damianogiusti.slowdowner.domain.practice.PracticePreset
 import com.damianogiusti.slowdowner.ui.common.IconPill
 import com.damianogiusti.slowdowner.ui.common.Pill
@@ -130,9 +133,21 @@ private fun TitleBlock(state: HeaderState, actions: HeaderActions, modifier: Mod
                 }
                 val before = listOfNotNull(source, formatClock(state.durationSeconds)).joinToString(SEPARATOR, postfix = SEPARATOR)
                 Text(before, style = metaStyle, color = colors.fg2, maxLines = 1)
-                val bpm = state.bpm?.let { stringResource(Res.string.header_bpm, it.roundToInt().toString()) }
-                    ?: stringResource(Res.string.header_bpm_unset)
-                Tooltip(if (state.canEditBpm) stringResource(Res.string.bpm_edit_description) else null) {
+                // "≈ 92 BPM" when it comes from the analysis, "BPM …" while the analysis runs.
+                val bpm = when {
+                    state.bpm != null && state.isBpmDetected ->
+                        stringResource(Res.string.header_bpm_detected, state.bpm.roundToInt().toString())
+                    state.bpm != null -> stringResource(Res.string.header_bpm, state.bpm.roundToInt().toString())
+                    state.isDetectingTempo -> stringResource(Res.string.header_bpm_detecting)
+                    else -> stringResource(Res.string.header_bpm_unset)
+                }
+                val bpmTooltip = when {
+                    !state.canEditBpm -> null
+                    state.isDetectingTempo && state.bpm == null -> stringResource(Res.string.tempo_detecting)
+                    state.isBpmDetected -> stringResource(Res.string.bpm_detected_description)
+                    else -> stringResource(Res.string.bpm_edit_description)
+                }
+                Tooltip(bpmTooltip) {
                     Text(
                         bpm,
                         style = metaStyle,
@@ -198,6 +213,65 @@ private fun ClickToggles(features: PlayerFeatures, clicks: ClickUiState, actions
             enabled = features.hasCountIn,
             tooltip = if (features.hasCountIn) stringResource(Res.string.count_in) else stringResource(Res.string.count_in_unavailable),
         )
+        if (features.hasMetronome || features.hasCountIn) ClickMenuButton(clicks, actions)
+    }
+}
+
+/** ⌄ beside the toggles: the click's volume, the count-in's length, and whether it counts in at every loop. */
+@Composable
+private fun ClickMenuButton(clicks: ClickUiState, actions: HeaderActions) {
+    val colors = SlowDownerTheme.colors
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconPill(
+            painterResource(Res.drawable.ic_expand_more),
+            stringResource(Res.string.click_settings),
+            { expanded = true },
+            size = DownstepDimens.chip,
+            iconSize = 16.dp,
+            border = null,
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, containerColor = colors.surface2) {
+            Column(Modifier.width(240.dp).padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(stringResource(Res.string.click_volume), style = SlowDownerTheme.type.meta, color = colors.fg2)
+                // Moves locally while dragging; saved (and heard) once, at the end of the drag.
+                var volume by remember(clicks.volume) { mutableStateOf(clicks.volume) }
+                Slider(
+                    value = volume,
+                    onValueChange = { volume = it },
+                    onValueChangeFinished = { actions.onClickVolumeChanged(volume) },
+                    colors = SliderDefaults.colors(
+                        thumbColor = colors.amber,
+                        activeTrackColor = colors.amber,
+                        inactiveTrackColor = colors.surface3,
+                    ),
+                )
+                Text(stringResource(Res.string.count_in_length), style = SlowDownerTheme.type.meta, color = colors.fg2)
+            }
+            ClickSettings.COUNT_IN_CHOICES.forEach { beats ->
+                val selected = beats == clicks.countInBeats
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.count_in_beats, beats), color = if (selected) colors.amber else colors.fg) },
+                    leadingIcon = { MenuCheck(selected) },
+                    onClick = { actions.onCountInBeatsChanged(beats) },
+                )
+            }
+            HorizontalDivider(color = colors.surface3)
+            DropdownMenuItem(
+                text = { Text(stringResource(Res.string.count_in_every_loop)) },
+                leadingIcon = { MenuCheck(clicks.countInEveryLoop) },
+                onClick = actions.onCountInEveryLoopToggled,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MenuCheck(checked: Boolean) {
+    if (checked) {
+        Icon(painterResource(Res.drawable.ic_h_check), contentDescription = null, tint = SlowDownerTheme.colors.amber, modifier = Modifier.size(16.dp))
+    } else {
+        Spacer(Modifier.size(16.dp))
     }
 }
 

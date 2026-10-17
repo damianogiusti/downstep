@@ -363,4 +363,17 @@
     <string name="progression_step_value">incremento di velocità</string>
     <string name="progression_every_value">passaggi per incremento</string>
     <!-- Group D additions -->
+    <!-- click: metronome, count-in, tempo detection and tap tempo -->
+    <string name="header_bpm_detected">≈ %1$s BPM</string>
+    <string name="header_bpm_detecting">BPM …</string>
+    <string name="tempo_detecting">Sto cercando il tempo di questo brano…</string>
+    <string name="bpm_detected_description">Tempo trovato nell’audio: fai clic per cambiarlo</string>
+    <string name="bpm_detected">Trovato nell’audio: %1$s BPM.</string>
+    <string name="bpm_use_detected">Usa quello trovato</string>
+    <string name="bpm_tap">Batti</string>
+    <string name="click_settings">Impostazioni di metronomo e conteggio</string>
+    <string name="click_volume">Volume del clic</string>
+    <string name="count_in_length">Conteggio iniziale</string>
+    <string name="count_in_beats">%1$d battiti</string>
+    <string name="count_in_every_loop">Conta a ogni ripartenza del loop</string>
 </resources>

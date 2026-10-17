@@ -2,8 +2,8 @@ package com.damianogiusti.slowdowner.ui.player.components
 
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,7 +20,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.TextRange
@@ -29,26 +36,40 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.damianogiusti.slowdowner.domain.loops.BeatGrid
+import com.damianogiusti.slowdowner.domain.tempo.TapTempo
 import com.damianogiusti.slowdowner.ui.common.formatDecimal
 import com.damianogiusti.slowdowner.ui.common.reportsTextInputFocus
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
+import kotlin.time.TimeSource
 
 /**
- * Enter the tempo of the open track (there is no detection): a number field, Save, Clear (null),
- * Cancel. Opened from "BPM —" in the header's meta line.
+ * The tempo of the open track: the one detected from the audio, or the user's own, typed or tapped
+ * (Tap, or T in the field). Save, Clear (null: back to the detected tempo), Cancel. Opened from the
+ * BPM in the header's meta line.
  */
 @Composable
 fun BpmDialog(
     currentBpm: Float?,
+    detectedBpm: Float? = null,
     onConfirm: (bpm: Float?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val initialText = remember(currentBpm) { currentBpm?.let(::bpmText).orEmpty() }
+    val initialText = remember(currentBpm, detectedBpm) { (currentBpm ?: detectedBpm)?.let(::bpmText).orEmpty() }
     var value by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(initialText, selection = TextRange(0, initialText.length)))
     }
     val focusRequester = remember { FocusRequester() }
+    val tapTempo = remember {
+        val start = TimeSource.Monotonic.markNow()
+        TapTempo { start.elapsedNow().inWholeMilliseconds }
+    }
+    val onTap: () -> Unit = {
+        tapTempo.tap()?.let { tapped ->
+            val text = bpmText(tapped)
+            value = TextFieldValue(text, selection = TextRange(text.length))
+        }
+    }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     val parsed = parseBpm(value.text)
     // Out of range is worth saying while typing; an unfinished or empty number is not.
@@ -65,26 +86,48 @@ fun BpmDialog(
                 Text(
                     stringResource(Res.string.bpm_dialog_message, min, max),
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 16.dp),
+                    modifier = Modifier.padding(bottom = if (detectedBpm != null) 8.dp else 16.dp),
                 )
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { new -> if (new.text.all { it.isDigit() || it == '.' || it == ',' }) value = new },
-                    label = { Text(stringResource(Res.string.bpm_label)) },
-                    singleLine = true,
-                    isError = isOutOfRange,
-                    supportingText = if (isOutOfRange) {
-                        { Text(stringResource(Res.string.error_bpm_range, min, max)) }
-                    } else {
-                        null
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { if (canSave) onConfirm(parsed) }),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester)
-                        .reportsTextInputFocus(),
-                )
+                if (detectedBpm != null) {
+                    Text(
+                        stringResource(Res.string.bpm_detected, bpmText(detectedBpm)),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = value,
+                        onValueChange = { new -> if (new.text.all { it.isDigit() || it == '.' || it == ',' }) value = new },
+                        label = { Text(stringResource(Res.string.bpm_label)) },
+                        singleLine = true,
+                        isError = isOutOfRange,
+                        supportingText = if (isOutOfRange) {
+                            { Text(stringResource(Res.string.error_bpm_range, min, max)) }
+                        } else {
+                            null
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { if (canSave) onConfirm(parsed) }),
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester)
+                            .reportsTextInputFocus()
+                            // T taps along without leaving the field (letters are not typed in it anyway).
+                            .onPreviewKeyEvent { event ->
+                                if (event.key == Key.T && event.type == KeyEventType.KeyDown) {
+                                    onTap()
+                                    true
+                                } else {
+                                    false
+                                }
+                            },
+                    )
+                    // Not focusable: tapping it keeps the focus (and the shortcut guard) in the field.
+                    Button(onClick = { onTap() }, modifier = Modifier.focusProperties { canFocus = false }) {
+                        Text(stringResource(Res.string.bpm_tap))
+                    }
+                }
             }
         },
         confirmButton = {
@@ -93,7 +136,9 @@ fun BpmDialog(
         dismissButton = {
             Row {
                 if (currentBpm != null) {
-                    TextButton(onClick = { onConfirm(null) }) { Text(stringResource(Res.string.bpm_clear)) }
+                    TextButton(onClick = { onConfirm(null) }) {
+                        Text(stringResource(if (detectedBpm != null) Res.string.bpm_use_detected else Res.string.bpm_clear))
+                    }
                 }
                 TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
             }

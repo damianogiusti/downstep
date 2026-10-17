@@ -2,6 +2,7 @@ package com.damianogiusti.slowdowner.ui.player
 
 import androidx.compose.runtime.Immutable
 import com.damianogiusti.slowdowner.domain.analysis.SuggestedSection
+import com.damianogiusti.slowdowner.domain.click.ClickSettings
 import com.damianogiusti.slowdowner.domain.export.ExportedFile
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.loops.Progression
@@ -22,15 +23,24 @@ data class HeaderState(
     val title: String? = null,
     val source: TrackSource = TrackSource.None,
     val durationSeconds: Float = 0f,
-    /** Set by the user (no detection): null shows "BPM —". */
+    /** The tempo in use: typed by the user, else detected. Null shows "BPM —". */
     val bpm: Float? = null,
+    /** The user's own tempo (typed or tapped), which wins over [detectedBpm]. */
+    val typedBpm: Float? = null,
+    /** Found by the tempo analysis of the file. */
+    val detectedBpm: Float? = null,
+    /** The tempo analysis of the open track is running (the first time it is opened). */
+    val isDetectingTempo: Boolean = false,
     val loopCount: Int = 0,
     val isOpen: Boolean = false,
     /** A track is decoding: controls are frozen until it is open. */
     val isLoading: Boolean = false,
     val canExport: Boolean = false,
     val canEditBpm: Boolean = false,
-)
+) {
+    /** The tempo shown comes from the analysis, not from the user. */
+    val isBpmDetected: Boolean get() = typedBpm == null && detectedBpm != null
+}
 
 /** The bookmark menu: presets of the open track. */
 @Immutable
@@ -41,8 +51,9 @@ data class PresetsState(
 )
 
 /**
- * Backends the app may not have (README §6, the seams in domain.analysis / domain.click). False today:
- * Analyze, Metronome and Count-in show as designed but disabled, with a tooltip.
+ * Backends the app may not have (README §6, the seams in domain.analysis / domain.click). Without one,
+ * Analyze, Metronome and Count-in show as designed but disabled, with a tooltip. The desktop engine
+ * clicks; Analyze has no backend yet.
  */
 @Immutable
 data class PlayerFeatures(
@@ -51,9 +62,19 @@ data class PlayerFeatures(
     val hasCountIn: Boolean = false,
 )
 
-/** Metronome and Count-in toggles; only ever on when [PlayerFeatures] says they exist. */
+/**
+ * Metronome and Count-in toggles and their menu (volume, count-in length, every loop); the toggles are
+ * only ever on when [PlayerFeatures] says they exist.
+ */
 @Immutable
-data class ClickUiState(val isMetronomeOn: Boolean = false, val isCountInOn: Boolean = false)
+data class ClickUiState(
+    val isMetronomeOn: Boolean = false,
+    val isCountInOn: Boolean = false,
+    /** 0..1. */
+    val volume: Float = ClickSettings.DEFAULT_VOLUME,
+    val countInBeats: Int = ClickSettings.DEFAULT_COUNT_IN_BEATS,
+    val countInEveryLoop: Boolean = false,
+)
 
 enum class AnalysisStatus { Idle, Running, Done }
 

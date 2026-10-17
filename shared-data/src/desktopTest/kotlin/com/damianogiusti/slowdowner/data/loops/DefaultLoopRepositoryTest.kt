@@ -9,6 +9,7 @@ import com.damianogiusti.slowdowner.domain.loops.Progression
 import com.damianogiusti.slowdowner.domain.loops.TrackLoops
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
+import com.damianogiusti.slowdowner.domain.tempo.TempoEstimate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -144,6 +145,24 @@ class DefaultLoopRepositoryTest {
         assertEquals(100f, loops.detectedBpm)
         assertEquals(0.4f, loops.beatOffsetSeconds)
         assertEquals(1, loops.tempoAnalysisVersion)
+    }
+
+    @Test
+    fun `when a tempo analysis is saved before any practice state then it is kept, nothing found included`() = runTest {
+        addTrack("t")
+        addTrack("u")
+
+        repository.setDetectedTempo("t", TempoEstimate(128f, 0.25f, 0.9f), analysisVersion = 1)
+        repository.setDetectedTempo("u", null, analysisVersion = 1)
+        repository.setBpm("t", 64f)
+        repository.setBeatOffset("t", 0.5f)
+
+        assertEquals(
+            TrackLoops("t", bpm = 64f, detectedBpm = 128f, beatOffsetSeconds = 0.5f, tempoAnalysisVersion = 1),
+            repository.trackLoops("t"),
+        )
+        assertEquals(TrackLoops("u", tempoAnalysisVersion = 1), repository.trackLoops("u"))
+        assertEquals(PracticeSettings(), practice.lastState("u"))
     }
 
     @Test

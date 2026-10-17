@@ -44,6 +44,10 @@ data class BackupTrackDto(
     val bpm: Float? = null,
     // "snapToBeat" (Snap to beat, removed after 2.0) is no longer written; backups that still carry
     // it restore fine, the key is ignored like any unknown one.
+    // The tempo analysis (after 2.0), optional like the loops. A restored track is analysed again
+    // when first opened (the analysis version is not kept), and uses these meanwhile.
+    val detectedBpm: Float? = null,
+    val beatOffsetSeconds: Float? = null,
 )
 
 @Serializable

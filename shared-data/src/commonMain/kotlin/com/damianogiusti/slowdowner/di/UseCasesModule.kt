@@ -7,8 +7,11 @@ import com.damianogiusti.slowdowner.domain.backup.ExportTrackBackupUseCase
 import com.damianogiusti.slowdowner.domain.backup.FindPlaylistConflictsUseCase
 import com.damianogiusti.slowdowner.domain.backup.RestoreBackupUseCase
 import com.damianogiusti.slowdowner.domain.backup.SaveBackupUseCase
+import com.damianogiusti.slowdowner.domain.click.ObserveClickSettingsUseCase
 import com.damianogiusti.slowdowner.domain.click.SetCountInUseCase
 import com.damianogiusti.slowdowner.domain.click.SetMetronomeUseCase
+import com.damianogiusti.slowdowner.domain.click.UpdateClickSettingsUseCase
+import com.damianogiusti.slowdowner.domain.tempo.DetectTrackTempoUseCase
 import com.damianogiusti.slowdowner.domain.effects.ApplyEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.effects.ObserveEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.effects.RestoreEffectsSettingsUseCase
@@ -105,10 +108,14 @@ val useCasesModule = module {
     factoryOf(::ResetLoopPassesUseCase)
     factoryOf(::UpdateLoopProgressionUseCase)
     factoryOf(::SetTrackBpmUseCase)
-    // Optional backends: no platform binds them yet, so these get null and report unavailable.
+    // Optional backends: null where the platform binds none, and the use case reports unavailable.
+    // Section analysis has no backend yet; the desktop engine clicks and detects tempo.
     factory { AnalyzeSectionsUseCase(getOrNull()) }
     factory { SetMetronomeUseCase(getOrNull()) }
     factory { SetCountInUseCase(getOrNull()) }
+    factory { DetectTrackTempoUseCase(getOrNull(), get(), get()) }
+    factoryOf(::ObserveClickSettingsUseCase)
+    factoryOf(::UpdateClickSettingsUseCase)
     factoryOf(::ObserveThemeModeUseCase)
     factoryOf(::SetThemeModeUseCase)
     factoryOf(::ObservePlaylistsUseCase)

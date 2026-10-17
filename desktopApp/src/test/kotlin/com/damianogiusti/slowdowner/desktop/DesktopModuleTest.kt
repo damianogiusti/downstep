@@ -4,6 +4,10 @@ import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
 import com.damianogiusti.slowdowner.di.uiModule
 import com.damianogiusti.slowdowner.di.useCasesModule
+import com.damianogiusti.slowdowner.domain.click.ClickTrackEngine
+import com.damianogiusti.slowdowner.domain.click.SetCountInUseCase
+import com.damianogiusti.slowdowner.domain.click.SetMetronomeUseCase
+import com.damianogiusti.slowdowner.domain.tempo.DetectTrackTempoUseCase
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
@@ -18,6 +22,8 @@ import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertNotNull
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /**
  * Every shared ViewModel resolves against the desktop bindings: wiring errors show up here, not at launch.
@@ -51,5 +57,13 @@ class DesktopModuleTest {
         assertNotNull(koin.get<AddToPlaylistViewModel>())
         assertNotNull(koin.get<SupportPromptViewModel>())
         assertNotNull(koin.get<UpdateViewModel>())
+    }
+
+    @Test
+    fun `the engine clicks and detects tempo on desktop`() {
+        assertTrue(koin.get<SetMetronomeUseCase>().isAvailable)
+        assertTrue(koin.get<SetCountInUseCase>().isAvailable)
+        assertTrue(koin.get<DetectTrackTempoUseCase>().isAvailable)
+        assertSame(koin.get<DesktopPlaybackEngine>(), koin.get<ClickTrackEngine>())
     }
 }

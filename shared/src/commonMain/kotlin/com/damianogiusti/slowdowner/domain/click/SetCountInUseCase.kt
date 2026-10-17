@@ -1,21 +1,18 @@
 package com.damianogiusti.slowdowner.domain.click
 
-import com.damianogiusti.slowdowner.domain.loops.BeatGrid
-
-/** Count-in before playback; same availability and tempo rules as [SetMetronomeUseCase]. */
+/**
+ * Count-in before playback (and before each loop restart with [everyLoop]): [beats] clicks at the
+ * effective tempo, the BPM set with [SetMetronomeUseCase] times the speed, or 120 BPM without one.
+ * False when the platform has no click.
+ */
 class SetCountInUseCase(private val engine: ClickTrackEngine?) {
 
     val isAvailable: Boolean get() = engine != null
 
-    operator fun invoke(enabled: Boolean, bpm: Float?, bars: Int = DEFAULT_BARS): Boolean {
+    operator fun invoke(enabled: Boolean, beats: Int = ClickSettings.DEFAULT_COUNT_IN_BEATS, everyLoop: Boolean = false): Boolean {
         val engine = engine ?: return false
-        if (enabled && (bpm == null || !BeatGrid.isValidBpm(bpm))) return false
-        engine.setCountIn(enabled, bars.coerceIn(1, MAX_BARS), bpm ?: 0f)
+        val count = beats.coerceIn(ClickSettings.MIN_COUNT_IN_BEATS, ClickSettings.MAX_COUNT_IN_BEATS)
+        engine.setCountIn(if (enabled) count else 0, enabled && everyLoop)
         return true
-    }
-
-    companion object {
-        const val DEFAULT_BARS = 1
-        const val MAX_BARS = 4
     }
 }

@@ -365,4 +365,17 @@
     <string name="progression_step_value">speed step</string>
     <string name="progression_every_value">passes per step</string>
     <!-- Group D additions -->
+    <!-- click: metronome, count-in, tempo detection and tap tempo -->
+    <string name="header_bpm_detected">≈ %1$s BPM</string>
+    <string name="header_bpm_detecting">BPM …</string>
+    <string name="tempo_detecting">Finding the tempo of this track…</string>
+    <string name="bpm_detected_description">Tempo found in the audio: click to change it</string>
+    <string name="bpm_detected">Found in the audio: %1$s BPM.</string>
+    <string name="bpm_use_detected">Use detected</string>
+    <string name="bpm_tap">Tap</string>
+    <string name="click_settings">Metronome and count-in settings</string>
+    <string name="click_volume">Click volume</string>
+    <string name="count_in_length">Count-in</string>
+    <string name="count_in_beats">%1$d beats</string>
+    <string name="count_in_every_loop">Count in at every loop restart</string>
 </resources>
