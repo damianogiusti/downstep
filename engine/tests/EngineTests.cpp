@@ -900,6 +900,142 @@ void exportHasNoClicks() {
     sd_engine_destroy(e);
 }
 
+
+/** A drum pattern from 0.1 s: kick on beats 1 and 3, snare on 2 and 4, a hi-hat `hatsPerBeat` times a beat, over a chord pad. */
+PcmBuffer drumPattern(double bpm, double seconds, int hatsPerBeat) {
+    PcmBuffer pcm = silence(seconds);
+    uint32_t seed = 7;
+    const auto noise = [&] {
+        seed = seed * 1664525u + 1013904223u;
+        return double(seed >> 8) / double(1u << 24) - 0.5;
+    };
+    const double beat = 60.0 / bpm;
+    for (int64_t i = 0; i < pcm.frames; ++i) {
+        const double t = double(i) / kRate;
+        const double f = int(t / (4 * beat)) % 2 ? 220.0 : 196.0;
+        const double pad = 0.08 * (std::sin(2 * M_PI * f * t) + std::sin(2 * M_PI * f * 1.26 * t) + std::sin(2 * M_PI * f * 1.5 * t));
+        pcm.data[0][size_t(i)] = pcm.data[1][size_t(i)] = float(pad);
+    }
+    const auto add = [&](double at, int frames, const std::function<double(int)> &sound) {
+        const auto start = int64_t(at * kRate);
+        for (int i = 0; i < frames && start + i < pcm.frames; ++i) {
+            const float x = float(sound(i));
+            pcm.data[0][size_t(start + i)] += x;
+            pcm.data[1][size_t(start + i)] += x;
+        }
+    };
+    for (int b = 0; b < int(seconds / beat); ++b) {
+        for (int h = 0; h < hatsPerBeat; ++h)
+            add(0.1 + b * beat + h * beat / hatsPerBeat, kRate / 30, [&](int i) { return 0.4 * noise() * std::exp(-i / (0.008 * kRate)); });
+        if (b % 2 == 0)
+            add(0.1 + b * beat, kRate / 5, [](int i) {
+                return 0.8 * std::exp(-i / (0.05 * kRate)) * std::sin(2 * M_PI * (50 + 80 * std::exp(-i / (0.01 * kRate))) * i / kRate);
+            });
+        else
+            add(0.1 + b * beat, kRate / 5, [&](int i) { return 0.5 * noise() * std::exp(-i / (0.04 * kRate)); });
+    }
+    return pcm;
+}
+
+/** Piano-like notes from 0.1 s, `notesPerBeat` a beat (the beat's own louder), over a low drone. */
+PcmBuffer pianoPattern(double bpm, double seconds, int notesPerBeat) {
+    PcmBuffer pcm = silence(seconds);
+    const double beat = 60.0 / bpm;
+    for (int64_t i = 0; i < pcm.frames; ++i) {
+        const double t = double(i) / kRate;
+        pcm.data[0][size_t(i)] = pcm.data[1][size_t(i)] = float(0.3 * (std::sin(2 * M_PI * 55 * t) + 0.5 * std::sin(2 * M_PI * 82.5 * t)));
+    }
+    const double scale[] = {261.6, 293.7, 329.6, 349.2, 392.0, 440.0, 493.9};
+    for (int k = 0; k < int(seconds / beat * notesPerBeat); ++k) {
+        const double f = scale[(k * 3 + k / 5) % 7];
+        const double amp = (k % notesPerBeat == 0 ? 0.35 : 0.2) * (k % (4 * notesPerBeat) == 0 ? 1.3 : 1.0);
+        const auto start = int64_t((0.1 + k * beat / notesPerBeat) * kRate);
+        for (int i = 0; i < kRate && start + i < pcm.frames; ++i) {
+            const double env = std::min(1.0, i / (0.003 * kRate)) * std::exp(-i / (0.3 * kRate));
+            const double x = amp * env *
+                             (std::sin(2 * M_PI * f * i / kRate) + 0.4 * std::sin(4 * M_PI * f * i / kRate) +
+                              0.2 * std::sin(6 * M_PI * f * i / kRate));
+            pcm.data[0][size_t(start + i)] += float(x);
+            pcm.data[1][size_t(start + i)] += float(x);
+        }
+    }
+    return pcm;
+}
+
+void detectsTheBeatOfMusicLikePatterns() {
+    // Beats at 0.1 s + k·60/bpm. Twice or half the tempo is the usual ambiguity and still clicks on
+    // the beats; anything else (three sixteenths of a busy hi-hat, say) would drift against the music.
+    const auto check = [](const char *what, double bpm, int perBeat, const PcmBuffer &pcm, bool octaveAllowed) {
+        SdEngine *e = openInMemory(pcm);
+        double found = 0, offset = 0, confidence = 0;
+        CHECK(sd_engine_detect_tempo(e, &found, &offset, &confidence) == 1, "%s %.0f/%d: no tempo", what, bpm, perBeat);
+        const double ratio = found / bpm;
+        const bool same = std::fabs(found - bpm) <= 0.5;
+        const bool octave = std::fabs(ratio - 2) < 0.01 || std::fabs(ratio - 0.5) < 0.005;
+        CHECK(same || (octaveAllowed && octave), "%s %.0f/%d: found %.3f BPM", what, bpm, perBeat, found);
+        if (found > 0)
+            CHECK(circularDistance(offset, 0.1, 60.0 / found) <= 0.010, "%s %.0f/%d: first beat at %.4f", what, bpm,
+                  perBeat, offset);
+        sd_engine_destroy(e);
+    };
+    for (const double bpm : {72.0, 100.0, 140.0, 165.0})
+        for (const int hats : {1, 2, 4}) check("drums", bpm, hats, drumPattern(bpm, 30, hats), true);
+    for (const double bpm : {66.0, 105.0, 150.0})
+        for (const int notes : {1, 2}) check("piano", bpm, notes, pianoPattern(bpm, 30, notes), false);
+}
+
+void seekDuringTheCountInMovesWhereTheMusicStarts() {
+    SdEngine *e = openInMemory(toneOnTheLeft(20));
+    sd_engine_set_tempo(e, 120, 0, 4);
+    sd_engine_set_count_in(e, 4, 0);
+    sd_engine_set_speed(e, 0.5); // 1 s a beat: 4 s of count-in
+    sd_engine_seek(e, 0.25);
+    sd_engine_set_playing(e, 1);
+    Rendered r = render(e, 1.0);
+    sd_engine_seek(e, 0.6);
+    const Rendered second = render(e, 1.0);
+    CHECK(sd_engine_position(e) == 0.6, "position %f during the count-in after a seek", sd_engine_position(e));
+    CHECK(sd_engine_count_in_remaining(e) == 2, "%d clicks left after 2 s of 4", sd_engine_count_in_remaining(e));
+    const Rendered rest = render(e, 3.0);
+    for (const Rendered *part : {&second, &rest}) {
+        r.left.insert(r.left.end(), part->left.begin(), part->left.end());
+        r.right.insert(r.right.end(), part->right.begin(), part->right.end());
+    }
+    const auto clicks = onsets(r.right, 1e-3f);
+    CHECK(clicks.size() == 4, "%d count-in clicks", int(clicks.size()));
+    for (size_t k = 0; k < clicks.size(); ++k) CHECK(clicks[k] == int(k) * kRate, "click %d at %d", int(k), clicks[k]);
+    const auto music = difference(r);
+    int first = -1;
+    for (size_t i = 0; i < music.size(); ++i)
+        if (std::fabs(music[i]) > 1e-6f) {
+            first = int(i);
+            break;
+        }
+    CHECK(first >= 4 * kRate && first <= 4 * kRate + 2, "music starts at frame %d, the beat is at %d", first, 4 * kRate);
+    CHECK(sd_engine_position(e) > 0.6, "the music did not go on from the seek (%f)", sd_engine_position(e));
+    sd_engine_destroy(e);
+}
+
+void countInFlowsIntoTheMetronome() {
+    // Starting on a beat with the metronome on: the count-in's clicks and the metronome's are one even
+    // pulse, the music's first beat the accent after the last count-in click.
+    SdEngine *e = openInMemory(silence(20));
+    sd_engine_set_tempo(e, 120, 0.5, 4);
+    sd_engine_set_metronome(e, 1, 1.0);
+    sd_engine_set_count_in(e, 4, 0);
+    sd_engine_set_speed(e, 0.5);
+    sd_engine_seek(e, 0.5 / 20);
+    sd_engine_set_playing(e, 1);
+    const Rendered r = render(e, 6.0);
+    const auto clicks = onsets(r.right, 1e-3f, 1000);
+    CHECK(clicks.size() == 6, "%d clicks in 6 s", int(clicks.size()));
+    for (size_t k = 0; k < clicks.size(); ++k)
+        CHECK(std::abs(clicks[k] - int(k) * kRate) <= 1, "click %d at %d, expected %d", int(k), clicks[k], int(k) * kRate);
+    if (clicks.size() == 6)
+        CHECK(peakAfter(r.right, clicks[4], 200) > 1.4f * peakAfter(r.right, clicks[3], 200), "the music's downbeat not accented");
+    sd_engine_destroy(e);
+}
+
 } // namespace
 
 int main() {
@@ -933,6 +1069,9 @@ int main() {
         {"detects the tempo of a click track", [] { detectsTheTempoOfAClickTrack(); }},
         {"no tempo in silence or noise", [] { noTempoInSilenceOrNoise(); }},
         {"export has no clicks", [] { exportHasNoClicks(); }},
+        {"detects the beat of drums and piano", [] { detectsTheBeatOfMusicLikePatterns(); }},
+        {"a seek during the count-in moves where the music starts", [] { seekDuringTheCountInMovesWhereTheMusicStarts(); }},
+        {"the count-in flows into the metronome", [] { countInFlowsIntoTheMetronome(); }},
     };
     for (const auto &[name, test] : tests) {
         const int before = failures;

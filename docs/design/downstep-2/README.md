@@ -286,7 +286,7 @@ shows them disabled with the "not available yet" tooltip.
   (default 4 = one bar), every loop restart (default off). They are global, kept across launches (Java preferences
   node `com/damianogiusti/slowdowner/click`), like the toggles themselves.
 - **Tempo:** detected from the audio the first time a track is opened, off the UI thread (onset‑energy envelope in
-  5 ms hops, autocorrelation over 40–240 BPM with a preference near 120, then a comb over the whole track that fits the
+  5 ms hops, compressed so that a quiet hi‑hat counts less than the kick and snare, autocorrelation over 40–240 BPM with a preference near 120, then a comb over the whole track that fits the
   period and the first beat together; a tempo whose off‑beats are as strong as its beats is doubled up to 200 BPM). The
   result, "nothing found" included, is cached with the track (`detected_bpm`, `beat_offset_seconds`,
   `tempo_analysis_version`): a track is analysed once, again only when the analysis version goes up. Silence, noise,

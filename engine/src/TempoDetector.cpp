@@ -22,6 +22,8 @@ constexpr double kLocalMeanSeconds = 0.25;
 // The smallest rise of the log energy from one hop to the next that counts (about 0.4 dB): a steady
 // tone's energy wobbles a little with the hop, and that must not become a very regular "beat".
 constexpr double kMinRise = 0.1;
+// The level below which energy rises count less and less, as a fraction of the band's mean energy.
+constexpr double kOnsetFloor = 1.0;
 constexpr double kEnvelopeLeadHops = 0.8; // measured: see the end of detectTempo
 
 /** The value between hops, linearly. */
@@ -105,12 +107,15 @@ bool detectTempo(const PcmBuffer &pcm, double hintBpm, TempoEstimate &out) {
     const double meanEnergy = std::accumulate(energy.begin(), energy.end(), 0.0) / double(hops);
     if (!(meanEnergy > kSilence)) return false;
 
-    // Onset strength: how much the log energy rises, in both bands. The floor, relative to the
-    // track's level, keeps quiet passages from turning their noise into onsets.
+    // Onset strength: how much the log energy rises, in both bands, over a floor at the band's mean
+    // energy: log(1 + energy / mean), nearly linear for what is quieter than the track. A pure log
+    // counts a soft hi-hat after a moment of quiet as much as the kick and snare, and a busy hi-hat
+    // then drowns the beat (100 BPM with sixteenths came out as 133, three sixteenths). The floor also
+    // keeps quiet passages from turning their noise into onsets.
     std::vector<double> onset(hops, 0.0);
     for (const auto *band : {&energy, &attack}) {
         const double mean = std::accumulate(band->begin(), band->end(), 0.0) / double(hops);
-        const double floor = 1e-3 * mean + 1e-12;
+        const double floor = kOnsetFloor * mean + 1e-12;
         double last = std::log(floor + (*band)[0]);
         for (size_t k = 1; k < hops; ++k) {
             const double now = std::log(floor + (*band)[k]);
