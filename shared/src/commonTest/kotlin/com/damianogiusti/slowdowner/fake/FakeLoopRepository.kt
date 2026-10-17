@@ -5,6 +5,7 @@ import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.loops.LoopRepository
 import com.damianogiusti.slowdowner.domain.loops.Progression
 import com.damianogiusti.slowdowner.domain.loops.TrackLoops
+import com.damianogiusti.slowdowner.domain.tempo.TempoEstimate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -52,9 +53,17 @@ class FakeLoopRepository(private val existingTrackIds: Set<String> = setOf("a", 
 
     override suspend fun setActiveLoop(trackId: String, loopId: Long?) = editSettings(trackId) { it.copy(activeLoopId = loopId) }
 
-    override suspend fun setBpm(trackId: String, bpm: Float?) = editSettings(trackId) { it.copy(bpm = bpm) }
+    override suspend fun setBpm(trackId: String, bpm: Float?) = editSettings(trackId) {
+        if (it.bpm == bpm) it else it.copy(bpm = bpm, beatOffsetSeconds = null)
+    }
 
-    override suspend fun setSnapToBeat(trackId: String, enabled: Boolean) = editSettings(trackId) { it.copy(snapToBeat = enabled) }
+    override suspend fun setDetectedTempo(trackId: String, estimate: TempoEstimate?, analysisVersion: Int) =
+        editSettings(trackId) {
+            it.copy(detectedBpm = estimate?.bpm, beatOffsetSeconds = estimate?.beatOffsetSeconds, tempoAnalysisVersion = analysisVersion)
+        }
+
+    override suspend fun setBeatOffset(trackId: String, offsetSeconds: Float?) =
+        editSettings(trackId) { it.copy(beatOffsetSeconds = offsetSeconds) }
 
     private fun snapshot(trackId: String): TrackLoops {
         val trackLoops = loops.value.filter { it.trackId == trackId }.sortedWith(compareBy({ it.start }, { it.id }))

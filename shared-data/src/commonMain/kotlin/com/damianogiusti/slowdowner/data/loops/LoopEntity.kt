@@ -47,5 +47,7 @@ data class LoopEntity(
 data class TrackLoopSettingsRow(
     @ColumnInfo(name = "active_loop_id") val activeLoopId: Long?,
     val bpm: Float?,
-    @ColumnInfo(name = "snap_to_beat") val snapToBeat: Boolean,
+    @ColumnInfo(name = "detected_bpm") val detectedBpm: Float? = null,
+    @ColumnInfo(name = "beat_offset_seconds") val beatOffsetSeconds: Float? = null,
+    @ColumnInfo(name = "tempo_analysis_version") val tempoAnalysisVersion: Int = 0,
 )

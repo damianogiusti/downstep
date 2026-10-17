@@ -144,7 +144,7 @@ fun IconPill(
 }
 
 /**
- * A toggle inside a [SegmentedPill] or on its own (Metronome, Count-in, Snap, Isolate bands): filled
+ * A toggle inside a [SegmentedPill] or on its own (Metronome, Count-in, Isolate bands): filled
  * with [onColor] when [checked], transparent otherwise.
  */
 @Composable

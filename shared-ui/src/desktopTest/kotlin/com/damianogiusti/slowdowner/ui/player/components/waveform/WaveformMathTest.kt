@@ -1,6 +1,5 @@
 package com.damianogiusti.slowdowner.ui.player.components.waveform
 
-import com.damianogiusti.slowdowner.domain.loops.BeatGrid
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.ui.player.Peaks
 import kotlin.test.Test
@@ -109,7 +108,7 @@ class WaveformMathTest {
     fun `dragging A past B stops before it`() {
         val bounds = LoopBounds(0.2f, 0.4f)
 
-        val dragged = dragLoop(LoopHandle.Start, bounds, 0.9f, durationSeconds = 100f, grid = null)
+        val dragged = dragLoop(LoopHandle.Start, bounds, 0.9f, durationSeconds = 100f)
 
         assertEquals(0.4f, dragged.end)
         assertTrue(dragged.start < dragged.end)
@@ -117,20 +116,19 @@ class WaveformMathTest {
 
     @Test
     fun `dragging B before A stops after it`() {
-        val dragged = dragLoop(LoopHandle.End, LoopBounds(0.2f, 0.4f), 0.05f, durationSeconds = 100f, grid = null)
+        val dragged = dragLoop(LoopHandle.End, LoopBounds(0.2f, 0.4f), 0.05f, durationSeconds = 100f)
 
         assertEquals(0.2f, dragged.start)
         assertTrue(dragged.end > dragged.start)
     }
 
     @Test
-    fun `drags snap to the beat grid`() {
-        // 60 BPM over 100 s: a beat every 1% of the file.
-        val grid = BeatGrid.of(60f, 100f)
+    fun `drags are free and land exactly where the pointer is`() {
+        val end = dragLoop(LoopHandle.End, LoopBounds(0.2f, 0.4f), 0.4537f, durationSeconds = 100f)
+        val start = dragLoop(LoopHandle.Start, LoopBounds(0.2f, 0.4f), 0.2113f, durationSeconds = 100f)
 
-        val dragged = dragLoop(LoopHandle.End, LoopBounds(0.2f, 0.4f), 0.4537f, durationSeconds = 100f, grid = grid)
-
-        assertEquals(0.45f, dragged.end, 1e-5f)
+        assertEquals(0.4537f, end.end, 1e-6f)
+        assertEquals(0.2113f, start.start, 1e-6f)
     }
 
     @Test
@@ -138,16 +136,49 @@ class WaveformMathTest {
         val drag = LoopDragState()
         val committed = LoopBounds(0.2f, 0.4f)
 
-        drag.begin(committed)
+        drag.begin(7, committed)
         drag.move(LoopBounds(0.25f, 0.4f))
-        drag.settle()
-        assertEquals(LoopBounds(0.25f, 0.4f), drag.shown(committed))
+        drag.settle(7, LoopBounds(0.25f, 0.4f))
+        assertEquals(LoopBounds(0.25f, 0.4f), drag.shown(7, committed), "kept while dragging")
 
         drag.end(moved = true)
-        assertEquals(LoopBounds(0.25f, 0.4f), drag.shown(committed))
+        drag.settle(7, committed)
+        assertEquals(LoopBounds(0.25f, 0.4f), drag.shown(7, committed), "the commit has not landed yet")
 
-        drag.settle()
-        assertEquals(committed, drag.shown(committed))
+        drag.settle(7, LoopBounds(0.25f, 0.4f))
+        assertEquals(committed, drag.shown(7, committed))
+    }
+
+    @Test
+    fun `the drag preview belongs to the dragged loop only`() {
+        val drag = LoopDragState()
+
+        drag.begin(7, LoopBounds(0.2f, 0.4f))
+        drag.move(LoopBounds(0.3f, 0.5f))
+        drag.end(moved = true)
+
+        assertEquals(LoopBounds(0.3f, 0.5f), drag.shown(7, LoopBounds(0.2f, 0.4f)))
+        assertEquals(LoopBounds(0.6f, 0.7f), drag.shown(8, LoopBounds(0.6f, 0.7f)))
+        drag.settle(8, LoopBounds(0.9f, 1f))
+        assertEquals(LoopBounds(0.3f, 0.5f), drag.shown(7, LoopBounds(0.2f, 0.4f)), "another loop changing leaves it")
+        drag.settle(7, null)
+        assertNull(drag.bounds, "the dragged loop is gone")
+    }
+
+    @Test
+    fun `a dropped preview whose commit never lands is abandoned, a live drag is not`() {
+        val drag = LoopDragState()
+        val committed = LoopBounds(0.2f, 0.4f)
+
+        drag.begin(7, committed)
+        drag.move(LoopBounds(0.3f, 0.5f))
+        drag.abandon()
+        assertEquals(LoopBounds(0.3f, 0.5f), drag.shown(7, committed), "still in the hand")
+
+        drag.end(moved = true)
+        drag.abandon()
+        assertEquals(committed, drag.shown(7, committed), "refused: the loop shows where it is")
+        assertNull(drag.loopId)
     }
 
     @Test
@@ -155,9 +186,10 @@ class WaveformMathTest {
         val drag = LoopDragState()
         val committed = LoopBounds(0.2f, 0.4f)
 
-        drag.begin(committed)
+        drag.begin(7, committed)
         drag.end(moved = false)
 
         assertNull(drag.bounds)
+        assertNull(drag.loopId)
     }
 }

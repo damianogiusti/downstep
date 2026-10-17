@@ -3,17 +3,18 @@ package com.damianogiusti.slowdowner.data.loops
 import com.damianogiusti.slowdowner.data.database.desktopDatabase
 import com.damianogiusti.slowdowner.data.library.TrackEntity
 import com.damianogiusti.slowdowner.data.practice.DefaultPracticeRepository
+import com.damianogiusti.slowdowner.data.practice.PracticeSettingsMapper
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.loops.Progression
 import com.damianogiusti.slowdowner.domain.loops.TrackLoops
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
+import com.damianogiusti.slowdowner.domain.tempo.TempoEstimate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -80,9 +81,8 @@ class DefaultLoopRepositoryTest {
         addTrack("t")
 
         repository.setBpm("t", 92f)
-        repository.setSnapToBeat("t", false)
 
-        assertEquals(TrackLoops("t", bpm = 92f, snapToBeat = false), repository.trackLoops("t"))
+        assertEquals(TrackLoops("t", bpm = 92f), repository.trackLoops("t"))
         assertEquals(PracticeSettings(), practice.lastState("t"))
     }
 
@@ -92,15 +92,97 @@ class DefaultLoopRepositoryTest {
         val loop = repository.create("t", "Loop 1", LoopBounds(0.1f, 0.2f))!!
         repository.setActiveLoop("t", loop.id)
         repository.setBpm("t", 120f)
-        repository.setSnapToBeat("t", false)
 
         practice.saveLastState("t", PracticeSettings(80f, 1f, LoopRegion(0.1f, 0.2f, isOn = true)))
 
         val after = repository.trackLoops("t")
         assertEquals(loop.id, after.activeLoopId)
         assertEquals(120f, after.bpm)
-        assertFalse(after.snapToBeat)
         assertEquals(80f, practice.lastState("t")!!.speedPercent)
+    }
+
+    @Test
+    fun `when the practice state is auto-saved then the track's EQ and detected tempo are kept`() = runTest {
+        addTrack("t")
+        database.practiceDao().setTrackEqCurve("t", EQ_JSON, now = 1)
+        database.loopDao().setDetectedTempo("t", detectedBpm = 128f, beatOffsetSeconds = 0.25f, analysisVersion = 2)
+
+        practice.saveLastState("t", PracticeSettings(80f, 1f, LoopRegion(0.1f, 0.2f, isOn = true)))
+        practice.saveLastState("t", PracticeSettings(90f, 0f, LoopRegion(0f, 1f, isOn = false)))
+
+        assertEquals(EQ_JSON, database.practiceDao().trackEqCurve("t"))
+        assertEquals(
+            TrackLoops("t", detectedBpm = 128f, beatOffsetSeconds = 0.25f, tempoAnalysisVersion = 2),
+            repository.trackLoops("t"),
+        )
+        assertEquals(128f, repository.trackLoops("t").effectiveBpm)
+        assertEquals(90f, practice.lastState("t")!!.speedPercent)
+    }
+
+    @Test
+    fun `when the track EQ is set before any practice state then the row is created with defaults`() = runTest {
+        addTrack("t")
+
+        database.practiceDao().setTrackEqCurve("t", EQ_JSON, now = 1)
+        database.practiceDao().setTrackEqCurve("missing", EQ_JSON, now = 1)
+
+        assertEquals(EQ_JSON, database.practiceDao().trackEqCurve("t"))
+        assertEquals(PracticeSettings(), practice.lastState("t"))
+        assertNull(database.practiceDao().trackEqCurve("missing"))
+        database.practiceDao().setTrackEqCurve("t", null, now = 2)
+        assertNull(database.practiceDao().trackEqCurve("t"))
+    }
+
+    @Test
+    fun `when the beat offset is moved then the detected tempo stays`() = runTest {
+        addTrack("t")
+        database.loopDao().ensureStateRow("t", PracticeSettingsMapper.toColumns(PracticeSettings()), now = 1)
+        database.loopDao().setDetectedTempo("t", detectedBpm = 100f, beatOffsetSeconds = 0.1f, analysisVersion = 1)
+
+        database.loopDao().setBeatOffset("t", 0.4f)
+
+        val loops = repository.trackLoops("t")
+        assertEquals(100f, loops.detectedBpm)
+        assertEquals(0.4f, loops.beatOffsetSeconds)
+        assertEquals(1, loops.tempoAnalysisVersion)
+    }
+
+    @Test
+    fun `when a tempo analysis is saved before any practice state then it is kept, nothing found included`() = runTest {
+        addTrack("t")
+        addTrack("u")
+
+        repository.setDetectedTempo("t", TempoEstimate(128f, 0.25f, 0.9f), analysisVersion = 1)
+        repository.setDetectedTempo("u", null, analysisVersion = 1)
+        repository.setBpm("t", 64f)
+        repository.setBeatOffset("t", 0.5f)
+
+        assertEquals(
+            TrackLoops("t", bpm = 64f, detectedBpm = 128f, beatOffsetSeconds = 0.5f, tempoAnalysisVersion = 1),
+            repository.trackLoops("t"),
+        )
+        assertEquals(TrackLoops("u", tempoAnalysisVersion = 1), repository.trackLoops("u"))
+        assertEquals(PracticeSettings(), practice.lastState("u"))
+    }
+
+    @Test
+    fun `when the tempo changes then its old beats are cleared, and kept when it is set again unchanged`() = runTest {
+        addTrack("t")
+        repository.setDetectedTempo("t", TempoEstimate(128f, 0.25f, 0.9f), analysisVersion = 1)
+
+        repository.setBpm("t", 128f)
+        assertNull("a typed tempo, even the detected one, is aligned anew", repository.trackLoops("t").beatOffsetSeconds)
+
+        repository.setBeatOffset("t", 0.5f)
+        repository.setBpm("t", 128f)
+        assertEquals(0.5f, repository.trackLoops("t").beatOffsetSeconds)
+
+        repository.setBpm("t", 96f)
+        assertNull(repository.trackLoops("t").beatOffsetSeconds)
+
+        repository.setBeatOffset("t", 0.1f)
+        repository.setBpm("t", null)
+        assertNull("back to the detected tempo: aligned anew", repository.trackLoops("t").beatOffsetSeconds)
     }
 
     @Test
@@ -126,4 +208,9 @@ class DefaultLoopRepositoryTest {
     }
 
     private suspend fun addTrack(id: String) = database.trackDao().upsert(TrackEntity(id, "Song", "/tmp/$id.m4a", null, addedAt = 1))
+
+    private companion object {
+        // The DAO stores the curve as it gets it: any JSON will do here.
+        const val EQ_JSON = """{"enabled":true,"preampDb":-3.0,"bands":[{"frequencyHz":250.0,"gainDb":4.0,"q":1.0}]}"""
+    }
 }

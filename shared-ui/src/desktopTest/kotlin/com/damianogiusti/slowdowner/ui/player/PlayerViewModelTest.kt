@@ -3,10 +3,18 @@ package com.damianogiusti.slowdowner.ui.player
 import androidx.lifecycle.ViewModelStore
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.domain.analysis.AnalyzeSectionsUseCase
+import com.damianogiusti.slowdowner.domain.click.ClickSettings
+import com.damianogiusti.slowdowner.domain.click.ClickTrackEngine
+import com.damianogiusti.slowdowner.domain.click.ObserveClickSettingsUseCase
 import com.damianogiusti.slowdowner.domain.click.SetCountInUseCase
 import com.damianogiusti.slowdowner.domain.click.SetMetronomeUseCase
+import com.damianogiusti.slowdowner.domain.click.TrackTempo
+import com.damianogiusti.slowdowner.domain.click.UpdateClickSettingsUseCase
+import com.damianogiusti.slowdowner.domain.effects.ActiveEq
+import com.damianogiusti.slowdowner.domain.export.ExportItem
 import com.damianogiusti.slowdowner.domain.export.ExportRepository
 import com.damianogiusti.slowdowner.domain.export.ExportResult
+import com.damianogiusti.slowdowner.domain.export.ExportScope
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.ExportedFile
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
@@ -21,7 +29,6 @@ import com.damianogiusti.slowdowner.domain.loops.RecordLoopPassUseCase
 import com.damianogiusti.slowdowner.domain.loops.RenameLoopUseCase
 import com.damianogiusti.slowdowner.domain.loops.ResetLoopPassesUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetActiveLoopUseCase
-import com.damianogiusti.slowdowner.domain.loops.SetSnapToBeatUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetTrackBpmUseCase
 import com.damianogiusti.slowdowner.domain.loops.TrackLoops
 import com.damianogiusti.slowdowner.domain.loops.UpdateLoopNotesUseCase
@@ -42,10 +49,26 @@ import com.damianogiusti.slowdowner.domain.practice.SavePracticeStateUseCase
 import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
+import com.damianogiusti.slowdowner.domain.tempo.DetectTrackTempoUseCase
+import com.damianogiusti.slowdowner.domain.tempo.TempoDetector
+import com.damianogiusti.slowdowner.domain.tempo.TempoEstimate
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
+import com.damianogiusti.slowdowner.fake.FakeClickEngine
+import com.damianogiusti.slowdowner.fake.FakeClickSettingsRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
 import com.damianogiusti.slowdowner.fake.FakeLoopRepository
 import com.damianogiusti.slowdowner.fake.FakePracticeRepository
+import com.damianogiusti.slowdowner.fake.FakeTempoDetector
+import com.damianogiusti.slowdowner.ui.resources.Res
+import com.damianogiusti.slowdowner.ui.resources.error_click_needs_bpm
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -63,14 +86,6 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerViewModelTest {
@@ -85,6 +100,10 @@ class PlayerViewModelTest {
     /** The decode runs here: nothing advances it until a test does. */
     private val decodeScheduler = TestCoroutineScheduler()
     private val store = ViewModelStore()
+    private val clickSettings = FakeClickSettingsRepository()
+    /** Null: the platform has no click and no tempo detection, as in most tests. */
+    private var clickEngine: ClickTrackEngine? = null
+    private var tempoDetector: TempoDetector? = null
 
     @BeforeTest
     fun setUp() {
@@ -318,10 +337,11 @@ class PlayerViewModelTest {
         val viewModel = openWithLoop(exports = exports)
 
         viewModel.onExportClicked()
+        viewModel.onExportConfirmed()
         runCurrent()
         val onProgress = assertNotNull(exports.onProgress)
         onProgress(0.1f)
-        assertEquals(ExportUiState.Running(0.1f), viewModel.export.value)
+        assertEquals(ExportUiState.Running(0.1f, fileCount = 1), viewModel.export.value)
 
         viewModel.onExportCancelClicked()
         // The render thread's next chunk, already past its own check.
@@ -330,6 +350,94 @@ class PlayerViewModelTest {
 
         assertEquals(ExportUiState.Idle, viewModel.export.value)
         assertTrue(viewModel.header.value.canExport)
+    }
+
+    @Test
+    fun `when export is clicked then the options open on the full track with the track's loops`() = runTest(main) {
+        val viewModel = openWithLoop()
+
+        viewModel.onExportClicked()
+
+        assertEquals(ExportUiState.Choosing(ExportScope.FULL_TRACK, loopCount = 1), viewModel.export.value)
+        // Nothing renders yet: the controls stay usable.
+        assertTrue(viewModel.header.value.canExport)
+    }
+
+    @Test
+    fun `when both is confirmed then one batch renders the full track and every loop`() = runTest(main) {
+        val exports = ParkedExports()
+        val viewModel = openWithLoop(exports = exports)
+
+        viewModel.onExportClicked()
+        viewModel.onExportScopeChanged(ExportScope.BOTH)
+        viewModel.onExportConfirmed()
+        runCurrent()
+
+        assertEquals(listOf("Easy Blues 100%.mp3", "Easy Blues - 01 Solo.mp3"), exports.items?.map { it.fileName })
+        assertEquals(listOf(0f to 1f, 0.2f to 0.4f), exports.items?.map { it.start to it.end })
+        assertEquals(ExportUiState.Running(0f, fileCount = 2), viewModel.export.value)
+        assertFalse(viewModel.header.value.canExport)
+    }
+
+    @Test
+    fun `when a batch is done then every file is ready and the folder save gets them all`() = runTest(main) {
+        val exports = RecordingExports()
+        val viewModel = openWithLoop(exports = exports)
+
+        viewModel.onExportClicked()
+        viewModel.onExportScopeChanged(ExportScope.BOTH)
+        viewModel.onExportConfirmed()
+        runCurrent()
+        val ready = viewModel.export.value as ExportUiState.Ready
+        assertEquals(2, ready.files.size)
+
+        viewModel.onExportSaveFolderPicked("/home/me/Exports")
+        runCurrent()
+
+        assertEquals(ExportUiState.Idle, viewModel.export.value)
+        assertEquals(ready.files to "/home/me/Exports", exports.savedToFolder)
+    }
+
+    @Test
+    fun `the last export choice is offered again`() = runTest(main) {
+        val viewModel = openWithLoop(exports = RecordingExports())
+
+        viewModel.onExportClicked()
+        viewModel.onExportScopeChanged(ExportScope.LOOPS)
+        viewModel.onExportConfirmed()
+        runCurrent()
+        viewModel.onExportDismissed()
+        runCurrent()
+        viewModel.onExportClicked()
+
+        assertEquals(ExportUiState.Choosing(ExportScope.LOOPS, loopCount = 1), viewModel.export.value)
+    }
+
+    @Test
+    fun `when the track has no loops then only the full track can be exported`() = runTest(main) {
+        val viewModel = openWithLoop()
+        loopRepository.delete(loopRepository.loops.value.single().id)
+        runCurrent()
+
+        viewModel.onExportClicked()
+        viewModel.onExportScopeChanged(ExportScope.LOOPS)
+        viewModel.onExportScopeChanged(ExportScope.BOTH)
+
+        assertEquals(ExportUiState.Choosing(ExportScope.FULL_TRACK, loopCount = 0), viewModel.export.value)
+    }
+
+    @Test
+    fun `when the options are dismissed then nothing is exported`() = runTest(main) {
+        val exports = ParkedExports()
+        val viewModel = openWithLoop(exports = exports)
+
+        viewModel.onExportClicked()
+        viewModel.onExportDismissed()
+        viewModel.onExportConfirmed()
+        runCurrent()
+
+        assertEquals(ExportUiState.Idle, viewModel.export.value)
+        assertNull(exports.items)
     }
 
     @Test
@@ -347,6 +455,111 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `with a click engine the detected tempo, metronome and count-in reach the engine`() = runTest(main) {
+        val clicks = FakeClickEngine().also { clickEngine = it }
+        tempoDetector = FakeTempoDetector(TempoEstimate(120f, 0.25f, 0.9f), hintedOffset = 0.1f)
+        val viewModel = openWithLoop()
+
+        assertEquals(PlayerFeatures(canAnalyze = false, hasMetronome = true, hasCountIn = true), viewModel.features)
+        // Detected when the track opened, cached with it, and given to the engine.
+        assertEquals(120f, loopRepository.trackLoops(TRACK.id).detectedBpm)
+        assertEquals(TrackTempo(120f, 0.25f), clicks.tempo)
+        assertEquals(120f, viewModel.header.value.bpm)
+        assertTrue(viewModel.header.value.isBpmDetected)
+        assertFalse(clicks.isMetronomeOn)
+
+        viewModel.onMetronomeToggled()
+        viewModel.onCountInToggled()
+        viewModel.onCountInBeatsChanged(8)
+        viewModel.onCountInEveryLoopToggled()
+        viewModel.onClickVolumeChanged(0.4f)
+        runCurrent()
+        assertTrue(clicks.isMetronomeOn)
+        assertEquals(0.4f, clicks.volume)
+        assertEquals(8, clicks.countInBeats)
+        assertTrue(clicks.countInEveryLoop)
+        assertEquals(ClickUiState(true, true, 0.4f, 8, true), viewModel.clicks.value)
+        assertEquals(ClickSettings(true, 0.4f, true, 8, true), clickSettings.settings.value)
+
+        // A typed tempo wins, and its beats are found in the audio with it as the hint.
+        viewModel.onBpmChanged(92f)
+        runCurrent()
+        assertEquals(TrackTempo(92f, 0.1f), clicks.tempo)
+        assertFalse(viewModel.header.value.isBpmDetected)
+        assertEquals(92f, viewModel.header.value.typedBpm)
+        assertEquals(120f, viewModel.header.value.detectedBpm)
+    }
+
+    @Test
+    fun `the tempo goes with the track and is analysed once`() = runTest(main) {
+        val clicks = FakeClickEngine().also { clickEngine = it }
+        val detector = FakeTempoDetector(TempoEstimate(120f, 0.25f, 0.9f)).also { tempoDetector = it }
+        val viewModel = openWithLoop()
+        clickSettings.settings.value = ClickSettings(isMetronomeOn = true)
+        loopRepository.setBpm(OTHER.id, 100f)
+        loopRepository.setDetectedTempo(OTHER.id, null, DetectTrackTempoUseCase.ANALYSIS_VERSION)
+        loopRepository.setBeatOffset(OTHER.id, 0f) // its beats were found too
+        runCurrent()
+        assertEquals(TrackTempo(120f, 0.25f), clicks.tempo)
+
+        viewModel.onTrackSelected(OTHER)
+        runCurrent()
+        decodeScheduler.runCurrent()
+        runCurrent()
+
+        assertEquals(TrackTempo(100f, 0f), clicks.tempo)
+        assertTrue(clicks.isMetronomeOn)
+        // OTHER was analysed before: only TRACK's first open ran the analysis.
+        assertEquals(listOf<Float?>(null), detector.requests)
+    }
+
+    @Test
+    fun `a typed tempo whose beats were not found before another track opened gets them on the next open`() = runTest(main) {
+        val clicks = FakeClickEngine().also { clickEngine = it }
+        val detector = FakeTempoDetector(TempoEstimate(120f, 0.25f, 0.9f), hintedOffset = 0.1f).also { tempoDetector = it }
+        val viewModel = openWithLoop()
+        // Another track opens while the typed tempo's beats are being found: they are not saved.
+        detector.during = { hint -> if (hint != null) nowPlaying.set(OTHER) }
+        viewModel.onBpmChanged(96f)
+        runCurrent()
+        assertEquals(96f, loopRepository.trackLoops(TRACK.id).bpm)
+        assertNull(loopRepository.trackLoops(TRACK.id).beatOffsetSeconds)
+
+        detector.during = {}
+        viewModel.onTrackSelected(TRACK)
+        runCurrent()
+        decodeScheduler.runCurrent()
+        runCurrent()
+
+        assertEquals(0.1f, loopRepository.trackLoops(TRACK.id).beatOffsetSeconds)
+        assertEquals(TrackTempo(96f, 0.1f), clicks.tempo)
+        // TRACK analysed, its beats looked for, OTHER analysed meanwhile, TRACK's beats found on reopening.
+        assertEquals(listOf(null, 96f, null, 96f), detector.requests)
+    }
+
+    @Test
+    fun `the metronome asks for a tempo when the track has none`() = runTest(main) {
+        val clicks = FakeClickEngine().also { clickEngine = it }
+        tempoDetector = FakeTempoDetector(estimate = null)
+        val viewModel = openWithLoop()
+        val messages = mutableListOf<Any>()
+        backgroundScope.launch { viewModel.messages.collect { messages += it.text } }
+
+        viewModel.onMetronomeToggled()
+        runCurrent()
+
+        assertFalse(viewModel.clicks.value.isMetronomeOn)
+        assertFalse(clicks.isMetronomeOn)
+        assertEquals(listOf<Any>(Res.string.error_click_needs_bpm), messages)
+        assertNull(viewModel.header.value.bpm)
+
+        // Count-in needs no tempo: it counts at 120 BPM.
+        viewModel.onCountInToggled()
+        runCurrent()
+        assertEquals(ClickSettings.DEFAULT_COUNT_IN_BEATS, clicks.countInBeats)
+    }
+
+    @Test
     fun `next and previous loop go round in time order`() = runTest(main) {
         val viewModel = openWithLoop()
         val second = assertNotNull(loopRepository.create(TRACK.id, "Later", LoopBounds(0.6f, 0.7f)))
@@ -360,6 +573,150 @@ class PlayerViewModelTest {
         viewModel.onNextLoopClicked()
         runCurrent()
         assertEquals(loopRepository.loops.value.first().id, loopRepository.trackLoops(TRACK.id).activeLoopId)
+    }
+
+    @Test
+    fun `a click on the overview outside the active loop turns the loop off and plays on from there`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val solo = loopRepository.loops.value.single()
+        engine.isPlaying = true
+
+        viewModel.onOverviewClicked(0.7f)
+        runCurrent()
+
+        assertFalse(engine.isLoopOn)
+        assertEquals(0.7f, engine.position)
+        assertTrue(engine.isPlaying)
+        assertFalse(viewModel.transport.value.isLoopOn)
+        assertEquals(solo.id, loopRepository.trackLoops(TRACK.id).activeLoopId, "the loop stays selected, just off")
+    }
+
+    @Test
+    fun `a click in another loop's body while paused turns the loop off and stays paused`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val solo = loopRepository.loops.value.single()
+        assertNotNull(loopRepository.create(TRACK.id, "Later", LoopBounds(0.6f, 0.8f)))
+        runCurrent()
+
+        viewModel.onOverviewClicked(0.7f)
+        runCurrent()
+
+        assertFalse(engine.isLoopOn)
+        assertEquals(0.7f, engine.position)
+        assertFalse(engine.isPlaying)
+        assertEquals(solo.id, loopRepository.trackLoops(TRACK.id).activeLoopId)
+    }
+
+    @Test
+    fun `a click inside the active loop seeks there and keeps looping`() = runTest(main) {
+        val viewModel = openWithLoop()
+        engine.isPlaying = true
+
+        viewModel.onOverviewClicked(0.33f)
+        runCurrent()
+
+        assertTrue(engine.isLoopOn)
+        assertEquals(0.33f, engine.position)
+        assertTrue(engine.isPlaying)
+    }
+
+    @Test
+    fun `a click on another loop's top bar plays that loop from its start, also when paused`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val later = assertNotNull(loopRepository.create(TRACK.id, "Later", LoopBounds(0.6f, 0.8f)))
+        runCurrent()
+        assertFalse(engine.isPlaying)
+
+        viewModel.onLoopBarClicked(later.id, 0.75f)
+        runCurrent()
+
+        assertEquals(later.id, loopRepository.trackLoops(TRACK.id).activeLoopId)
+        assertEquals(later.id, viewModel.loopChips.value.chips.single { it.isActive }.id)
+        assertEquals(LoopRegion(0.6f, 0.8f, isOn = true), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+        assertEquals(0.6f, engine.position)
+        assertTrue(engine.isPlaying)
+        assertTrue(viewModel.transport.value.isPlaying)
+    }
+
+    @Test
+    fun `a click on the bar of the loop playing in a loop seeks within it`() = runTest(main) {
+        val viewModel = openWithLoop()
+        engine.isPlaying = true
+        tick(0.25f)
+
+        viewModel.onLoopBarClicked(loopRepository.loops.value.single().id, 0.35f)
+        runCurrent()
+
+        assertEquals(0.35f, engine.position)
+        assertTrue(engine.isLoopOn)
+        assertTrue(engine.isPlaying)
+    }
+
+    @Test
+    fun `a click on the bar of the looped loop while paused seeks within it and stays paused`() = runTest(main) {
+        val viewModel = openWithLoop()
+        assertTrue(engine.isLoopOn)
+        assertFalse(engine.isPlaying)
+
+        viewModel.onLoopBarClicked(loopRepository.loops.value.single().id, 0.35f)
+        runCurrent()
+
+        assertEquals(0.35f, engine.position)
+        assertTrue(engine.isLoopOn)
+        assertFalse(engine.isPlaying, "when paused only another loop's bar starts playback")
+        assertFalse(viewModel.transport.value.isPlaying)
+    }
+
+    @Test
+    fun `a click on the active loop's bar with the loop off plays it again from A`() = runTest(main) {
+        val viewModel = openWithLoop()
+        engine.isPlaying = true
+        viewModel.onOverviewClicked(0.7f)
+        runCurrent()
+        assertFalse(engine.isLoopOn)
+
+        viewModel.onLoopBarClicked(loopRepository.loops.value.single().id, 0.3f)
+        runCurrent()
+
+        assertTrue(engine.isLoopOn)
+        assertEquals(0.2f, engine.position)
+        assertTrue(engine.isPlaying)
+    }
+
+    @Test
+    fun `grabbing another loop makes it active in place, then its drag is saved and looped`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val later = assertNotNull(loopRepository.create(TRACK.id, "Later", LoopBounds(0.6f, 0.8f)))
+        runCurrent()
+        engine.isPlaying = true
+        tick(0.3f)
+
+        viewModel.onLoopGrabbed(later.id)
+        viewModel.onLoopBoundsChanged(later.id, LoopBounds(0.65f, 0.85f))
+        runCurrent()
+
+        assertEquals(later.id, loopRepository.trackLoops(TRACK.id).activeLoopId)
+        assertEquals(LoopBounds(0.65f, 0.85f), loopRepository.loops.value.first { it.id == later.id }.bounds)
+        assertEquals(LoopRegion(0.65f, 0.85f, isOn = true), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+        assertTrue(engine.isPlaying)
+        assertEquals(LoopBounds(0.65f, 0.85f), viewModel.zoom.value?.let { LoopBounds(it.start, it.end) }, "the zoom strip follows")
+    }
+
+    @Test
+    fun `a dragged loop becomes active even without its grab, and looping stays off`() = runTest(main) {
+        val viewModel = openWithLoop()
+        val later = assertNotNull(loopRepository.create(TRACK.id, "Later", LoopBounds(0.6f, 0.8f)))
+        viewModel.onLoopToggled()
+        runCurrent()
+        assertFalse(engine.isLoopOn)
+        engine.position = 0.1f
+
+        viewModel.onLoopBoundsChanged(later.id, LoopBounds(0.5f, 0.7f))
+        runCurrent()
+
+        assertEquals(later.id, loopRepository.trackLoops(TRACK.id).activeLoopId)
+        assertEquals(LoopRegion(0.5f, 0.7f, isOn = false), LoopRegion(engine.loopStart, engine.loopEnd, engine.isLoopOn))
+        assertEquals(0.1f, engine.position, "a drag never moves the playhead")
     }
 
     @Test
@@ -386,7 +743,42 @@ class PlayerViewModelTest {
         viewModel.onBpmChanged(92f)
         runCurrent()
         assertEquals(92f, viewModel.header.value.bpm)
-        assertTrue(viewModel.loopTools.value.canSnap)
+    }
+
+    @Test
+    fun `with a BPM, A and B still land exactly on the playhead`() = runTest(main) {
+        val viewModel = openWithLoop()
+        viewModel.onBpmChanged(120f)
+        runCurrent()
+
+        engine.position = 0.2137f
+        viewModel.onSetLoopStartAtPlayhead()
+        runCurrent()
+        engine.position = 0.3561f
+        viewModel.onSetLoopEndAtPlayhead()
+        runCurrent()
+
+        assertEquals(LoopBounds(0.2137f, 0.3561f), loopRepository.loops.value.single().bounds)
+    }
+
+    @Test
+    fun `a nudge moves the loop by one second, with or without a BPM`() = runTest(main) {
+        val viewModel = openWithLoop()
+
+        viewModel.onNudgeLoop(1)
+        runCurrent()
+        // The fake track is 100 s long: one second is 1% of it.
+        val once = loopRepository.loops.value.single().bounds
+        assertEquals(0.21f, once.start, 1e-5f)
+        assertEquals(0.41f, once.end, 1e-5f)
+
+        viewModel.onBpmChanged(92f)
+        runCurrent()
+        viewModel.onNudgeLoop(-1)
+        runCurrent()
+        val back = loopRepository.loops.value.single().bounds
+        assertEquals(0.2f, back.start, 1e-5f)
+        assertEquals(0.4f, back.end, 1e-5f)
     }
 
     /** Opens [TRACK] with one loop 0.2..0.4, active and looping. */
@@ -431,8 +823,8 @@ class PlayerViewModelTest {
                 StepSpeedUseCase(engine),
                 StepPitchUseCase(engine),
                 ObservePresetsUseCase(practiceRepository),
-                SavePresetUseCase(engine, nowPlaying, practiceRepository),
-                ApplyPresetUseCase(engine, loopRepository, nowPlaying),
+                SavePresetUseCase(engine, nowPlaying, practiceRepository, ActiveEq()),
+                ApplyPresetUseCase(engine, loopRepository, nowPlaying, ActiveEq()),
                 DeletePresetUseCase(practiceRepository),
             ),
             loops = LoopUseCases(
@@ -447,10 +839,14 @@ class PlayerViewModelTest {
                 resetPasses = ResetLoopPassesUseCase(loopRepository, engine, nowPlaying),
                 updateProgression = UpdateLoopProgressionUseCase(loopRepository, engine, nowPlaying),
                 setBpm = SetTrackBpmUseCase(loopRepository),
-                setSnapToBeat = SetSnapToBeatUseCase(loopRepository),
             ),
-            seams = PracticeSeams(AnalyzeSectionsUseCase(null), SetMetronomeUseCase(null), SetCountInUseCase(null)),
-            exports = ExportUseCases(ExportTrackUseCase(engine, nowPlaying, exports), SaveExportUseCase(exports)),
+            seams = PracticeSeams(AnalyzeSectionsUseCase(null), SetMetronomeUseCase(clickEngine), SetCountInUseCase(clickEngine)),
+            exports = ExportUseCases(ExportTrackUseCase(engine, nowPlaying, loopRepository, exports), SaveExportUseCase(exports)),
+            clickTrack = ClickUseCases(
+                ObserveClickSettingsUseCase(clickSettings),
+                UpdateClickSettingsUseCase(clickSettings),
+                DetectTrackTempoUseCase(tempoDetector, loopRepository, nowPlaying),
+            ),
             background = main,
         ).also { store.put("player", it) }
     }
@@ -488,8 +884,22 @@ class PlayerViewModelTest {
     }
 
     private class NoExports : ExportRepository {
-        override suspend fun exportOpenTrack(fileName: String, onProgress: (Float) -> Unit) = ExportResult.Failure(UnsupportedOperationException())
+        override suspend fun exportOpenTrack(items: List<ExportItem>, onProgress: (Float) -> Unit) =
+            ExportResult.Failure(UnsupportedOperationException())
         override suspend fun saveTo(file: ExportedFile, contentUri: String) = false
+        override suspend fun saveAllTo(files: List<ExportedFile>, folder: String) = false
+    }
+
+    /** Every batch succeeds at once; remembers the last folder save. */
+    private class RecordingExports : ExportRepository {
+        var savedToFolder: Pair<List<ExportedFile>, String>? = null
+        override suspend fun exportOpenTrack(items: List<ExportItem>, onProgress: (Float) -> Unit) =
+            ExportResult.Success(items.map { ExportedFile("/exports/${it.fileName}", it.fileName) })
+        override suspend fun saveTo(file: ExportedFile, contentUri: String) = true
+        override suspend fun saveAllTo(files: List<ExportedFile>, folder: String): Boolean {
+            savedToFolder = files to folder
+            return true
+        }
     }
 
     /** Passes [observe] through, except that [hold] freezes it at what it showed last until [release]. */
@@ -519,11 +929,14 @@ class PlayerViewModelTest {
     /** Keeps the render's progress callback and never finishes on its own. */
     private class ParkedExports : ExportRepository {
         var onProgress: ((Float) -> Unit)? = null
-        override suspend fun exportOpenTrack(fileName: String, onProgress: (Float) -> Unit): ExportResult {
+        var items: List<ExportItem>? = null
+        override suspend fun exportOpenTrack(items: List<ExportItem>, onProgress: (Float) -> Unit): ExportResult {
+            this.items = items
             this.onProgress = onProgress
             awaitCancellation()
         }
         override suspend fun saveTo(file: ExportedFile, contentUri: String) = false
+        override suspend fun saveAllTo(files: List<ExportedFile>, folder: String) = false
     }
 
     private companion object {

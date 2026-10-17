@@ -56,18 +56,20 @@ data class TrackLoops(
     /** Sorted by start, then by id. */
     val loops: List<Loop> = emptyList(),
     val activeLoopId: Long? = null,
-    /** Set by the user: there is no beat detection. Null when unknown. */
+    /** Entered by the user (the manual BPM). Null when not set; it wins over [detectedBpm]. */
     val bpm: Float? = null,
-    /** The user's toggle; snapping only happens while [bpm] is known too, see [isSnapping]. */
-    val snapToBeat: Boolean = true,
+    /** Found by the tempo analysis of the file. Null when not analysed yet or nothing was found. */
+    val detectedBpm: Float? = null,
+    /** Where the first beat falls, in seconds of the file. Null when unknown. */
+    val beatOffsetSeconds: Float? = null,
+    /** Which version of the tempo analysis ran on this track; 0 = never analysed. */
+    val tempoAnalysisVersion: Int = 0,
 ) {
     val activeLoop: Loop? get() = activeLoopId?.let { id -> loops.firstOrNull { it.id == id } }
 
-    val isSnapping: Boolean get() = snapToBeat && bpm != null
+    /** The tempo the track plays at: the user's BPM, else the detected one. */
+    val effectiveBpm: Float? get() = bpm ?: detectedBpm
 
-    /** The grid loop edits snap to, or null when they are free. */
-    fun snapGrid(durationSeconds: Float): BeatGrid? = if (isSnapping) beatGrid(durationSeconds) else null
-
-    /** The tempo grid, for beat counts and bar lines, whether or not edits snap to it. */
-    fun beatGrid(durationSeconds: Float): BeatGrid? = bpm?.let { BeatGrid.of(it, durationSeconds) }
+    /** The tempo, for beat counts, the length of a new loop and the zoom window. */
+    fun beatGrid(durationSeconds: Float): BeatGrid? = effectiveBpm?.let { BeatGrid.of(it, durationSeconds) }
 }

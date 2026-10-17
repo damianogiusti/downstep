@@ -26,9 +26,23 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.InternalComposeUiApi
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
+import com.damianogiusti.slowdowner.ui.common.LocalTextInputFocus
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
+import com.damianogiusti.slowdowner.ui.player.LoopChipActions
+import com.damianogiusti.slowdowner.ui.player.LoopChipModel
+import com.damianogiusti.slowdowner.ui.player.LoopChipsState
+import com.damianogiusti.slowdowner.ui.player.components.LoopChipsStrip
+import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.unit.Density
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 import com.damianogiusti.slowdowner.data.effects.EffectsSettingsDto
+import com.damianogiusti.slowdowner.data.effects.LegacyEqDto
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
 import com.damianogiusti.slowdowner.domain.effects.ProcessingQuality
 import com.damianogiusti.slowdowner.domain.practice.ObservePracticeStatesUseCase
@@ -64,7 +78,7 @@ class DesktopFlowTest {
     private val effectsStore = InMemoryEffectsSettingsStore()
     private val supportPromptStore = InMemorySupportPromptStore()
     private val koin = startKoin {
-        modules(desktopModule(directories, native, effectsStore, supportPromptStore), useCasesModule, uiModule)
+        modules(desktopModule(directories, native, effectsStore, supportPromptStore, clickSettingsStore = InMemoryClickSettingsStore()), useCasesModule, uiModule)
     }.koin
 
     @AfterTest
@@ -97,7 +111,8 @@ class DesktopFlowTest {
 
     @Test
     fun `at start the saved effects reach the engine`() = runBlocking<Unit> {
-        effectsStore.write(EffectsSettingsDto(eqEnabled = true, preampDb = -3f, bandGainsDb = List(7) { 2f }, qualityName = "LOW"))
+        // The first EQ's settings, as an older version left them: migrated on the way.
+        effectsStore.write(EffectsSettingsDto(eqCurveJson = null, qualityName = "LOW", legacyEq = LegacyEqDto(true, -3f, List(7) { 2f })))
         val scope = CoroutineScope(Dispatchers.Default)
         startAppWork(koin, scope)
         waitUntil { koin.get<EffectsEngine>().quality == ProcessingQuality.LOW }
@@ -138,7 +153,9 @@ class DesktopFlowTest {
         val engine = koin.get<PlaybackEngine>()
         // The ViewModel works on the Swing thread, as in the app.
         SwingUtilities.invokeAndWait { player.onTrackSelected(imported.track) }
-        waitUntil { engine.isOpen }
+        // Until the open is over: the engine opens before the track's saved settings (and position)
+        // are applied, and a late apply would move the playhead back under the test.
+        waitUntil { engine.isOpen && !player.header.value.isLoading }
         val textInput = TextInputFocus()
         val shortcuts = PracticeShortcuts(player, textInput)
 
@@ -201,6 +218,43 @@ class DesktopFlowTest {
             // ⌃F belongs to the system and the menus.
             assertFalse(shortcuts.handle(keyDown(Key.F, ctrl = true)))
             assertFalse(player.layout.value.isFocusMode)
+        }
+    }
+
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Test
+    fun `while a loop chip is renamed the practice keys are left to its field`() {
+        val player = koin.get<PlayerViewModel>()
+        val textInput = TextInputFocus()
+        val shortcuts = PracticeShortcuts(player, textInput)
+        val chips = LoopChipsState(listOf(LoopChipModel(1, "Solo", 0, 8f, 0, isActive = true)), enabled = true)
+        val actions = LoopChipActions({}, {}, { _, _ -> }, {}, {}, {})
+        SwingUtilities.invokeAndWait {
+            val scene = ImageComposeScene(width = 400, height = 80, density = Density(1f)) {
+                CompositionLocalProvider(LocalTextInputFocus provides textInput) {
+                    SlowDownerTheme { LoopChipsStrip(chips, emptyList(), actions) }
+                }
+            }
+            try {
+                scene.render(0)
+                // A double click on the chip: its name becomes a text field.
+                repeat(2) {
+                    scene.sendPointerEvent(PointerEventType.Press, Offset(50f, 29f), button = PointerButton.Primary)
+                    scene.render(0)
+                    scene.sendPointerEvent(PointerEventType.Release, Offset(50f, 29f), button = PointerButton.Primary)
+                    scene.render(0)
+                }
+                scene.render(16_000_000)
+                assertTrue(textInput.isTyping)
+
+                assertFalse(shortcuts.handle(keyDown(Key.F)), "F is typed, not focus mode")
+                assertFalse(shortcuts.handle(keyDown(Key.L)))
+                assertFalse(shortcuts.handle(keyDown(Key.Spacebar)))
+                assertFalse(player.layout.value.isFocusMode)
+                assertFalse(shortcuts.handle(keyDown(Key.Escape)), "Esc cancels the rename, it is not the window's")
+            } finally {
+                scene.close()
+            }
         }
     }
 

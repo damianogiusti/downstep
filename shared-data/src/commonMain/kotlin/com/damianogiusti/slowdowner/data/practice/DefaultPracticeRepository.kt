@@ -1,6 +1,8 @@
 package com.damianogiusti.slowdowner.data.practice
 
 import com.damianogiusti.slowdowner.data.database.isConstraintViolation
+import com.damianogiusti.slowdowner.data.effects.EqCurveCodec
+import com.damianogiusti.slowdowner.domain.effects.EqCurve
 import com.damianogiusti.slowdowner.domain.practice.PracticePreset
 import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
 import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
@@ -39,6 +41,7 @@ class DefaultPracticeRepository(
         trackId: String,
         name: String,
         settings: PracticeSettings,
+        eq: EqCurve?,
     ): SavePresetResult = withContext(dispatcher) {
         if (dao.presetNameExists(trackId, name)) return@withContext SavePresetResult.NameTaken
         val entity = PracticePresetEntity(
@@ -46,6 +49,7 @@ class DefaultPracticeRepository(
             name = name,
             settings = PracticeSettingsMapper.toColumns(settings),
             createdAt = now(),
+            eqCurve = eq?.let(EqCurveCodec::encode),
         )
         try {
             val id = dao.insertPreset(entity)

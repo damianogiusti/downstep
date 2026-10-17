@@ -103,6 +103,7 @@ set(ENGINE_SOURCES
   ${DECODER_SOURCE}
   src/Mp3Export.cpp
   src/Player.cpp
+  src/TempoDetector.cpp
   src/TimeStretcher.cpp
   src/Wav.cpp)
 

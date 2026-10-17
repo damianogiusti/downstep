@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.fake
 
+import com.damianogiusti.slowdowner.domain.effects.EqCurve
 import com.damianogiusti.slowdowner.domain.practice.PracticePreset
 import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
 import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
@@ -29,9 +30,9 @@ class FakePracticeRepository : PracticeRepository {
     override fun observePresets(trackId: String): Flow<List<PracticePreset>> =
         presets.map { all -> all.filter { it.trackId == trackId } }
 
-    override suspend fun savePreset(trackId: String, name: String, settings: PracticeSettings): SavePresetResult {
+    override suspend fun savePreset(trackId: String, name: String, settings: PracticeSettings, eq: EqCurve?): SavePresetResult {
         if (presets.value.any { it.trackId == trackId && it.name == name }) return SavePresetResult.NameTaken
-        val preset = PracticePreset(nextPresetId++, trackId, name, settings)
+        val preset = PracticePreset(nextPresetId++, trackId, name, settings, eq)
         presets.update { it + preset }
         return SavePresetResult.Saved(preset)
     }

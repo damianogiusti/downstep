@@ -5,9 +5,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.damianogiusti.slowdowner.domain.analysis.AnalyzeSectionsUseCase
 import com.damianogiusti.slowdowner.domain.analysis.SectionAnalysisResult
+import com.damianogiusti.slowdowner.domain.click.ClickSettings
+import com.damianogiusti.slowdowner.domain.click.ObserveClickSettingsUseCase
 import com.damianogiusti.slowdowner.domain.click.SetCountInUseCase
 import com.damianogiusti.slowdowner.domain.click.SetMetronomeUseCase
+import com.damianogiusti.slowdowner.domain.click.UpdateClickSettingsUseCase
+import com.damianogiusti.slowdowner.domain.click.tempo
 import com.damianogiusti.slowdowner.domain.export.ExportResult
+import com.damianogiusti.slowdowner.domain.export.ExportScope
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
@@ -23,7 +28,6 @@ import com.damianogiusti.slowdowner.domain.loops.RecordLoopPassUseCase
 import com.damianogiusti.slowdowner.domain.loops.RenameLoopUseCase
 import com.damianogiusti.slowdowner.domain.loops.ResetLoopPassesUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetActiveLoopUseCase
-import com.damianogiusti.slowdowner.domain.loops.SetSnapToBeatUseCase
 import com.damianogiusti.slowdowner.domain.loops.SetTrackBpmUseCase
 import com.damianogiusti.slowdowner.domain.loops.TrackLoops
 import com.damianogiusti.slowdowner.domain.loops.UpdateLoopNotesUseCase
@@ -42,7 +46,9 @@ import com.damianogiusti.slowdowner.domain.practice.SavePresetResult
 import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
+import com.damianogiusti.slowdowner.domain.tempo.DetectTrackTempoUseCase
 import com.damianogiusti.slowdowner.ui.common.UiMessage
+import com.damianogiusti.slowdowner.ui.common.UiPlural
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -93,6 +99,7 @@ class PlayerViewModel(
     private val loops: LoopUseCases,
     private val seams: PracticeSeams,
     private val exports: ExportUseCases,
+    private val clickTrack: ClickUseCases,
     /** Where waveform outlines are read: off the main thread. */
     private val background: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
@@ -105,7 +112,9 @@ class PlayerViewModel(
     private val zoomPeaks = MutableStateFlow<Peaks?>(null)
     private val layoutState = MutableStateFlow(PlayerLayout())
     private val analysisState = MutableStateFlow(AnalysisUiState())
-    private val clickState = MutableStateFlow(ClickUiState())
+    private val clickSettings: StateFlow<ClickSettings> = clickTrack.observeSettings().state(ClickSettings())
+    /** The track whose tempo is being analysed, if any. */
+    private val detectingTempo = MutableStateFlow<String?>(null)
 
     /** The loops of the open track; null with nothing open, and while a new track's loops load. */
     private val trackLoops: StateFlow<TrackLoops?> = nowPlaying
@@ -134,8 +143,8 @@ class PlayerViewModel(
         hasCountIn = seams.setCountIn.isAvailable,
     )
 
-    val header: StateFlow<HeaderState> = combine(nowPlaying, loadingTrack, engineState, trackLoops, exportState) {
-            track, loading, engine, trackLoops, export ->
+    val header: StateFlow<HeaderState> = combine(nowPlaying, loadingTrack, engineState, combine(trackLoops, detectingTempo, ::Pair), exportState) {
+            track, loading, engine, (trackLoops, detecting), export ->
         val shown = loading ?: track
         HeaderState(
             title = shown?.title,
@@ -145,11 +154,15 @@ class PlayerViewModel(
                 else -> TrackSource.None
             },
             durationSeconds = if (loading == null) engine.durationSeconds else 0f,
-            bpm = trackLoops?.bpm,
+            bpm = trackLoops?.effectiveBpm,
+            typedBpm = trackLoops?.bpm,
+            detectedBpm = trackLoops?.detectedBpm,
+            isDetectingTempo = track != null && loading == null && detecting == track.id,
             loopCount = trackLoops?.loops?.size ?: 0,
             isOpen = engine.isOpen && loading == null,
             isLoading = loading != null,
-            canExport = engine.isOpen && track != null && loading == null && export == ExportUiState.Idle,
+            canExport = engine.isOpen && track != null && loading == null &&
+                export !is ExportUiState.Running && export !is ExportUiState.Ready,
             canEditBpm = track != null && loading == null && export !is ExportUiState.Running,
         )
     }.state(HeaderState())
@@ -185,7 +198,15 @@ class PlayerViewModel(
 
     val analysis: StateFlow<AnalysisUiState> = analysisState.asStateFlow()
 
-    val clicks: StateFlow<ClickUiState> = clickState.asStateFlow()
+    val clicks: StateFlow<ClickUiState> = clickSettings.map { settings ->
+        ClickUiState(
+            isMetronomeOn = settings.isMetronomeOn && features.hasMetronome,
+            isCountInOn = settings.isCountInOn && features.hasCountIn,
+            volume = settings.volume,
+            countInBeats = settings.countInBeats,
+            countInEveryLoop = settings.countInEveryLoop,
+        )
+    }.state(ClickUiState())
 
     val overview: StateFlow<OverviewWaveformState> =
         combine(trackLoops, engineState, overviewPeaks, analysisState, controlsEnabled) { trackLoops, engine, peaks, analysis, enabled ->
@@ -200,8 +221,6 @@ class PlayerViewModel(
                 active = regions.firstOrNull { it.isActive },
                 isLoopOn = engine.isLoopOn,
                 zoomWindow = active?.let { LoopMath.zoomWindow(it.bounds, trackLoops.beatGrid(duration)) },
-                barLines = trackLoops?.snapGrid(duration)?.beatsIn(0f, 1f)?.filter { it.isBarStart }?.map { it.position }.orEmpty(),
-                snapGrid = trackLoops?.snapGrid(duration),
                 suggestions = analysis.suggestions,
                 enabled = enabled,
             )
@@ -211,7 +230,6 @@ class PlayerViewModel(
         val active = trackLoops?.activeLoop ?: return@combine null
         val duration = engine.durationSeconds
         val tempo = trackLoops.beatGrid(duration)
-        val snapGrid = trackLoops.snapGrid(duration)
         val window = LoopMath.zoomWindow(active.bounds, tempo)
         ZoomStripState(
             loopId = active.id,
@@ -222,9 +240,7 @@ class PlayerViewModel(
             window = window,
             durationSeconds = duration,
             peaks = peaks,
-            beatLines = snapGrid?.beatsIn(window.start, window.end)?.map { BeatLine(it.position, it.isBarStart) }.orEmpty(),
             beats = tempo?.beatsBetween(active.start, active.end),
-            snapGrid = snapGrid,
             enabled = enabled,
         )
     }.state(null)
@@ -245,15 +261,12 @@ class PlayerViewModel(
     val loopTools: StateFlow<LoopToolsState> = combine(trackLoops, engineState, controlsEnabled) { trackLoops, engine, enabled ->
         val duration = engine.durationSeconds
         val bounds = trackLoops?.activeLoop?.bounds
-        val grid = trackLoops?.snapGrid(duration)
         LoopToolsState(
             hasActiveLoop = bounds != null,
-            canHalve = bounds != null && LoopMath.halve(bounds, duration, grid) != null,
+            canHalve = bounds != null && LoopMath.halve(bounds, duration) != null,
             canDouble = bounds != null && LoopMath.double(bounds) != null,
-            canNudgeBack = bounds != null && LoopMath.nudge(bounds, -1, duration, grid) != null,
-            canNudgeForward = bounds != null && LoopMath.nudge(bounds, 1, duration, grid) != null,
-            snapToBeat = trackLoops?.snapToBeat ?: false,
-            canSnap = trackLoops?.bpm != null,
+            canNudgeBack = bounds != null && LoopMath.nudge(bounds, -1, duration) != null,
+            canNudgeForward = bounds != null && LoopMath.nudge(bounds, 1, duration) != null,
             enabled = enabled,
         )
     }.state(LoopToolsState())
@@ -291,6 +304,8 @@ class PlayerViewModel(
     private val openMutex = Mutex()
     private val loopEdits = Mutex()
     private var exportJob: Job? = null
+    /** The last export choice, offered again next time (not saved: the full track after a restart). */
+    private var exportScope = ExportScope.FULL_TRACK
     private var analysisJob: Job? = null
     private var notesJob: Job? = null
     // Also read by flushPendingNotes() on the quit path, off the main thread.
@@ -314,8 +329,18 @@ class PlayerViewModel(
                 zoomPeaks.value = null
                 if (track != null && engine.isOpen) {
                     overviewPeaks.value = withContext(background) { readPeaks(0f, 1f, OVERVIEW_BUCKETS) }
+                    detectTempo(track)
                 }
             }
+        }
+        viewModelScope.launch {
+            // The engine clicks on the open track's grid: pushed again whenever the tempo (typed,
+            // detected, another track) or a setting changes, never only when a toggle is pressed.
+            combine(trackLoops.map { it?.tempo() }.distinctUntilChanged(), clickSettings) { tempo, settings -> tempo to settings }
+                .collect { (tempo, settings) ->
+                    seams.setMetronome(settings.isMetronomeOn, settings.volume, tempo)
+                    seams.setCountIn(settings.isCountInOn, settings.countInBeats, settings.countInEveryLoop)
+                }
         }
         viewModelScope.launch {
             combine(zoom.map { it?.window }.distinctUntilChanged(), overviewPeaks) { window, overview -> window.takeIf { overview != null } }
@@ -369,6 +394,19 @@ class PlayerViewModel(
     fun onSeek(position: Float) = control {
         onIntervention()
         engine.seekTo(position.coerceIn(0f, 1f))
+    }
+
+    /**
+     * A click on the overview, off any loop's top bar. Inside the loop being looped it seeks there and
+     * keeps looping; anywhere else (another loop's body included) it turns the loop off and seeks, so
+     * the track plays on from there. Playing or paused stays as it was.
+     */
+    fun onOverviewClicked(position: Float) = control {
+        val target = position.coerceIn(0f, 1f)
+        onIntervention()
+        // The engine's own region: the one being heard, even while a switch of loop is in flight.
+        if (engine.isLoopOn && (target < engine.loopStart || target > engine.loopEnd)) engine.setLoopOn(false)
+        engine.seekTo(target)
     }
 
     /** ↺ −5 s, ↻ +5 s and the arrow keys. */
@@ -436,12 +474,12 @@ class PlayerViewModel(
 
     // region Loops
 
-    /** `L` and "+ New loop": 8 beats (or 8 s without a BPM) from the playhead, snapped; it becomes active. */
+    /** `L` and "+ New loop": 8 beats (or 8 s without a BPM) from exactly the playhead; it becomes active. */
     fun onNewLoopAtPlayhead() {
         val playhead = engine.position
         editLoops { track, trackLoops ->
             val duration = engine.durationSeconds
-            val bounds = LoopMath.newLoopAt(playhead, duration, trackLoops.snapGrid(duration), trackLoops.beatGrid(duration))
+            val bounds = LoopMath.newLoopAt(playhead, duration, trackLoops.beatGrid(duration))
             lastTick = null
             loops.create(track.id, bounds)?.let { created -> awaitLoops { it.activeLoopId == created.id } }
         }
@@ -462,56 +500,89 @@ class PlayerViewModel(
     /** Delete from a chip's menu; if it was the active one, the first remaining loop takes over. */
     fun onLoopDeleted(loopId: Long) = editLoops { _, _ -> deleteLoop(loopId) }
 
-    fun onHalveLoop() = editActiveRegion { bounds, duration, grid -> LoopMath.halve(bounds, duration, grid) }
+    fun onHalveLoop() = editActiveRegion { bounds, duration -> LoopMath.halve(bounds, duration) }
 
-    fun onDoubleLoop() = editActiveRegion { bounds, _, _ -> LoopMath.double(bounds) }
+    fun onDoubleLoop() = editActiveRegion { bounds, _ -> LoopMath.double(bounds) }
 
-    /** ◀ / ▶: [direction] −1 or +1, one beat (snapped) or one second. */
-    fun onNudgeLoop(direction: Int) = editActiveRegion { bounds, duration, grid -> LoopMath.nudge(bounds, direction, duration, grid) }
+    /** ◀ / ▶: [direction] −1 or +1, a fixed [LoopMath.NUDGE_SECONDS] of track time. */
+    fun onNudgeLoop(direction: Int) = editActiveRegion { bounds, duration -> LoopMath.nudge(bounds, direction, duration) }
 
-    /** `A`: the active loop starts at the playhead (snapped). Without a loop, a new one starts there. */
+    /** `A`: the active loop starts at the playhead. Without a loop, a new one starts there. */
     fun onSetLoopStartAtPlayhead() {
         val playhead = engine.position
         editLoops { track, trackLoops ->
             val duration = engine.durationSeconds
             val active = trackLoops.activeLoop
             if (active == null) {
-                val bounds = LoopMath.newLoopAt(playhead, duration, trackLoops.snapGrid(duration), trackLoops.beatGrid(duration))
+                val bounds = LoopMath.newLoopAt(playhead, duration, trackLoops.beatGrid(duration))
                 loops.create(track.id, bounds)?.let { created -> awaitLoops { it.activeLoopId == created.id } }
             } else {
                 onIntervention()
-                updateRegion(active, LoopMath.moveStart(active.bounds, playhead, duration, trackLoops.snapGrid(duration)))
+                updateRegion(active, LoopMath.moveStart(active.bounds, playhead, duration))
             }
         }
     }
 
-    /** `B`: the active loop ends at the playhead (snapped). Without a loop, a new one ends there. */
+    /** `B`: the active loop ends at the playhead. Without a loop, a new one ends there. */
     fun onSetLoopEndAtPlayhead() {
         val playhead = engine.position
         editLoops { track, trackLoops ->
             val duration = engine.durationSeconds
-            val grid = trackLoops.snapGrid(duration)
             val active = trackLoops.activeLoop
             if (active == null) {
-                val length = LoopMath.newLoopAt(0f, duration, grid, trackLoops.beatGrid(duration)).length
-                val end = LoopMath.snap(playhead, grid)
+                val length = LoopMath.newLoopAt(0f, duration, trackLoops.beatGrid(duration)).length
+                val end = playhead.coerceIn(0f, 1f)
                 loops.create(track.id, LoopMath.between(end - length, end, duration))
                     ?.let { created -> awaitLoops { it.activeLoopId == created.id } }
             } else {
                 onIntervention()
-                updateRegion(active, LoopMath.moveEnd(active.bounds, playhead, duration, grid))
+                updateRegion(active, LoopMath.moveEnd(active.bounds, playhead, duration))
             }
         }
     }
 
     /**
-     * The end of an A or B drag on either waveform, with the bounds the drag showed (already snapped
-     * with [OverviewWaveformState.snapGrid]). Drags are drawn locally and committed once, here.
+     * The end of a drag on either waveform (A, B or the whole loop by its top bar), with the bounds the
+     * drag showed (free: never rounded to a beat). Drags are drawn locally and committed once, here. A
+     * dragged loop is the active one: if its grab ([onLoopGrabbed]) did not land, it is activated now.
      */
-    fun onLoopBoundsChanged(loopId: Long, bounds: LoopBounds) = editLoops { _, trackLoops ->
+    fun onLoopBoundsChanged(loopId: Long, bounds: LoopBounds) = editLoops { track, trackLoops ->
         val loop = trackLoops.loops.firstOrNull { it.id == loopId } ?: return@editLoops
-        if (loop.id == trackLoops.activeLoopId) onIntervention()
+        if (loop.id == trackLoops.activeLoopId) {
+            onIntervention()
+        } else {
+            activateInPlace(track, loop.id)
+        }
         updateRegion(loop, bounds)
+    }
+
+    /**
+     * A drag on the overview picked up a loop that is not the active one: it becomes active at once,
+     * so the zoom strip follows the drag. The playhead stays and looping stays on or off; with
+     * looping on, the engine then loops the grabbed loop (from its start if the playhead is outside).
+     */
+    fun onLoopGrabbed(loopId: Long) = editLoops { track, trackLoops ->
+        if (trackLoops.activeLoopId == loopId || trackLoops.loops.none { it.id == loopId }) return@editLoops
+        activateInPlace(track, loopId)
+    }
+
+    /**
+     * A click (no drag) on a loop's top bar: "play this loop". It becomes active, looping, from its
+     * start, and plays, also when paused. On the loop already being looped the click is just a click
+     * inside it: it seeks to [position] there and, as any click inside the loop, leaves playing or
+     * paused as it was (README §7.2: when paused, only another loop's bar starts playback).
+     */
+    fun onLoopBarClicked(loopId: Long, position: Float) = editLoops { track, trackLoops ->
+        val loop = trackLoops.loops.firstOrNull { it.id == loopId } ?: return@editLoops
+        if (loop.id == trackLoops.activeLoopId && engine.isLoopOn) {
+            onIntervention()
+            engine.seekTo(position.coerceIn(loop.start, loop.end))
+            return@editLoops
+        }
+        lastTick = null
+        loops.setActive(track.id, loop.id)
+        if (!engine.isPlaying) engine.togglePlayStop()
+        awaitLoops { it.activeLoopId == loop.id }
     }
 
     fun onLoopRenamed(loopId: Long, name: String) {
@@ -536,25 +607,24 @@ class PlayerViewModel(
         loops.updateProgression(loopId, progression)
     }
 
-    /** Typed in by the user (there is no detection); null clears it. Out of range: a message, nothing saved. */
+    /**
+     * Typed or tapped by the user; null clears it, back to the detected tempo. Out of range: a message,
+     * nothing saved. The beats of the new tempo are then found in the audio, for the metronome.
+     */
     fun onBpmChanged(bpm: Float?) {
         val track = nowPlaying.value ?: return
         viewModelScope.launch {
             if (!loops.setBpm(track.id, bpm)) {
                 _messages.send(UiMessage(Res.string.error_bpm_range, listOf(BeatGrid.MIN_BPM.toInt(), BeatGrid.MAX_BPM.toInt())))
+            } else {
+                withContext(background) { clickTrack.detectTempo.alignBeats(track.id) }
             }
         }
     }
 
-    fun onSnapToggled() {
-        val track = nowPlaying.value ?: return
-        val trackLoops = trackLoops.value ?: return
-        viewModelScope.launch { loops.setSnapToBeat(track.id, !trackLoops.snapToBeat) }
-    }
-
     // endregion
 
-    // region Analyze, metronome, count-in (seams)
+    // region Analyze, metronome, count-in
 
     fun onAnalyzeClicked() {
         if (!features.canAnalyze || analysisState.value.status == AnalysisStatus.Running) return
@@ -595,21 +665,54 @@ class PlayerViewModel(
         analysisState.update { state -> state.copy(suggestions = state.suggestions.filterNot { it.id == suggestionId }) }
     }
 
+    /**
+     * The settings are global and kept; the engine gets them through the push in init. Turning the
+     * metronome on for a track with no tempo (and none being detected) asks for one instead.
+     */
     fun onMetronomeToggled() {
-        val enabled = !clickState.value.isMetronomeOn
-        if (seams.setMetronome(enabled, trackLoops.value?.bpm)) {
-            clickState.update { it.copy(isMetronomeOn = enabled) }
-        } else if (features.hasMetronome) {
+        if (!features.hasMetronome) return
+        val enabled = !clickSettings.value.isMetronomeOn
+        val track = nowPlaying.value
+        if (enabled && track != null && trackLoops.value?.tempo() == null && detectingTempo.value != track.id) {
             _messages.trySend(UiMessage(Res.string.error_click_needs_bpm))
+            return
         }
+        updateClicks { it.copy(isMetronomeOn = enabled) }
     }
 
+    /** No tempo needed: without one the count-in counts at 120 BPM. */
     fun onCountInToggled() {
-        val enabled = !clickState.value.isCountInOn
-        if (seams.setCountIn(enabled, trackLoops.value?.bpm)) {
-            clickState.update { it.copy(isCountInOn = enabled) }
-        } else if (features.hasCountIn) {
-            _messages.trySend(UiMessage(Res.string.error_click_needs_bpm))
+        if (!features.hasCountIn) return
+        updateClicks { it.copy(isCountInOn = !it.isCountInOn) }
+    }
+
+    /** 0..1, at the end of a drag of the volume slider. */
+    fun onClickVolumeChanged(volume: Float) = updateClicks { it.copy(volume = volume) }
+
+    fun onCountInBeatsChanged(beats: Int) = updateClicks { it.copy(countInBeats = beats) }
+
+    fun onCountInEveryLoopToggled() = updateClicks { it.copy(countInEveryLoop = !it.countInEveryLoop) }
+
+    private fun updateClicks(change: (ClickSettings) -> ClickSettings) {
+        viewModelScope.launch { clickTrack.updateSettings(change) }
+    }
+
+    /**
+     * The first time a track is opened: its tempo, from the audio; cached with the track afterwards.
+     * Later opens only find the beats of a tempo set while the track was last open, if another track
+     * opened before they were found.
+     */
+    private suspend fun detectTempo(track: LibraryTrack) {
+        val detect = clickTrack.detectTempo
+        if (!detect.isPending(track.id)) {
+            if (detect.needsAlignment(track.id)) withContext(background) { detect.alignBeats(track.id) }
+            return
+        }
+        detectingTempo.value = track.id
+        try {
+            withContext(background) { detect(track.id) }
+        } finally {
+            detectingTempo.compareAndSet(track.id, null)
         }
     }
 
@@ -675,17 +778,34 @@ class PlayerViewModel(
     /** A name for the save-preset dialog, from the current settings: "75%, −2 st". */
     fun currentPracticeSettings(): PracticeSettings = engineState.value.practiceSettings
 
+    /** Opens the options: full track, loops or both. The last choice is kept while the app runs. */
     fun onExportClicked() {
+        if (!header.value.canExport || exportState.value is ExportUiState.Choosing) return
+        val loopCount = header.value.loopCount
+        exportState.value = ExportUiState.Choosing(if (loopCount > 0) exportScope else ExportScope.FULL_TRACK, loopCount)
+    }
+
+    /** The loop options do nothing on a track without loops (the dialog disables them). */
+    fun onExportScopeChanged(scope: ExportScope) {
+        exportState.update { state ->
+            if (state is ExportUiState.Choosing && (state.hasLoops || !scope.includesLoops)) state.copy(scope = scope) else state
+        }
+    }
+
+    fun onExportConfirmed() {
+        val choice = exportState.value as? ExportUiState.Choosing ?: return
         if (!header.value.canExport) return
+        exportScope = choice.scope
         val cancelled = exportJob
-        exportState.value = ExportUiState.Running(0f)
+        exportState.value = ExportUiState.Running(0f, choice.fileCount.coerceAtLeast(1))
         exportJob = viewModelScope.launch {
-            // A cancelled render stops only between native chunks: let it close its file first.
+            // A cancelled render stops only between native chunks: let it close its files first.
             cancelled?.cancelAndJoin()
-            val result = exports.exportTrack(::onExportProgress)
+            val result = exports.exportTrack(choice.scope, ::onExportProgress)
             when (result) {
-                is ExportResult.Success -> exportState.value = ExportUiState.Ready(result.file)
+                is ExportResult.Success -> exportState.value = ExportUiState.Ready(result.files)
                 ExportResult.NothingOpen -> exportFailed(UiMessage(Res.string.error_export_nothing_open))
+                ExportResult.NoLoops -> exportFailed(UiMessage(Res.string.error_export_no_loops))
                 is ExportResult.Failure -> exportFailed(
                     UiMessage(Res.string.error_export, listOf(result.cause.message.orEmpty())),
                 )
@@ -693,23 +813,38 @@ class PlayerViewModel(
         }
     }
 
+    /** Cancels the whole batch: the repository deletes every file it wrote. */
     fun onExportCancelClicked() {
         exportJob?.cancel()
         exportState.value = ExportUiState.Idle
     }
 
-    /** The share sheet took over, or the user closed the dialog. */
+    /** The options or the share sheet took over, or the user closed a dialog. */
     fun onExportDismissed() {
         exportState.value = ExportUiState.Idle
     }
 
-    /** The dialog stays up while the picker is open, so a cancelled pick returns to it. */
+    /** One file: the dialog stays up while the picker is open, so a cancelled pick returns to it. */
     fun onExportSaveTargetPicked(contentUri: String) {
-        val file = (exportState.value as? ExportUiState.Ready)?.file ?: return
+        val file = (exportState.value as? ExportUiState.Ready)?.files?.singleOrNull() ?: return
         exportState.value = ExportUiState.Idle
         viewModelScope.launch {
             val message = if (exports.saveExport(file, contentUri)) Res.string.export_saved else Res.string.error_export_save
             _messages.send(UiMessage(message, listOf(file.name)))
+        }
+    }
+
+    /** A batch: every file goes into [folder], next to each other. */
+    fun onExportSaveFolderPicked(folder: String) {
+        val files = (exportState.value as? ExportUiState.Ready)?.files ?: return
+        exportState.value = ExportUiState.Idle
+        viewModelScope.launch {
+            val message = if (exports.saveExport(files, folder)) {
+                UiMessage(Res.string.export_saved_many, listOf(UiPlural(Res.plurals.export_files_count, files.size), folder))
+            } else {
+                UiMessage(Res.string.error_export_save_many, listOf(folder))
+            }
+            _messages.send(message)
         }
     }
 
@@ -739,14 +874,21 @@ class PlayerViewModel(
         }
     }
 
-    private fun editActiveRegion(change: (bounds: LoopBounds, durationSeconds: Float, grid: BeatGrid?) -> LoopBounds?) =
+    private fun editActiveRegion(change: (bounds: LoopBounds, durationSeconds: Float) -> LoopBounds?) =
         editLoops { _, trackLoops ->
             val active = trackLoops.activeLoop ?: return@editLoops
             val duration = engine.durationSeconds
-            val bounds = change(active.bounds, duration, trackLoops.snapGrid(duration)) ?: return@editLoops
+            val bounds = change(active.bounds, duration) ?: return@editLoops
             onIntervention()
             updateRegion(active, bounds)
         }
+
+    /** [loopId] becomes active where the playhead is, keeping looping on or off. */
+    private suspend fun activateInPlace(track: LibraryTrack, loopId: Long) {
+        lastTick = null
+        loops.setActive(track.id, loopId, seekToStart = false, loopOn = engine.isLoopOn)
+        awaitLoops { it.activeLoopId == loopId }
+    }
 
     private suspend fun deleteLoop(loopId: Long) {
         loops.delete(loopId)
@@ -837,7 +979,7 @@ class PlayerViewModel(
     private fun onExportProgress(fraction: Float) {
         exportState.update { state ->
             if (state is ExportUiState.Running && (fraction * 100).toInt() != (state.fraction * 100).toInt()) {
-                ExportUiState.Running(fraction)
+                state.copy(fraction = fraction)
             } else {
                 state
             }
@@ -927,7 +1069,6 @@ class LoopUseCases(
     val resetPasses: ResetLoopPassesUseCase,
     val updateProgression: UpdateLoopProgressionUseCase,
     val setBpm: SetTrackBpmUseCase,
-    val setSnapToBeat: SetSnapToBeatUseCase,
 )
 
 /** Features whose backend may be missing: each says whether it is available. */
@@ -935,6 +1076,13 @@ class PracticeSeams(
     val analyzeSections: AnalyzeSectionsUseCase,
     val setMetronome: SetMetronomeUseCase,
     val setCountIn: SetCountInUseCase,
+)
+
+/** The metronome and count-in settings, and the tempo analysis they click by (domain.click, domain.tempo). */
+class ClickUseCases(
+    val observeSettings: ObserveClickSettingsUseCase,
+    val updateSettings: UpdateClickSettingsUseCase,
+    val detectTempo: DetectTrackTempoUseCase,
 )
 
 class ExportUseCases(

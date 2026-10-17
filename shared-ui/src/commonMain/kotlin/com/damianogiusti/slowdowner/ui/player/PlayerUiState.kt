@@ -2,8 +2,9 @@ package com.damianogiusti.slowdowner.ui.player
 
 import androidx.compose.runtime.Immutable
 import com.damianogiusti.slowdowner.domain.analysis.SuggestedSection
+import com.damianogiusti.slowdowner.domain.click.ClickSettings
+import com.damianogiusti.slowdowner.domain.export.ExportScope
 import com.damianogiusti.slowdowner.domain.export.ExportedFile
-import com.damianogiusti.slowdowner.domain.loops.BeatGrid
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.loops.Progression
 import com.damianogiusti.slowdowner.domain.loops.ProgressionStatus
@@ -23,15 +24,24 @@ data class HeaderState(
     val title: String? = null,
     val source: TrackSource = TrackSource.None,
     val durationSeconds: Float = 0f,
-    /** Set by the user (no detection): null shows "BPM —". */
+    /** The tempo in use: typed by the user, else detected. Null shows "BPM —". */
     val bpm: Float? = null,
+    /** The user's own tempo (typed or tapped), which wins over [detectedBpm]. */
+    val typedBpm: Float? = null,
+    /** Found by the tempo analysis of the file. */
+    val detectedBpm: Float? = null,
+    /** The tempo analysis of the open track is running (the first time it is opened). */
+    val isDetectingTempo: Boolean = false,
     val loopCount: Int = 0,
     val isOpen: Boolean = false,
     /** A track is decoding: controls are frozen until it is open. */
     val isLoading: Boolean = false,
     val canExport: Boolean = false,
     val canEditBpm: Boolean = false,
-)
+) {
+    /** The tempo shown comes from the analysis, not from the user. */
+    val isBpmDetected: Boolean get() = typedBpm == null && detectedBpm != null
+}
 
 /** The bookmark menu: presets of the open track. */
 @Immutable
@@ -42,8 +52,9 @@ data class PresetsState(
 )
 
 /**
- * Backends the app may not have (README §6, the seams in domain.analysis / domain.click). False today:
- * Analyze, Metronome and Count-in show as designed but disabled, with a tooltip.
+ * Backends the app may not have (README §6, the seams in domain.analysis / domain.click). Without one,
+ * Analyze, Metronome and Count-in show as designed but disabled, with a tooltip. The desktop engine
+ * clicks; Analyze has no backend yet.
  */
 @Immutable
 data class PlayerFeatures(
@@ -52,9 +63,19 @@ data class PlayerFeatures(
     val hasCountIn: Boolean = false,
 )
 
-/** Metronome and Count-in toggles; only ever on when [PlayerFeatures] says they exist. */
+/**
+ * Metronome and Count-in toggles and their menu (volume, count-in length, every loop); the toggles are
+ * only ever on when [PlayerFeatures] says they exist.
+ */
 @Immutable
-data class ClickUiState(val isMetronomeOn: Boolean = false, val isCountInOn: Boolean = false)
+data class ClickUiState(
+    val isMetronomeOn: Boolean = false,
+    val isCountInOn: Boolean = false,
+    /** 0..1. */
+    val volume: Float = ClickSettings.DEFAULT_VOLUME,
+    val countInBeats: Int = ClickSettings.DEFAULT_COUNT_IN_BEATS,
+    val countInEveryLoop: Boolean = false,
+)
 
 enum class AnalysisStatus { Idle, Running, Done }
 
@@ -98,10 +119,6 @@ data class LoopRegionModel(val id: Long, val start: Float, val end: Float, val c
 @Immutable
 class Peaks(val from: Float, val to: Float, val values: FloatArray)
 
-/** A beat line, at [position] (0..1 of the file); bar starts are drawn stronger. */
-@Immutable
-data class BeatLine(val position: Float, val isBarStart: Boolean)
-
 /** The full-width overview waveform (README §2.4). */
 @Immutable
 data class OverviewWaveformState(
@@ -115,10 +132,6 @@ data class OverviewWaveformState(
     val isLoopOn: Boolean = false,
     /** The zoom strip's window, drawn as a faint bracket. */
     val zoomWindow: LoopBounds? = null,
-    /** Bar lines (every 4 beats), only while Snap to beat is on and a BPM is set. */
-    val barLines: List<Float> = emptyList(),
-    /** What drags snap to (LoopMath.moveStart / moveEnd); null when edits are free. */
-    val snapGrid: BeatGrid? = null,
     val suggestions: List<SuggestionModel> = emptyList(),
     /** False while loading or exporting: no seeks, no drags. */
     val enabled: Boolean = false,
@@ -136,11 +149,8 @@ data class ZoomStripState(
     val durationSeconds: Float,
     /** Covers exactly [window]; null until read. */
     val peaks: Peaks?,
-    /** Every beat in the window, only while snapping. */
-    val beatLines: List<BeatLine>,
     /** Beats and bars in the loop; null without a BPM (then the strip shows the length in seconds). */
     val beats: Float?,
-    val snapGrid: BeatGrid?,
     val enabled: Boolean,
 )
 
@@ -157,7 +167,7 @@ data class TransportState(
     val enabled: Boolean = false,
 )
 
-/** The active-loop tool group and the Snap to beat toggle. */
+/** The active-loop tool group. */
 @Immutable
 data class LoopToolsState(
     val hasActiveLoop: Boolean = false,
@@ -165,10 +175,6 @@ data class LoopToolsState(
     val canDouble: Boolean = false,
     val canNudgeBack: Boolean = false,
     val canNudgeForward: Boolean = false,
-    /** The user's toggle. */
-    val snapToBeat: Boolean = false,
-    /** Snap needs a BPM: without one the toggle is disabled (with a tooltip saying why). */
-    val canSnap: Boolean = false,
     val enabled: Boolean = false,
 )
 
@@ -209,7 +215,16 @@ data class PlayerLayout(val isFocusMode: Boolean = false, val isDrawerOpen: Bool
 
 sealed interface ExportUiState {
     data object Idle : ExportUiState
-    data class Running(val fraction: Float) : ExportUiState
-    /** The file is rendered: the user picks share or save. */
-    data class Ready(val file: ExportedFile) : ExportUiState
+    /**
+     * The options dialog is open: the user picks what to export. With no loops, only the full
+     * track can be picked.
+     */
+    data class Choosing(val scope: ExportScope, val loopCount: Int) : ExportUiState {
+        val hasLoops: Boolean get() = loopCount > 0
+        val fileCount: Int get() = scope.fileCount(loopCount)
+    }
+    /** One bar and one cancel for the whole batch of [fileCount] files. */
+    data class Running(val fraction: Float, val fileCount: Int = 1) : ExportUiState
+    /** The files are rendered: the user picks share or save. */
+    data class Ready(val files: List<ExportedFile>) : ExportUiState
 }

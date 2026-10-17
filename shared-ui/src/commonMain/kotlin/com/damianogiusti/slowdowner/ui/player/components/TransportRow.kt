@@ -46,7 +46,7 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Three columns (1fr auto 1fr): left = loop toggle pill + [loopTools] (LoopToolGroup + Snap, wrapping
+ * Three columns (1fr auto 1fr): left = loop toggle pill + [loopTools] (LoopToolGroup, wrapping
  * to a second line when narrow); centre = ⏮ · ↺ −5 s · Play/Pause (68dp amber, glow) · ↻ +5 s ·
  * ⏭ next loop; right = [trailing] (pass pill and keyboard hints, or the focus read-outs).
  */
@@ -118,6 +118,8 @@ private fun TransportCentre(state: TransportState, actions: TransportActions) {
         TransportButton(Res.drawable.ic_h_to_start, stringResource(Res.string.to_start_description), 20.dp, state.enabled, actions.onToStart)
         TransportButton(Res.drawable.ic_h_back5, stringResource(Res.string.nudge_back_description), 22.dp, state.enabled, seekBack)
         val glow = colors.amberGlow
+        // ic_h_play puts its triangle's centroid, not its bounding box, on the icon's centre, so the
+        // play glyph looks centred in the round button (PlayerRenderTest measures it).
         IconPill(
             painterResource(if (state.isPlaying) Res.drawable.ic_h_pause else Res.drawable.ic_h_play),
             stringResource(if (state.isPlaying) Res.string.pause else Res.string.play),

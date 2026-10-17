@@ -30,6 +30,10 @@ class HeaderActions(
     /** The Equalizer (Effects) sheet: the design has no entry for it, the header keeps one. */
     val onShowEffects: () -> Unit,
     val onAddToPlaylist: () -> Unit,
+    /** The click menu beside the Metronome / Count-in toggles: volume 0..1 (at the end of a drag). */
+    val onClickVolumeChanged: (volume: Float) -> Unit = {},
+    val onCountInBeatsChanged: (beats: Int) -> Unit = {},
+    val onCountInEveryLoopToggled: () -> Unit = {},
 )
 
 /** Loop chips strip (README §2.3). */
@@ -48,8 +52,14 @@ class LoopChipActions(
 class WaveformActions(
     /** A click: seek there (0..1 of the file). */
     val onSeek: (position: Float) -> Unit,
-    /** The end of an A/B drag, once: the bounds shown at release, snapped with the state's snapGrid. */
+    /** The end of an A/B or top-bar drag, once: the bounds shown at release (free, never rounded to a beat). */
     val onLoopBoundsChanged: (loopId: Long, bounds: LoopBounds) -> Unit,
+    /** A click on the overview off any loop's top bar: seek, turning the loop off outside it. */
+    val onOverviewClick: (position: Float) -> Unit = onSeek,
+    /** A click on a loop's top bar on the overview: "play this loop". */
+    val onLoopBarClick: (loopId: Long, position: Float) -> Unit = { _, _ -> },
+    /** A drag on the overview picked up a loop that is not the active one. */
+    val onLoopGrabbed: (loopId: Long) -> Unit = {},
 )
 
 /** Transport row centre and loop pill (README §2.6). */
@@ -63,7 +73,7 @@ class TransportActions(
     val onLoopToggled: () -> Unit,
 )
 
-/** Active-loop tool group and Snap to beat. */
+/** Active-loop tool group. */
 @Stable
 class LoopToolActions(
     /** −1 earlier, +1 later. */
@@ -71,7 +81,6 @@ class LoopToolActions(
     val onHalve: () -> Unit,
     val onDouble: () -> Unit,
     val onDelete: () -> Unit,
-    val onSnapToggled: () -> Unit,
 )
 
 /** Speed and pitch cards. Sliders use the engine's slider positions (0..SLIDER_MAX). */

@@ -2,6 +2,7 @@
 
 #include "Pcm.h"
 
+#include <algorithm>
 #include <array>
 #include <memory>
 
@@ -37,8 +38,36 @@ public:
     /** 0 = left on both channels, 0.5 = unchanged, 1 = right on both. Applied before the stretch. */
     void setMix(double mixRight);
 
+    /**
+     * With it on, playback stops at the loop end instead of wrapping: render() returns fewer frames and
+     * reachedLoopEnd() says why (the count-in before each loop restart). seek() clears it. The music
+     * fades out over its last setStopFadeFrames() frames, wherever the blocks fall.
+     */
+    void setStopAtLoopEnd(bool stop) { stopAtLoopEnd_ = stop; }
+    /**
+     * The fade-out before a stop at the loop end, in output frames. render() keeps this much more than
+     * a block in the FIFO, so the stop is known while its last frames are still there to fade.
+     */
+    void setStopFadeFrames(int frames) { stopFadeFrames_ = std::max(0, frames); }
+    bool reachedLoopEnd() const { return reachedLoopEnd_; }
+    int64_t loopStartFrame() const { return loopStart_; }
+    /**
+     * After a seek, drops the run-in Bungee plays before the target (about 35 ms of the audio before
+     * it), so the next frame rendered is the target itself: what a count-in needs to start the music
+     * exactly on its beat. No-op once the target has been reached.
+     */
+    void skipPreroll();
+
     /** Fills `frames` planar stereo frames. Returns how many carry audio: fewer only at the end. */
-    int render(float *const *out, int frames);
+    int render(float *const *out, int frames) { return render(out, frames, nullptr); }
+    /**
+     * As above, and writes the source frame heard at each returned output frame into
+     * `sourceFrames[0..returned)`: what the metronome places its clicks on. Across a loop wrap the
+     * positions run up to the loop end, then go on from the loop start. After a seek they are those of
+     * the run-in before the target, which is heard (unlike position(), which holds the target), and NaN
+     * for the few frames before the first grain says where it is.
+     */
+    int render(float *const *out, int frames, double *sourceFrames);
     /** Source frame being output at the FIFO read head. */
     double position() const { return position_; }
 
@@ -47,14 +76,22 @@ private:
     void appendToFifo(const Bungee::OutputChunk &output);
     void updatePosition();
     void updateChunkPosition();
+    void fillSourceFrames(double *sourceFrames, int frames) const;
+    /** Fades the frames still in the FIFO out to silence, over at most stopFadeFrames_. */
+    void fadeOutFifoTail();
 
     struct ChunkInfo {
         int64_t begin = 0; // absolute FIFO frame index
         int frames = 0;
         double positionBegin = 0;
         double positionEnd = 0;
+        // The loop as it was when the chunk was made: a wrap chunk's end is before its begin.
+        double loopStart = 0;
+        double loopLength = 0; // 0 = the loop was off
     };
-    static constexpr int kMaxChunks = 64;
+    // Every chunk still in the FIFO must stay here, or the per-frame positions lose their place: a
+    // 16384-frame export block at the lowest speed holds a few hundred grains at most.
+    static constexpr int kMaxChunks = 1024;
 
     const PcmBuffer *source_ = nullptr;
     std::unique_ptr<Bungee::Stretcher<Bungee::Basic>> stretcher_;
@@ -71,6 +108,9 @@ private:
     std::array<ChunkInfo, kMaxChunks> chunks_{};
     int chunkHead_ = 0, chunkCount_ = 0;
     bool finished_ = false;
+    bool stopAtLoopEnd_ = false;
+    bool reachedLoopEnd_ = false;
+    int stopFadeFrames_ = 0;
     double position_ = 0;
     double seekTarget_ = -1; // after a seek the preroll grains sit before it: hold the target until passed
 };

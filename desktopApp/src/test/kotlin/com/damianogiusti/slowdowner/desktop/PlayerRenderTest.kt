@@ -58,7 +58,8 @@ class PlayerRenderTest {
     private val directories = AppDirectories(Files.createTempDirectory("downstep-player-render").toFile())
     private val koin = startKoin {
         modules(
-            desktopModule(directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(), InMemorySupportPromptStore()),
+            desktopModule(directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(), InMemorySupportPromptStore(),
+                clickSettingsStore = InMemoryClickSettingsStore()),
             useCasesModule,
             uiModule,
         )
@@ -75,6 +76,7 @@ class PlayerRenderTest {
     fun `the dark player shows its loops and the amber play button`() {
         val image = renderPlayer("player-dark.png", ThemeMode.Dark)
         assertColorNear(image, PLAY_BUTTON_X, PLAY_BUTTON_Y, 0xF2A541, "Play button")
+        assertPlayIconCentred(image, 0xF2A541)
     }
 
     @Test
@@ -82,6 +84,7 @@ class PlayerRenderTest {
         val image = renderPlayer("player-light.png", ThemeMode.Light)
         assertColorNear(image, PLAY_BUTTON_X, PLAY_BUTTON_Y, 0xA86400, "Play button")
         assertColorNear(image, 4, image.height - 4, 0xFAF6F0, "background")
+        assertPlayIconCentred(image, 0xA86400)
     }
 
     @Test
@@ -89,6 +92,7 @@ class PlayerRenderTest {
         val image = renderPlayer("player-focus.png", ThemeMode.Dark) { it.onFocusToggled() }
         // No cards below the transport: the bottom of the window is the plain background.
         assertColorNear(image, image.width / 2, image.height - 40, 0x0F1114, "background under the transport")
+        assertPlayIconCentred(image, 0xF2A541)
     }
 
     @Test
@@ -179,6 +183,49 @@ class PlayerRenderTest {
         assertTrue(channels.all { it <= 12 }, "$what at ($x, $y) is #%06X, expected about #%06X".format(pixel and 0xFFFFFF, rgb))
     }
 
+    /**
+     * The play triangle's visual centre (its ink-weighted centroid) is the centre of the round button,
+     * within [ICON_CENTRE_TOLERANCE_DP] on both axes: not its bounding box, which leans right. The
+     * button is found by its [amber] pixels near the middle of the window (focus mode moves it up).
+     */
+    private fun assertPlayIconCentred(image: Image, amber: Int) {
+        val bitmap = org.jetbrains.skia.Bitmap.makeFromImage(image)
+        fun distance(x: Int, y: Int): Int {
+            val pixel = bitmap.getColor(x, y)
+            return listOf(16, 8, 0).maxOf { shift -> abs(((pixel shr shift) and 0xFF) - ((amber shr shift) and 0xFF)) }
+        }
+        val searchX = (640 - 50) * SCALE until (640 + 50) * SCALE
+        val searchY = (473 - 80) * SCALE until (473 + 80) * SCALE
+        val disc = searchY.flatMap { y -> searchX.filter { x -> distance(x, y) <= 24 }.map { x -> x to y } }
+        assertTrue(disc.isNotEmpty(), "no Play button found")
+        val left = disc.minOf { it.first }
+        val right = disc.maxOf { it.first } + 1
+        val top = disc.minOf { it.second }
+        val bottom = disc.maxOf { it.second } + 1
+        val centreX = (left + right) / 2.0
+        val centreY = (top + bottom) / 2.0
+        // Ink = how far a pixel is from the container colour, inside the disc minus its anti-aliased rim.
+        val inner = (right - left) / 2.0 - 3
+        var ink = 0.0
+        var sumX = 0.0
+        var sumY = 0.0
+        for (y in top until bottom) for (x in left until right) {
+            val dx = x + 0.5 - centreX
+            val dy = y + 0.5 - centreY
+            if (dx * dx + dy * dy > inner * inner) continue
+            val weight = distance(x, y) / 255.0
+            ink += weight
+            sumX += weight * dx
+            sumY += weight * dy
+        }
+        val offsetX = sumX / ink / SCALE
+        val offsetY = sumY / ink / SCALE
+        assertTrue(
+            abs(offsetX) <= ICON_CENTRE_TOLERANCE_DP && abs(offsetY) <= ICON_CENTRE_TOLERANCE_DP,
+            "the play icon's centre is %.2f, %.2f dp off the button's centre".format(offsetX, offsetY),
+        )
+    }
+
     /** 30 s of a chord whose loudness swells and fades, so the waveform has a shape. */
     private fun musicWav(): ByteArray {
         val rate = 44_100
@@ -211,5 +258,7 @@ class PlayerRenderTest {
         // Inside the 68dp Play button beside its icon (the transport row is centred).
         const val PLAY_BUTTON_X = (640 + 24) * SCALE
         const val PLAY_BUTTON_Y = 473 * SCALE
+        // The box-centred triangle was 2.5dp off; a quarter of that is rounding and anti-aliasing.
+        const val ICON_CENTRE_TOLERANCE_DP = 0.6
     }
 }

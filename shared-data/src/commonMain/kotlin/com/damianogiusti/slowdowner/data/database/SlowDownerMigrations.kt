@@ -52,7 +52,36 @@ object SlowDownerMigrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2)
+    /**
+     * 3: Snap to beat is gone (snap_to_beat dropped); per-track EQ and the detected tempo get their
+     * columns, and presets an EQ curve. The new columns start empty: every track keeps the global
+     * EQ and is analysed again. SQLite before 3.35 (Android before API 34) has no DROP COLUMN, so
+     * track_practice_state is rebuilt, as Room's own migrations do; no table points at it.
+     */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                "CREATE TABLE IF NOT EXISTS `_new_track_practice_state` (`track_id` TEXT NOT NULL, " +
+                    "`updated_at` INTEGER NOT NULL, `active_loop_id` INTEGER, `bpm` REAL, `eq_curve` TEXT, " +
+                    "`detected_bpm` REAL, `beat_offset_seconds` REAL, " +
+                    "`tempo_analysis_version` INTEGER NOT NULL DEFAULT 0, `speed_percent` REAL NOT NULL, " +
+                    "`pitch_semitones` REAL NOT NULL, `loop_start` REAL NOT NULL, `loop_end` REAL NOT NULL, " +
+                    "`is_loop_on` INTEGER NOT NULL, PRIMARY KEY(`track_id`), " +
+                    "FOREIGN KEY(`track_id`) REFERENCES `tracks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            connection.execSQL(
+                "INSERT INTO `_new_track_practice_state` (`track_id`, `updated_at`, `active_loop_id`, `bpm`, " +
+                    "`speed_percent`, `pitch_semitones`, `loop_start`, `loop_end`, `is_loop_on`) " +
+                    "SELECT `track_id`, `updated_at`, `active_loop_id`, `bpm`, `speed_percent`, " +
+                    "`pitch_semitones`, `loop_start`, `loop_end`, `is_loop_on` FROM `track_practice_state`",
+            )
+            connection.execSQL("DROP TABLE `track_practice_state`")
+            connection.execSQL("ALTER TABLE `_new_track_practice_state` RENAME TO `track_practice_state`")
+            connection.execSQL("ALTER TABLE `practice_presets` ADD COLUMN `eq_curve` TEXT")
+        }
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 
     /** In SQL what [hasRegion] says in Kotlin: keep the two in step. */
     private const val HAS_REGION = "`loop_end` > `loop_start` AND (`loop_start` > 0 OR `loop_end` < 1)"

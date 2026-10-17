@@ -193,7 +193,7 @@ class DefaultBackupRepositoryTest {
         source.dao.addLoop(loop("yt_abc", "Unused", 0f, 0.1f)).also { source.dao.loops.clear() }
         val verse = source.dao.addLoop(loop("yt_abc", "Verse", 0.1f, 0.2f))
         val chorus = source.dao.addLoop(loop("yt_abc", "Chorus", 0.5f, 0.6f, notes = "Am - G"))
-        source.dao.states += PracticeStateEntity("yt_abc", slow, 1, activeLoopId = chorus.id, bpm = 92f, snapToBeat = false)
+        source.dao.states += PracticeStateEntity("yt_abc", slow, 1, activeLoopId = chorus.id, bpm = 92f)
         val backup = exportLibrary()
 
         target.repository.restore(backup.path, Copy) {}
@@ -205,7 +205,6 @@ class DefaultBackupRepositoryTest {
         val state = target.dao.findState("yt_abc")!!
         assertEquals(restored[1].id, state.activeLoopId)
         assertEquals(92f, state.bpm)
-        assertFalse(state.snapToBeat)
     }
 
     @Test

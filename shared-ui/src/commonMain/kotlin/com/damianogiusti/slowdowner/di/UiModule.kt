@@ -5,6 +5,7 @@ import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.library.LibraryViewModel
+import com.damianogiusti.slowdowner.ui.player.ClickUseCases
 import com.damianogiusti.slowdowner.ui.player.ExportUseCases
 import com.damianogiusti.slowdowner.ui.player.LoopUseCases
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
@@ -27,12 +28,13 @@ val uiModule = module {
     factoryOf(::LoopUseCases)
     factoryOf(::PracticeSeams)
     factoryOf(::ExportUseCases)
+    factoryOf(::ClickUseCases)
     factoryOf(::PlaylistEditUseCases)
     factoryOf(::PlaylistTrackUseCases)
     factoryOf(::BackupUseCases)
 
     // Explicit lambda: the background dispatcher keeps its default.
-    viewModel { PlayerViewModel(get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { PlayerViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModelOf(::ImportViewModel)
     viewModelOf(::BackupViewModel)
     viewModelOf(::LibraryViewModel)

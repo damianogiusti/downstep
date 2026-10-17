@@ -74,6 +74,83 @@ class WaveformGesturesTest {
     }
 
     @Test
+    fun `dragging the top bar moves the whole loop and commits once`() {
+        val commits = mutableListOf<Pair<Long, LoopBounds>>()
+        val events = mutableListOf<String>()
+        val actions = recording(events, onCommit = { id, bounds -> commits += id to bounds })
+        scene(state, actions) {
+            press(Offset(300f, 4f))
+            move(Offset(330f, 4f))
+            move(Offset(400f, 4f))
+            assertTrue(commits.isEmpty(), "committed during the drag")
+            release(Offset(400f, 4f))
+        }
+        assertEquals(listOf("commit 7"), events, "no seek, no bar click, no grab of the active loop")
+        assertEquals(0.3f, commits.single().second.start, 1e-4f)
+        assertEquals(0.5f, commits.single().second.end, 1e-4f)
+    }
+
+    @Test
+    fun `a top bar moved past the end of the file keeps its length`() {
+        val commits = mutableListOf<LoopBounds>()
+        scene(state, recording(mutableListOf(), onCommit = { _, bounds -> commits += bounds })) {
+            press(Offset(300f, 4f))
+            move(Offset(1040f, 4f))
+            release(Offset(1040f, 4f))
+        }
+        assertEquals(1f, commits.single().end)
+        assertEquals(0.2f, commits.single().length, 1e-4f)
+    }
+
+    @Test
+    fun `a click on a top bar is a bar click, also with a wobble under the threshold`() {
+        val events = mutableListOf<String>()
+        scene(withOther, recording(events)) {
+            press(Offset(724f, 4f))
+            move(Offset(727f, 5f))
+            release(Offset(727f, 5f))
+        }
+        assertEquals(listOf("bar 8 at 0.703"), events)
+    }
+
+    @Test
+    fun `dragging a loop that is not active grabs it before the commit`() {
+        val events = mutableListOf<String>()
+        val commits = mutableListOf<LoopBounds>()
+        scene(withOther, recording(events, onCommit = { _, bounds -> commits += bounds })) {
+            press(Offset(824f, 120f))
+            move(Offset(874f, 120f))
+            move(Offset(924f, 120f))
+            release(Offset(924f, 120f))
+        }
+        assertEquals(listOf("grab 8", "commit 8"), events)
+        assertEquals(LoopBounds(0.6f, 0.9f).start, commits.single().start)
+        assertEquals(0.9f, commits.single().end, 1e-4f)
+    }
+
+    @Test
+    fun `a drag is picked up while the pointer moves, not only on release`() {
+        val events = mutableListOf<String>()
+        scene(withOther, recording(events)) {
+            press(Offset(824f, 4f))
+            move(Offset(874f, 4f))
+            // The grab (and the live preview with it) happens on the first move past the threshold.
+            assertEquals(listOf("grab 8"), events, "nothing happened before the release")
+            release(Offset(874f, 4f))
+        }
+        assertEquals(listOf("grab 8", "commit 8"), events)
+    }
+
+    @Test
+    fun `a click in another loop below its top bar is a click on the waveform`() {
+        val events = mutableListOf<String>()
+        scene(withOther, recording(events)) {
+            click(Offset(724f, 100f))
+        }
+        assertEquals(listOf("click at 0.7"), events)
+    }
+
+    @Test
     fun `nothing happens while disabled`() {
         val seeks = mutableListOf<Float>()
         scene(state.copy(enabled = false), WaveformActions(onSeek = { seeks += it }, onLoopBoundsChanged = { _, _ -> error("drag") })) {
@@ -84,6 +161,23 @@ class WaveformGesturesTest {
         }
         assertTrue(seeks.isEmpty())
     }
+
+    private val other = LoopRegionModel(id = 8, start = 0.6f, end = 0.8f, colorIndex = 3, isActive = false)
+    private val withOther = state.copy(regions = listOf(active, other))
+
+    /** Every action as a line, in order; positions rounded to 1e-3. */
+    private fun recording(events: MutableList<String>, onCommit: (Long, LoopBounds) -> Unit = { _, _ -> }) = WaveformActions(
+        onSeek = { events += "seek at ${it.r()}" },
+        onLoopBoundsChanged = { id, bounds ->
+            events += "commit $id"
+            onCommit(id, bounds)
+        },
+        onOverviewClick = { events += "click at ${it.r()}" },
+        onLoopBarClick = { id, position -> events += "bar $id at ${position.r()}" },
+        onLoopGrabbed = { events += "grab $it" },
+    )
+
+    private fun Float.r(): Float = kotlin.math.round(this * 1000f) / 1000f
 
     private fun scene(state: OverviewWaveformState, actions: WaveformActions, block: ImageComposeScene.() -> Unit) {
         val scene = ImageComposeScene(width = 1048, height = 200, density = Density(1f)) {

@@ -66,10 +66,10 @@ f4_text = "Ogni brano si ricorda velocità, tonalità e loop, così lo ritrovi c
 f4_chips = '<span class="chip">Assolo 70%</span><span class="chip">Brano intero −2</span>'
 f5_tag = 'Effetti'
 f5_title = 'Equalizzatore e bilanciamento'
-f5_text = 'Un equalizzatore a 7 bande e il bilanciamento tra sinistra e destra, utili quando vuoi sentire meglio uno strumento.'
+f5_text = 'Un equalizzatore a campana: trascini ogni banda sul grafico delle frequenze per sceglierne frequenza, guadagno e larghezza, e resta salvato per ogni brano. In più il bilanciamento tra sinistra e destra, utile quando vuoi sentire meglio uno strumento.'
 f6_tag = 'Export'
 f6_title = 'Export e backup'
-f6_text = 'Puoi esportare un brano in MP3 con le tue modifiche. Il backup contiene tutta la libreria, e lo ripristini su un altro Mac o su Windows.'
+f6_text = 'Puoi esportare un brano in MP3 con le tue modifiche: il brano intero, un file per ogni loop, o entrambi. Il backup contiene tutta la libreria, e lo ripristini su un altro Mac o su Windows.'
 
 uses_title = "Casi d'uso"
 u1_tag = 'Voce'
@@ -139,7 +139,7 @@ catalog = '''
       <section class="surface">
         <div class="label">Suono</div>
         <ul class="rows">
-          <li class="row">{{ @icon:check }}<div><b>Equalizzatore</b><span>7 bande, da 60 Hz a 15 kHz</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Equalizzatore</b><span>fino a 8 bande a campana da trascinare su un grafico, da 20 Hz a 20 kHz</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Preamp</b></div></li>
           <li class="row">{{ @icon:check }}<div><b>Bilanciamento</b><span>tra sinistra e destra</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Time-stretch</b><span>con <a href="https://github.com/bungee-audio-stretch/bungee">Bungee</a></span></div></li>
@@ -148,7 +148,7 @@ catalog = '''
       <section class="surface">
         <div class="label">Export e backup</div>
         <ul class="rows">
-          <li class="row">{{ @icon:check }}<div><b>Export MP3</b><span>con le tue modifiche</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Export MP3</b><span>con le tue modifiche, il brano intero o un file per loop</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Backup</b><span>brani, preset e playlist</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Ripristino</b><span>senza perdere quello che hai</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Stesso formato</b><span>su Mac e Windows</span></div></li>
@@ -310,8 +310,8 @@ features = [
   'Importa file MP3, M4A, WAV e FLAC, o link di YouTube',
   'Libreria offline con playlist',
   'Velocità, tonalità e loop salvati per ogni brano, e preset con un nome',
-  'Equalizzatore a 7 bande, preamplificatore e bilanciamento',
-  'Esportazione in MP3 con velocità e tonalità applicate',
+  'Equalizzatore a campana (fino a 8 bande), preamplificatore e bilanciamento',
+  'Esportazione in MP3 con velocità e tonalità applicate, del brano intero o di un file per loop',
   'Backup e ripristino tra Mac e Windows',
 ]
 
@@ -355,7 +355,7 @@ body = '''
 
   <h2>Studia solo il passaggio difficile</h2>
   <p>Rallentare funziona meglio insieme a un loop: ripeti solo il passaggio difficile, non tutto il brano. <a href="{{ @url:loop }}">Ecco come imparare una parte a orecchio con il loop A-B</a>.</p>
-  <p>Se vuoi esercitarti lontano dal computer, puoi esportare il brano in MP3 con velocità e tonalità già applicate.</p>'''
+  <p>Se vuoi esercitarti lontano dal computer, puoi esportare il brano in MP3 con velocità e tonalità già applicate, o solo i tuoi loop, un file ciascuno.</p>'''
 
 [key]
 title = 'Come cambiare tonalità a una canzone (trasporre un brano) | Downstep'

@@ -1,6 +1,9 @@
 package com.damianogiusti.slowdowner.data.playback
 
+import com.damianogiusti.slowdowner.domain.click.ClickTrackEngine
+import com.damianogiusti.slowdowner.domain.click.TrackTempo
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
+import com.damianogiusti.slowdowner.domain.effects.EqBand
 import com.damianogiusti.slowdowner.domain.effects.ProcessingQuality
 import com.damianogiusti.slowdowner.domain.playback.LoopEditing
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
@@ -43,7 +46,7 @@ class DesktopPlaybackEngine(
     private val engine: NativeEngine,
     scope: CoroutineScope,
     pollInterval: Duration = 50.milliseconds,
-) : PlaybackEngine, EffectsEngine, AutoCloseable {
+) : PlaybackEngine, EffectsEngine, ClickTrackEngine, AutoCloseable {
 
     private val _events = MutableSharedFlow<PlaybackEvent>(
         extraBufferCapacity = 16,
@@ -230,7 +233,47 @@ class DesktopPlaybackEngine(
 
     override fun setPreampDb(gainDb: Float) = engine.setPreamp(gainDb.toDouble())
 
-    override fun setBandGainDb(band: Int, gainDb: Float) = engine.setEqBand(band, gainDb.toDouble())
+    // What the C side has: a drag moves one band, the others need not be sent again.
+    private var sentEqBands: List<EqBand> = emptyList()
+
+    override fun setEqBands(bands: List<EqBand>) {
+        val sent = bands.take(NativeEngine.EQ_MAX_BANDS)
+        sent.forEachIndexed { index, band ->
+            if (sentEqBands.getOrNull(index) == band) return@forEachIndexed
+            engine.setEqBandParams(index, band.frequencyHz.toDouble(), band.gainDb.toDouble(), band.q.toDouble())
+        }
+        if (sent.size != sentEqBands.size) engine.setEqBandCount(sent.size)
+        sentEqBands = sent
+    }
+
+    override fun setIsolation(mask: Int) = engine.setIsolation(mask)
+
+    // The metronome and count-in. The view model pushes them whenever the tempo or the settings change,
+    // possibly as the app quits: a closed engine ignores them.
+    @Volatile
+    var tempo: TrackTempo? = null
+        private set
+
+    override fun setTempo(tempo: TrackTempo?) = ifOpen {
+        this.tempo = tempo
+        engine.setTempo(tempo?.bpm?.toDouble() ?: 0.0, tempo?.beatOffsetSeconds?.toDouble() ?: 0.0, tempo?.beatsPerBar ?: 4)
+    }
+
+    override fun setMetronome(enabled: Boolean, volume: Float) = ifOpen { engine.setMetronome(enabled, volume.toDouble()) }
+
+    override fun setCountIn(beats: Int, everyLoop: Boolean) = ifOpen { engine.setCountIn(beats, everyLoop) }
+
+    override val countInRemaining: Int get() = lifecycle.read { if (isClosed) 0 else engine.countInRemaining }
+
+    /**
+     * The open file's tempo ([NativeEngine.detectTempo]). Blocking for a fraction of a second: off the
+     * UI thread. Null once closed: close() waits for an analysis in progress.
+     */
+    fun detectTempo(hintBpm: Double = 0.0): NativeEngine.NativeTempo? = lifecycle.read {
+        if (isClosed) null else engine.detectTempo(hintBpm)
+    }
+
+    private inline fun ifOpen(action: () -> Unit) = lifecycle.read { if (!isClosed) action() }
 
     /** Bungee has no quality levels (other hop sizes degrade it): the choice is kept, the sound is the same. */
     override fun setQuality(quality: ProcessingQuality) {

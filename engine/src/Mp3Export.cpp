@@ -6,7 +6,11 @@
 
 #include <lame.h>
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <cstdio>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -16,8 +20,26 @@ Player *sdEnginePlayer(SdEngine *engine);
 namespace {
 
 constexpr int kChunkFrames = 16384;
+// The fade-out at a slice's end: as short as the player's own fades, so it only hides the cut.
+constexpr double kSliceFadeSeconds = 0.010;
+// Mirrors TimeStretcher::setSpeed's clamp: a slice lasts what it really plays for.
+constexpr double kMinSpeed = 0.05, kMaxSpeed = 4.0;
+
+/** Ramps the last `length` frames of the block down to silence. */
+void fadeOut(float *const *out, int frames, int length) {
+    length = std::min(frames, length);
+    for (int i = frames - length; i < frames; ++i) {
+        const float g = float(frames - 1 - i) / float(length);
+        out[0][i] *= g;
+        out[1][i] *= g;
+    }
+}
 
 } // namespace
+
+struct SdExportSettings {
+    Player::Settings settings;
+};
 
 struct SdExport {
     std::unique_ptr<Player> player;
@@ -28,6 +50,12 @@ struct SdExport {
     std::vector<unsigned char> mp3 = std::vector<unsigned char>(kChunkFrames * 5 / 4 + 7200);
     bool isComplete = false;
     bool hasFailed = false;
+    // Output frames to write. The whole file is open-ended: it stops at the end-of-file event.
+    int64_t targetFrames = std::numeric_limits<int64_t>::max();
+    // The range's expected length in output frames, for the progress (also when open-ended).
+    int64_t expectedFrames = 1;
+    int64_t written = 0;
+    int fadeFrames = 0; // 0 = no fade-out: the file's own end
 
     ~SdExport() {
         if (lame) lame_close(lame);
@@ -42,19 +70,62 @@ struct SdExport {
 
 extern "C" {
 
-SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps) try {
+SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps) {
+    return sd_export_begin_range(engine, utf8OutputPath, bitrateKbps, 0.0, 1.0);
+}
+
+SdExportSettings *sd_export_capture_settings(SdEngine *engine) try {
+    return new SdExportSettings{sdEnginePlayer(engine)->settings()};
+} catch (...) {
+    return nullptr;
+}
+
+void sd_export_settings_free(SdExportSettings *settings) { delete settings; }
+
+SdExport *sd_export_begin_range(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps, double start,
+                                double end) {
+    // A file on its own: the settings as they are now.
+    const SdExportSettings now{sdEnginePlayer(engine)->settings()};
+    return sd_export_begin_range_with(engine, utf8OutputPath, bitrateKbps, start, end, &now);
+}
+
+SdExport *sd_export_begin_range_with(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps, double start,
+                                     double end, const SdExportSettings *frozen) try {
+    if (!frozen) return nullptr;
+    start = std::clamp(start, 0.0, 1.0);
+    end = std::clamp(end, 0.0, 1.0);
+    if (!(end > start)) return nullptr;
     Player *source = sdEnginePlayer(engine);
     // The open file's decoded audio, shared read-only: no second decode, no second copy in memory,
     // and it stays alive for the export even if the player moves on to another file. Buffer, path
     // and rate come from one locked read: a file opening on another thread cannot mix two files.
+    // Each slice of a batch takes its own reference to the same buffer.
     auto open = source->snapshot();
     if (!open.source) return nullptr;
     const int rate = open.source->sampleRate;
+    const double rangeFrames = (end - start) * double(open.source->frames);
 
     auto exporter = std::make_unique<SdExport>();
     exporter->player = std::make_unique<Player>(rate, kChunkFrames);
     if (!exporter->player->open(std::move(open.source), open.path)) return nullptr;
-    exporter->player->applySettings(source->settings());
+    // The sound settings only: the loop and the practice aids the live player plays on top of the
+    // music (metronome, count-in, Isolate) never reach the export's player. They are not in
+    // Player::Settings, and a new player starts with no tempo, no metronome and no count-in. They
+    // were taken once for the whole batch: every file of it sounds the same.
+    const Player::Settings settings = frozen->settings;
+    exporter->player->applySettings(settings);
+
+    // The export's player runs at the file's rate, so the output lasts the range's frames over the
+    // speed. Pitch does not change the length.
+    const double speed = std::clamp(settings.speed, kMinSpeed, kMaxSpeed);
+    const int64_t expected = std::llround(rangeFrames / speed);
+    if (expected < 1) return nullptr;
+    exporter->expectedFrames = expected;
+    if (end < 1.0) {
+        // A slice: cut at its length, with a short fade-out so the cut does not click.
+        exporter->targetFrames = expected;
+        exporter->fadeFrames = std::max(1, int(rate * kSliceFadeSeconds));
+    }
 
     exporter->file = openFileUtf8(utf8OutputPath, "wb");
     if (!exporter->file) return nullptr;
@@ -65,6 +136,9 @@ SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitr
     lame_set_quality(exporter->lame, 2); // near-best; encoding is much faster than real time anyway
     if (lame_init_params(exporter->lame) < 0) return nullptr;
 
+    // The seek lands in the first block, with the start: the slice fades in as playback does. It
+    // starts with A itself, not the stretcher's run-in before it, so its fixed length ends at B.
+    exporter->player->seekExact(start);
     exporter->player->setPlaying(true);
     return exporter.release();
 } catch (...) {
@@ -75,16 +149,24 @@ SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitr
 double sd_export_next(SdExport *exporter) {
     if (exporter->isComplete || exporter->hasFailed) return -1.0;
     float *planar[2] = {exporter->left.data(), exporter->right.data()};
+    const int64_t remaining = exporter->targetFrames - exporter->written;
+    int chunk = int(std::min<int64_t>(kChunkFrames, remaining));
+    // The fade-out must fall in one chunk: stop this one short of it rather than split it.
+    if (remaining > chunk && remaining - chunk < exporter->fadeFrames) chunk = int(remaining - exporter->fadeFrames);
     int frames = 0;
     {
         const ScopedFlushDenormals flushDenormals;
-        frames = exporter->player->render(planar, kChunkFrames);
+        frames = exporter->player->render(planar, chunk);
     }
+    exporter->written += frames;
     const bool reachedEnd = (exporter->player->takeEvents() & SD_EVENT_REACHED_END) != 0;
+    const bool isLast = reachedEnd || exporter->written >= exporter->targetFrames;
+    if (isLast && exporter->fadeFrames > 0) fadeOut(planar, frames, exporter->fadeFrames);
     const int bytes = lame_encode_buffer_ieee_float(exporter->lame, planar[0], planar[1], frames,
                                                     exporter->mp3.data(), int(exporter->mp3.size()));
     if (!exporter->write(bytes)) return -1.0;
-    if (!reachedEnd) return exporter->player->position();
+    // Frames written over the range's length: it only grows, whatever the stretcher's preroll does.
+    if (!isLast) return std::min(1.0, double(exporter->written) / double(exporter->expectedFrames));
 
     if (!exporter->write(lame_encode_flush(exporter->lame, exporter->mp3.data(), int(exporter->mp3.size()))))
         return -1.0;
