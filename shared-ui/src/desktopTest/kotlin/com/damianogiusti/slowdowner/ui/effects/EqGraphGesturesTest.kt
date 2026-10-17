@@ -94,6 +94,25 @@ class EqGraphGesturesTest {
     }
 
     @Test
+    fun `a node pressed again right after a drag is grabbed again, not reset`() {
+        val resets = mutableListOf<Int>()
+        val curve = graph(onReset = { resets += it }) {
+            val node = nodeOf(start.bands[0])
+            val nudged = node + Offset(0f, -height / 20) // +1.5 dB
+            press(node)
+            move(nudged)
+            release(nudged)
+            // Within the double-click time, on the node where it now is: a second nudge.
+            press(nudged)
+            move(nudged + Offset(0f, -height / 20))
+            release(nudged + Offset(0f, -height / 20))
+        }
+
+        assertEquals(emptyList<Int>(), resets)
+        assertEquals(3f, curve.bands[0].gainDb, 0.01f)
+    }
+
+    @Test
     fun `a press away from the nodes takes nothing`() {
         val curve = graph {
             press(Offset(900f, 20f))

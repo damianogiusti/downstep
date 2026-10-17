@@ -24,6 +24,12 @@ object EqGraphMath {
     /** How near a node a press must land to take it, at density 1. */
     const val NODE_HIT_RADIUS = 16f
 
+    /**
+     * How far a press may wander, at density 1, and still be a click (half of a double click that
+     * resets the gain). Further, it is a drag: pressing the node again right after is another nudge.
+     */
+    const val CLICK_WANDER = 3f
+
     /** Vertical grid lines, and the frequencies labelled under them. */
     val GRID_HZ = listOf(20f, 50f, 100f, 200f, 500f, 1_000f, 2_000f, 5_000f, 10_000f, 20_000f)
     val GRID_DB = listOf(-12f, -6f, 0f, 6f, 12f)

@@ -211,8 +211,10 @@ private suspend fun PointerInputScope.eqGestures(
     val hitRadius = EqGraphMath.NODE_HIT_RADIUS.dp.toPx()
     val qPixels = EqGraphMath.Q_DRAG_PIXELS_PER_DOUBLING.dp.toPx()
     val doubleClickMillis = viewConfiguration.doubleTapTimeoutMillis
+    val wander = EqGraphMath.CLICK_WANDER.dp.toPx()
     var drag: BandDrag? = null
-    var lastPress: Pair<Int, Long>? = null
+    // The last press that is still a click: a drag is not the first half of a double click.
+    var lastPress: NodePress? = null
     awaitPointerEventScope {
         while (true) {
             val event = awaitPointerEvent()
@@ -228,13 +230,13 @@ private suspend fun PointerInputScope.eqGestures(
                     if (hit == null) continue
                     change.consume()
                     val previous = lastPress
-                    if (previous != null && previous.first == hit && change.uptimeMillis - previous.second <= doubleClickMillis) {
+                    if (previous != null && previous.index == hit && change.uptimeMillis - previous.uptimeMillis <= doubleClickMillis) {
                         lastPress = null
                         drag = null
                         onReset(hit)
                         continue
                     }
-                    lastPress = hit to change.uptimeMillis
+                    lastPress = NodePress(hit, change.uptimeMillis, position)
                     drag = BandDrag(hit, all[hit], position, adjustsQ)
                     onActive(hit)
                 }
@@ -251,6 +253,9 @@ private suspend fun PointerInputScope.eqGestures(
                     else BandDrag(started.index, all[started.index], position, adjustsQ).also { drag = it }
                     val dx = position.x - anchor.origin.x
                     val dy = position.y - anchor.origin.y
+                    // Past a wobble it is a drag: pressing the node again right after is a new grab (a
+                    // quick nudge), not a double click that would reset it.
+                    if (lastPress?.let { (position - it.position).getDistance() > wander } == true) lastPress = null
                     val band = if (anchor.adjustsQ) anchor.start.copy(q = EqGraphMath.qFromDrag(anchor.start.q, dy, qPixels))
                     else EqGraphMath.moveBand(anchor.start, dx, dy, width, height)
                     if (band != all[anchor.index]) onChanged(anchor.index, band)
@@ -276,6 +281,9 @@ private suspend fun PointerInputScope.eqGestures(
 }
 
 private class BandDrag(val index: Int, val start: EqBand, val origin: Offset, val adjustsQ: Boolean)
+
+/** A press on node [index] at [position]: the first half of a double click while it stays a click. */
+private class NodePress(val index: Int, val uptimeMillis: Long, val position: Offset)
 
 @Composable
 private fun formatFrequency(hz: Float, separator: String): String =
