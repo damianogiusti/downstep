@@ -94,8 +94,14 @@ class WindowsTitleBarHook private constructor(
     private var saved: SavedWindow? = null
 
     private fun install() {
+        // Before the procedure is in: the window outlives the composition that remembers the hook
+        // (Compose disposes it before the native window is destroyed), and messages keep coming.
+        live.add(this)
         val previous = user32.SetWindowLongPtrW(hwnd, Win32.GWLP_WNDPROC, procPointer(windowProc))
-            ?: error("SetWindowLongPtr failed")
+            ?: run {
+                live.remove(this)
+                error("SetWindowLongPtr failed")
+            }
         previousProc = previous
         subclassChildren()
         extendFrame()
@@ -190,6 +196,15 @@ class WindowsTitleBarHook private constructor(
                     val result = callPrevious(h, message, wParam, lParam)
                     extendFrame()
                     return result
+                }
+                // The window's last message: its procedure goes back to what it was, and the hook may go.
+                Win32.WM_NCDESTROY -> {
+                    val previous = previousProc
+                    if (previous != null) user32.SetWindowLongPtrW(h, Win32.GWLP_WNDPROC, previous)
+                    // After this callback returns: until then its native code must stay.
+                    EventQueue.invokeLater { live.remove(this) }
+                    return if (previous != null) user32.CallWindowProcW(previous, h, message, wParam, lParam)
+                    else user32.DefWindowProcW(h, message, wParam, lParam)
                 }
             }
         } catch (e: Throwable) {
@@ -416,6 +431,12 @@ class WindowsTitleBarHook private constructor(
     private data class SavedWindow(val isMaximized: Boolean, val style: Int, val exStyle: Int, val bounds: IntRect)
 
     companion object {
+        /**
+         * The installed hooks, until their window's WM_NCDESTROY: what keeps their procedures (JNA
+         * callbacks, freed once collected) alive as long as Windows may call them.
+         */
+        private val live: MutableSet<WindowsTitleBarHook> = ConcurrentHashMap.newKeySet()
+
         private val EDGES = listOf(
             ScreenEdge.Left to Win32.ABE_LEFT,
             ScreenEdge.Top to Win32.ABE_TOP,
