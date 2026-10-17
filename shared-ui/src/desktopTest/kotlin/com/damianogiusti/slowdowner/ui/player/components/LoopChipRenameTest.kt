@@ -16,6 +16,7 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.damianogiusti.slowdowner.domain.loops.Loop
@@ -128,6 +129,53 @@ class LoopChipRenameTest {
     }
 
     @Test
+    fun `when the field is pressed for a while then editing goes on`() = scene {
+        doubleClick(ON_SOLO)
+        slowClick(IN_FIELD)
+
+        assertTrue(typing.isTyping, "a press held in the field is not a blur")
+        assertTrue(renames.isEmpty())
+        type("Riff")
+        key(Key.Enter)
+        assertEquals("SRiffolo", renames.single().second, "typed where the click put the caret")
+    }
+
+    @Test
+    fun `when the emptied field is pressed for a while then editing goes on`() = scene {
+        doubleClick(ON_SOLO)
+        repeat(4) { key(Key.Backspace) }
+        slowClick(IN_FIELD)
+
+        assertTrue(typing.isTyping, "an empty field takes no focus on press, it gets it back on release")
+        assertTrue(renames.isEmpty())
+        type("Riff")
+        key(Key.Enter)
+        assertEquals(listOf(1L to "Riff"), renames)
+    }
+
+    @Test
+    fun `when the field is tapped by touch then editing goes on`() = scene {
+        doubleClick(ON_SOLO)
+        slowClick(IN_FIELD, PointerType.Touch)
+
+        assertTrue(typing.isTyping, "a finger takes the focus back on release only")
+        assertTrue(renames.isEmpty())
+        type("Riff")
+        key(Key.Enter)
+        assertEquals("SRiffolo", renames.single().second, "typed where the click put the caret")
+    }
+
+    @Test
+    fun `when the field is left by touch then the new name is saved`() = scene {
+        doubleClick(ON_SOLO)
+        type("Riff")
+        slowClick(OUTSIDE, PointerType.Touch)
+
+        assertEquals(listOf(1L to "Riff"), renames)
+        assertFalse(typing.isTyping)
+    }
+
+    @Test
     fun `when Rename is chosen in the chip's menu then the name is edited in place`() = scene {
         sendPointerEvent(PointerEventType.Press, ON_SOLO, button = PointerButton.Secondary)
         next()
@@ -192,6 +240,17 @@ class LoopChipRenameTest {
         next()
     }
 
+    /** A press held for [HELD_FRAMES] frames, as a real finger tap or a slow click is. */
+    private fun ImageComposeScene.slowClick(at: Offset, type: PointerType = PointerType.Mouse) {
+        val button = PointerButton.Primary.takeIf { type == PointerType.Mouse }
+        sendPointerEvent(PointerEventType.Press, at, type = type, button = button)
+        repeat(HELD_FRAMES) { next() }
+        sendPointerEvent(PointerEventType.Release, at, type = type, button = button)
+        next()
+        next()
+        next()
+    }
+
     private fun ImageComposeScene.doubleClick(at: Offset) {
         click(at)
         click(at)
@@ -226,5 +285,6 @@ class LoopChipRenameTest {
         // The menu opens under the chip; Rename is its first item (8 px padding, 48 px rows).
         val ON_MENU_RENAME = Offset(60f, 46f + 8f + 24f)
         const val MENU_EXIT_FRAMES = 40
+        const val HELD_FRAMES = 10
     }
 }

@@ -37,8 +37,9 @@ val LocalTextInputFocus = compositionLocalOf<TextInputFocus?> { null }
 /**
  * Put on a screen's root: a press anywhere in it takes the focus away from a text field, as a click
  * outside a browser's textarea does, so the shortcuts come back. Only buttons and chips take the focus
- * themselves; the waveforms, sliders and the background do not. The press is not consumed, and a
- * press on a text field focuses it again in the same gesture.
+ * themselves; the waveforms, sliders and the background do not. The press is not consumed. A text field
+ * takes the focus back only later in the gesture (on release for a tap; on press only for a mouse on a
+ * non-empty text), so a field that must survive a press inside it has to wait for the release.
  */
 fun Modifier.clearsFocusOnPress(): Modifier = composed {
     val focusManager = LocalFocusManager.current

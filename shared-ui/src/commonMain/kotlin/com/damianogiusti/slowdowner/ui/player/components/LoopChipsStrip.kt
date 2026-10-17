@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -245,8 +247,9 @@ private fun LoopNameEditor(initial: String, color: Color, onCommit: (String) -> 
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     var value by remember { mutableStateOf(TextFieldValue(initial, TextRange(0, initial.length))) }
-    // [0] focused now, [1] focused once, [2] finished (saved or cancelled: only once).
-    val flags = remember { booleanArrayOf(false, false, false) }
+    // [0] focused now, [1] focused once, [2] finished (saved or cancelled: only once), [3] a press that
+    // began in the field is still down.
+    val flags = remember { booleanArrayOf(false, false, false, false) }
     val description = stringResource(Res.string.loop_rename)
 
     fun finish(save: Boolean) {
@@ -270,6 +273,23 @@ private fun LoopNameEditor(initial: String, color: Color, onCommit: (String) -> 
         modifier = Modifier
             .width(IntrinsicSize.Min)
             .widthIn(min = EDITOR_MIN_WIDTH, max = EDITOR_MAX_WIDTH)
+            .pointerInput(Unit) {
+                // A press in the field is not the user leaving it, however long it is held: the field
+                // takes the focus back on release (a tap), or not at all (an empty field, a touch drag).
+                // Either way, once every pointer is up the field has the focus again.
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    flags[3] = true
+                    do {
+                        val event = awaitPointerEvent(PointerEventPass.Final)
+                    } while (event.changes.any { it.pressed })
+                    flags[3] = false
+                    scope.launch {
+                        withFrameNanos { }
+                        if (!flags[0] && !flags[2]) focus.requestFocus()
+                    }
+                }
+            }
             .focusRequester(focus)
             .reportsTextInputFocus()
             .onPreviewKeyEvent { event ->
@@ -286,12 +306,12 @@ private fun LoopNameEditor(initial: String, color: Color, onCommit: (String) -> 
                 if (state.isFocused) {
                     flags[1] = true
                 } else if (flags[1]) {
-                    // A press anywhere first clears the focus (clearsFocusOnPress), and a press inside
-                    // the field focuses it again in the same gesture: only a blur still there a frame
-                    // later is the user leaving the field.
+                    // A press anywhere first clears the focus (clearsFocusOnPress). A press inside the
+                    // field marks itself a moment later, in the same event, and gives the focus back
+                    // on release: only a blur with no press in the field is the user leaving it.
                     scope.launch {
                         withFrameNanos { }
-                        if (!flags[0]) finish(save = true)
+                        if (!flags[0] && !flags[3]) finish(save = true)
                     }
                 }
             }
