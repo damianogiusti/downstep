@@ -1,10 +1,15 @@
 package com.damianogiusti.slowdowner.desktop
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.damianogiusti.slowdowner.ui.common.FullscreenControl
+import com.damianogiusti.slowdowner.ui.common.TextInputFocus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -93,4 +98,20 @@ class WindowFullscreen(
         const val POLL_MS = 50L
         const val LEAVE_TIMEOUT_MS = 2_000L
     }
+}
+
+/**
+ * Esc leaves fullscreen, as the window's back: Compose turns an Esc into back only once the window's
+ * shortcuts, the focused element and the window's onKeyEvent all let it through, and gives back to the
+ * newest handler first. Menus, dialogs and sheets close on that same back, so this handler, composed
+ * before any of them, goes last: Esc closes what is open, and the next one leaves fullscreen. A focused
+ * text field that lets Esc through does not leave it either.
+ */
+@Composable
+fun LeaveFullscreenOnBack(fullscreen: WindowFullscreen, textInput: TextInputFocus) {
+    NavigationBackHandler(
+        state = rememberNavigationEventState(NavigationEventInfo.None),
+        isBackEnabled = fullscreen.isFullscreen,
+        onBackCompleted = { if (!textInput.isTyping) fullscreen.exit() },
+    )
 }

@@ -216,19 +216,16 @@ class DesktopFlowTest {
             assertTrue(fullscreen.isFullscreen)
             shortcuts.handle(keyUp(Key.F11))
 
-            // Esc goes through the window twice: before the focused element (handle), and after
-            // everything let it through (handleUnconsumed). The drawer closes first, before anything.
+            // Esc reaches the shortcuts before the focused element: the drawer closes first, before anything.
             player.onDrawerOpened()
             assertTrue(shortcuts.handle(keyDown(Key.Escape)))
             assertFalse(player.layout.value.isDrawerOpen, "Esc closes the drawer first")
             assertTrue(fullscreen.isFullscreen)
-            // Nothing of the player's to close: on to the menus and dialogs, and only then fullscreen.
+            // Nothing of the player's to close: on to the menus and dialogs, and only then to the window's
+            // back, which leaves fullscreen (LeaveFullscreenOnBack, see FullscreenPlayerTest).
             assertFalse(shortcuts.handle(keyDown(Key.Escape)), "a menu or a dialog gets Esc before fullscreen")
             assertTrue(fullscreen.isFullscreen)
-            assertTrue(shortcuts.handleUnconsumed(keyDown(Key.Escape)))
-            assertFalse(fullscreen.isFullscreen)
-            assertFalse(shortcuts.handleUnconsumed(keyDown(Key.Escape)), "not fullscreen: Esc does nothing")
-            assertFalse(shortcuts.handleUnconsumed(keyDown(Key.F)), "only Esc, once nothing took it")
+            assertTrue(fullscreen.exit())
 
             // ⌃F belongs to the system and the menus, ⌃⌘F to the macOS menu item.
             assertFalse(shortcuts.handle(keyDown(Key.F, ctrl = true)))
@@ -244,7 +241,6 @@ class DesktopFlowTest {
         SwingUtilities.invokeAndWait {
             assertFalse(shortcuts.handle(keyDown(Key.F)))
             assertFalse(shortcuts.handle(keyDown(Key.F11)))
-            assertFalse(shortcuts.handleUnconsumed(keyDown(Key.Escape)))
         }
     }
 
@@ -281,7 +277,6 @@ class DesktopFlowTest {
                 assertFalse(fullscreen.isFullscreen)
                 assertFalse(shortcuts.handle(keyDown(Key.Escape)), "Esc cancels the rename, it is not the window's")
                 fullscreen.enter()
-                assertFalse(shortcuts.handleUnconsumed(keyDown(Key.Escape)), "nor does it leave fullscreen")
                 assertTrue(fullscreen.isFullscreen)
                 // F11 types nothing: it toggles while typing too.
                 assertTrue(shortcuts.handle(keyDown(Key.F11)))

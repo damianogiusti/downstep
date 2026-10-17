@@ -30,8 +30,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * The real player in a fullscreen window: the header's toggle, Esc as the window routes it (a menu
- * first, then fullscreen), and the loop chips, which work as in a window: select, rename, new loop.
+ * The real player in a fullscreen window: the header's toggle, Esc as the window routes it (a menu,
+ * a sheet or the drawer first, then fullscreen), and the loop chips, which work as in a window:
+ * select, rename, new loop.
  */
 @OptIn(ExperimentalComposeUiApi::class, InternalComposeUiApi::class)
 class FullscreenPlayerTest {
@@ -72,13 +73,47 @@ class FullscreenPlayerTest {
         scene.frames(6, 80)
         assertNotNull(scene.centreOfText("Themes"), "the theme menu is not open")
 
-        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle, shortcuts::handleUnconsumed)
-        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyUp), shortcuts::handle) { false }
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle)
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyUp), shortcuts::handle)
         scene.frames(6, 80)
         assertNull(scene.centreOfText("Themes"), "Esc did not close the menu")
         assertTrue(fullscreen.isFullscreen, "Esc closed the menu and left fullscreen at once")
 
-        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle, shortcuts::handleUnconsumed)
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle)
+        assertFalse(fullscreen.isFullscreen)
+    }
+
+    @Test
+    fun `Esc closes a dropdown menu first, then leaves fullscreen`() = fullscreenScene { scene ->
+        val shortcuts = PracticeShortcuts(scene.player, typing, fullscreen)
+        scene.click(assertNotNull(scene.centreOfDescription("Metronome and count-in settings"), "no click settings button"))
+        scene.frames(6, 80)
+        assertNotNull(scene.centreOfText("Click volume"), "the click settings menu is not open")
+
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle)
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyUp), shortcuts::handle)
+        scene.frames(6, 80)
+        assertNull(scene.centreOfText("Click volume"), "Esc did not close the menu")
+        assertTrue(fullscreen.isFullscreen, "Esc left fullscreen with the menu open")
+
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle)
+        assertFalse(fullscreen.isFullscreen)
+    }
+
+    @Test
+    fun `Esc closes the EQ sheet first, then leaves fullscreen`() = fullscreenScene { scene ->
+        val shortcuts = PracticeShortcuts(scene.player, typing, fullscreen)
+        scene.click(assertNotNull(scene.centreOfDescription("Equalizer"), "no EQ button"))
+        scene.frames(10, 80)
+        assertNotNull(scene.centreOfText("Effects"), "the EQ sheet is not open")
+
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle)
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyUp), shortcuts::handle)
+        scene.frames(10, 80)
+        assertNull(scene.centreOfText("Effects"), "Esc did not close the sheet")
+        assertTrue(fullscreen.isFullscreen, "Esc left fullscreen with the sheet open")
+
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle)
         assertFalse(fullscreen.isFullscreen)
     }
 
@@ -87,11 +122,11 @@ class FullscreenPlayerTest {
         val shortcuts = PracticeShortcuts(scene.player, typing, fullscreen)
         scene.steps({ it.onDrawerOpened() })
 
-        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle, shortcuts::handleUnconsumed)
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle)
         assertFalse(scene.player.layout.value.isDrawerOpen)
         assertTrue(fullscreen.isFullscreen)
 
-        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle, shortcuts::handleUnconsumed)
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle)
         assertFalse(fullscreen.isFullscreen)
     }
 
@@ -124,7 +159,7 @@ class FullscreenPlayerTest {
         scene.click(scene.chip("Riff"))
         scene.click(scene.chip("Riff"))
         assertTrue(typing.isTyping)
-        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle, shortcuts::handleUnconsumed)
+        scene.windowKey(KeyEvent(Key.Escape, KeyEventType.KeyDown), shortcuts::handle)
         scene.frames(6, 80)
         assertTrue(fullscreen.isFullscreen)
         assertTrue(!typing.isTyping)
@@ -144,7 +179,7 @@ class FullscreenPlayerTest {
     /** A 1920×1080 screen, whole: what a fullscreen window shows. */
     private fun fullscreenScene(entered: Boolean = true, block: (PlayerScene) -> Unit) {
         if (entered) fullscreen.enter()
-        PlayerScene(koin, 1920, 1080, scale = 1, textInput = typing, fullscreen = fullscreen).use { scene ->
+        PlayerScene(koin, 1920, 1080, scale = 1, textInput = typing, fullscreen = fullscreen, root = { LeaveFullscreenOnBack(fullscreen, typing) }).use { scene ->
             scene.openTrackWithLoops()
             scene.capture()
             assertEquals(entered, fullscreen.isFullscreen)

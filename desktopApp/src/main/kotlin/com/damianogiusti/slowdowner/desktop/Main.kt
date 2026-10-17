@@ -118,8 +118,6 @@ fun main() {
             icon = remember { runCatching { appIconPainter() }.getOrNull() },
             state = windowState,
             onPreviewKeyEvent = { event -> shortcuts?.handle(event) ?: false },
-            // What nothing in the window took: Esc leaves fullscreen once menus and dialogs let it through.
-            onKeyEvent = { event -> shortcuts?.handleUnconsumed(event) ?: false },
         ) {
             val scope = rememberCoroutineScope()
             val fullscreen = remember(windowState) { WindowFullscreen(windowState, scope) { window.placement } }
@@ -262,6 +260,8 @@ private fun DesktopApp(
     onShortcutsReady: (PracticeShortcuts) -> Unit,
 ) {
     val textInput = remember { TextInputFocus() }
+    // First, so that every menu, dialog and sheet opened later gets Esc before it.
+    LeaveFullscreenOnBack(fullscreen, textInput)
     CompositionLocalProvider(LocalTextInputFocus provides textInput) {
         val player = koinViewModel<PlayerViewModel>()
         val imports = koinViewModel<ImportViewModel>()

@@ -23,8 +23,8 @@ import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
  * Handled before the focused element ([handle]), so Space never re-clicks the last button and the
  * arrows never move a slider. Only a focused text field (notes, search, BPM, a chip's name, the theme
  * menu) keeps its keys ([TextInputFocus]). Leaving fullscreen is the exception: Esc first goes to what
- * is open (a menu, a dialog, a text field) and only one that nobody took leaves fullscreen
- * ([handleUnconsumed]).
+ * is open (a menu, a dialog, a sheet, a text field) and only one that nobody took leaves fullscreen
+ * ([LeaveFullscreenOnBack]).
  */
 class PracticeShortcuts(
     private val player: PlayerViewModel,
@@ -75,20 +75,11 @@ class PracticeShortcuts(
             Key.Escape -> {
                 // Released at once: Esc does nothing on repeat anyway, and dialogs get the next one.
                 held -= key
-                // Fullscreen is left in handleUnconsumed, once a menu or a dialog had the chance to close.
+                // Fullscreen is left as the window's back (LeaveFullscreenOnBack), once what is open closed.
                 return player.onEscape()
             }
         }
         return true
-    }
-
-    /**
-     * A key that the focused element, the menus and the dialogs all let through: Esc leaves fullscreen.
-     * The window's onKeyEvent; [handle] already had it, before them.
-     */
-    fun handleUnconsumed(event: KeyEvent): Boolean {
-        if (event.type != KeyEventType.KeyDown || event.key != Key.Escape || !isPracticeChord(event)) return false
-        return fullscreen?.exit() ?: false
     }
 
     /** Space released, for callers that drive [handle] by key (tests). */

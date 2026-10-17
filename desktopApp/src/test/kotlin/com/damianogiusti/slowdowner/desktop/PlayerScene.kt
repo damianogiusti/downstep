@@ -3,6 +3,7 @@ package com.damianogiusti.slowdowner.desktop
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
@@ -22,6 +23,14 @@ import com.damianogiusti.slowdowner.domain.library.ImportDocumentUseCase
 import com.damianogiusti.slowdowner.domain.library.ImportResult
 import com.damianogiusti.slowdowner.domain.theme.ThemeMode
 import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.navigationevent.NavigationEventDispatcher
+import androidx.navigationevent.NavigationEventDispatcherOwner
+import androidx.navigationevent.NavigationEventInput
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.damianogiusti.slowdowner.ui.common.FullscreenControl
 import com.damianogiusti.slowdowner.ui.common.LocalTextInputFocus
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
@@ -59,9 +68,18 @@ class PlayerScene(
     private val textInput: TextInputFocus = TextInputFocus(),
     /** The window's fullscreen, for the header's toggle. */
     private val fullscreen: FullscreenControl = TestFullscreen(),
+    /** Composed first, before the app: what the window composes at its root. */
+    private val root: @Composable () -> Unit = {},
 ) : AutoCloseable {
 
     private lateinit var scene: ImageComposeScene
+
+    /** The window's back, as its Esc reaches it once nothing else took it. */
+    private val backDispatcher = NavigationEventDispatcher()
+    private val back = EscapeAsBack().also { backDispatcher.addInput(it) }
+    private val backOwner = object : NavigationEventDispatcherOwner {
+        override val navigationEventDispatcher = backDispatcher
+    }
     lateinit var player: PlayerViewModel
         private set
     private var time = 0L
@@ -78,7 +96,9 @@ class PlayerScene(
                     LocalLifecycleOwner provides lifecycle,
                     LocalViewModelStoreOwner provides store,
                     LocalTextInputFocus provides textInput,
+                    LocalNavigationEventDispatcherOwner provides backOwner,
                 ) {
+                    root()
                     SlowDownerTheme(theme) {
                         val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel(), koinViewModel())
                         player = viewModels.player
@@ -167,15 +187,30 @@ class PlayerScene(
 
     /**
      * [event] as a window routes it: its onPreviewKeyEvent ([preview]) first, then the focused element,
-     * menus and dialogs of the scene, then the window's onKeyEvent ([unconsumed]) if nothing took it.
+     * menus and dialogs of the scene, and if nothing took it, the window's back (Esc), newest handler first.
      */
-    fun windowKey(event: KeyEvent, preview: (KeyEvent) -> Boolean, unconsumed: (KeyEvent) -> Boolean) {
-        SwingUtilities.invokeAndWait { preview(event) || scene.sendKeyEvent(event) || unconsumed(event) }
+    fun windowKey(event: KeyEvent, preview: (KeyEvent) -> Boolean) {
+        SwingUtilities.invokeAndWait { preview(event) || scene.sendKeyEvent(event) || back.onKeyEvent(event) }
         frames(2)
     }
 
     override fun close() {
         SwingUtilities.invokeAndWait { scene.close() }
+    }
+
+    /** What the window does with an Esc nothing took (Compose's own input for it is internal): back. */
+    private class EscapeAsBack : NavigationEventInput() {
+        private var hasHandlers = false
+
+        override fun onHasEnabledHandlersChanged(hasEnabledHandlers: Boolean) {
+            hasHandlers = hasEnabledHandlers
+        }
+
+        fun onKeyEvent(event: KeyEvent): Boolean {
+            if (event.type != KeyEventType.KeyDown || event.key != Key.Escape || !hasHandlers) return false
+            dispatchOnBackCompleted()
+            return true
+        }
     }
 
     private fun SemanticsNode.descendants(): List<SemanticsNode> = listOf(this) + children.flatMap { it.descendants() }

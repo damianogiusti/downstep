@@ -25,6 +25,9 @@ dependencies {
     // Dispatchers.Main on the Swing thread, for viewModelScope.
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0")
     implementation("org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
+    // The window's back (Esc), which menus and dialogs close on: fullscreen is left from there, last.
+    // The version Compose already brings at runtime.
+    implementation("org.jetbrains.androidx.navigationevent:navigationevent-compose:1.1.0")
     implementation(platform("io.insert-koin:koin-bom:4.1.1"))
     implementation("io.insert-koin:koin-core")
     implementation("io.insert-koin:koin-compose-viewmodel")
