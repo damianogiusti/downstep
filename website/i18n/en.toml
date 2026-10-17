@@ -66,10 +66,10 @@ f4_text = 'Each song keeps its own speed, pitch and loop, so you find it as you 
 f4_chips = '<span class="chip">Solo 70%</span><span class="chip">Whole song −2</span>'
 f5_tag = 'Effects'
 f5_title = 'Equalizer and balance'
-f5_text = 'A 7-band equalizer and a left and right balance, useful when you want to hear one instrument better.'
+f5_text = 'A bell-curve equalizer: drag each band on the frequency graph to set its frequency, gain and width, saved for each song. Plus a left and right balance, useful when you want to hear one instrument better.'
 f6_tag = 'Export'
 f6_title = 'Export and backup'
-f6_text = 'You can export a song to MP3 with your changes applied. The backup holds the whole library, and you can restore it on another Mac or on Windows.'
+f6_text = 'You can export a song to MP3 with your changes applied: the whole song, one file for each loop, or both. The backup holds the whole library, and you can restore it on another Mac or on Windows.'
 
 uses_title = 'Use cases'
 u1_tag = 'Voice'
@@ -139,7 +139,7 @@ catalog = '''
       <section class="surface">
         <div class="label">Sound</div>
         <ul class="rows">
-          <li class="row">{{ @icon:check }}<div><b>Equalizer</b><span>7 bands, from 60 Hz to 15 kHz</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>Equalizer</b><span>up to 8 bell bands you drag on a graph, 20 Hz to 20 kHz</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Preamp</b></div></li>
           <li class="row">{{ @icon:check }}<div><b>Balance</b><span>between left and right</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Time-stretch</b><span>with <a href="https://github.com/bungee-audio-stretch/bungee">Bungee</a></span></div></li>
@@ -148,7 +148,7 @@ catalog = '''
       <section class="surface">
         <div class="label">Export and backup</div>
         <ul class="rows">
-          <li class="row">{{ @icon:check }}<div><b>MP3 export</b><span>with your changes</span></div></li>
+          <li class="row">{{ @icon:check }}<div><b>MP3 export</b><span>with your changes, the whole song or one file per loop</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Backup</b><span>songs, presets and playlists</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Restore</b><span>without losing what you have</span></div></li>
           <li class="row">{{ @icon:check }}<div><b>Same format</b><span>on Mac and Windows</span></div></li>
@@ -310,8 +310,8 @@ features = [
   'Import MP3, M4A, WAV and FLAC files, or YouTube links',
   'Offline library with playlists',
   'Speed, pitch and loop saved for each song, and named presets',
-  '7-band equalizer, preamp and balance',
-  'MP3 export with speed and pitch applied',
+  'Bell-curve equalizer (up to 8 bands), preamp and balance',
+  'MP3 export with speed and pitch applied, of the whole song or one file per loop',
   'Backup and restore across Mac and Windows',
 ]
 
@@ -355,7 +355,7 @@ body = '''
 
   <h2>Practice the hard part only</h2>
   <p>Slowing down works best together with a loop: you repeat only the hard passage, not the whole song. <a href="{{ @url:loop }}">Here is how to learn a part by ear with an A-B loop</a>.</p>
-  <p>If you want to practice away from the computer, you can export the song to MP3 with your speed and pitch applied.</p>'''
+  <p>If you want to practice away from the computer, you can export the song to MP3 with your speed and pitch applied, or just your loops, one file each.</p>'''
 
 [key]
 title = 'How to change the key of a song (transpose audio) | Downstep'

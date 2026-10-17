@@ -14,8 +14,8 @@
 - A-B loop: set A and B while the song plays or drag the markers; halve or double the loop; move it back or forward. Keyboard: Space play/stop, A and B set the loop, L loop on/off, arrows jump 5 seconds (1 with Shift).
 - Each song keeps its own speed, pitch and loop. Named presets per song.
 - Library: import MP3, M4A, WAV and FLAC files, or YouTube links (audio only, for content you have the rights to). Search and playlists.
-- Sound: 7-band equalizer (60 Hz to 15 kHz), preamp, left and right balance.
-- Export a song to MP3 with speed and pitch applied.
+- Sound: bell-curve equalizer (up to 8 draggable peaking bands, 20 Hz to 20 kHz, saved per song), preamp, left and right balance.
+- Export to MP3 with speed and pitch applied: the whole song, one file per named loop, or both.
 - Backup and restore of songs, presets and playlists, in the same format on Mac and Windows.
 - The app updates itself when a new version is out.
 
