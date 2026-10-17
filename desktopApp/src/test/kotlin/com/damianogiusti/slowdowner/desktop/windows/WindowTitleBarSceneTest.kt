@@ -1,6 +1,19 @@
 package com.damianogiusti.slowdowner.desktop.windows
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.damianogiusti.slowdowner.ui.common.TopBanners
+import com.damianogiusti.slowdowner.ui.common.titleBarControl
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.unit.Density
@@ -247,6 +260,60 @@ class WindowTitleBarSceneTest {
     fun `at the design width the header keeps every label`() = scene { scene ->
         for (name in listOf("Analyze", "Metronome", "Count-in")) assertNotNull(scene.boundsOfText(name), name)
     }
+
+    @Test
+    fun `a banner above the header is the window's top, with the window buttons in the corner`() {
+        var showBanner by mutableStateOf(true)
+        lateinit var scene: ImageComposeScene
+        fun render() = SwingUtilities.invokeAndWait {
+            scene.render(time)
+            time += 16_000_000
+            scene.render(time)
+        }
+        SwingUtilities.invokeAndWait {
+            scene = ImageComposeScene(width = 1280, height = 400, density = Density(1f)) {
+                CompositionLocalProvider(LocalWindowTitleBar provides titleBar) {
+                    SlowDownerTheme(ThemeMode.Dark) {
+                        TopBanners(banners = { endInset ->
+                            if (showBanner) Box(Modifier.fillMaxWidth().height(40.dp).padding(end = endInset)) {
+                                Box(Modifier.size(80.dp, 40.dp).align(Alignment.CenterEnd).titleBarControl())
+                            }
+                        }) {
+                            PlaylistContent(PlaylistUiState(), PlaylistContentActions({}, {}, {}, {}, {}, {}, {}, {}, {}, {}))
+                        }
+                    }
+                }
+            }
+        }
+        try {
+            render()
+            render()
+            // The banner drags the window, its control keeps its clicks, the bar below still drags it.
+            val captions = window.regions.captions.sortedBy { it.top }
+            assertEquals(IntRect(0, 0, 1280, 40), captions.first())
+            assertTrue(captions.any { it.top == 40 }, "the playlist bar below: $captions")
+            val maximize = assertNotNull(window.regions.maximizeButton)
+            assertEquals(0, maximize.top)
+            assertEquals(40, maximize.bottom, "as tall as the banner")
+            assertTrue(window.regions.controls.any { it.right == 1280 && it.top == 0 && it.bottom == 40 }, "close in the corner")
+            // The banner's control, left of the buttons.
+            val bannerControl = window.regions.controls.single { it.top == 0 && it.width == 80 }
+            assertEquals(1280 - WINDOW_BUTTON_WIDTH.value.toInt() * 3, bannerControl.right)
+            // Once per window: the bar below draws none.
+            assertEquals(1, window.regions.controls.count { it.right == 1280 })
+
+            showBanner = false
+            render()
+            render()
+            val bar = window.regions.captions.single()
+            assertEquals(0, bar.top)
+            assertEquals(bar.bottom, assertNotNull(window.regions.maximizeButton).bottom, "back in the bar, at the top")
+        } finally {
+            SwingUtilities.invokeAndWait { scene.close() }
+        }
+    }
+
+    private var time = 0L
 
     /** In the header: the window's top bar, as the hook last heard of it. */
     private fun PlayerScene.headerNodes() = nodes().filter { it.boundsInRoot.bottom <= window.regions.captions.single().bottom }

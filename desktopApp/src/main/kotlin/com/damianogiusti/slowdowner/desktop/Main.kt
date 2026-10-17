@@ -17,6 +17,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
@@ -41,6 +42,7 @@ import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.common.LocalTextInputFocus
 import com.damianogiusti.slowdowner.ui.common.LocalWindowTitleBar
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
+import com.damianogiusti.slowdowner.ui.common.TopBanners
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.navigation.ActivityViewModels
 import com.damianogiusti.slowdowner.ui.navigation.SlowDownerApp
@@ -192,7 +194,6 @@ fun main() {
                     // A macOS window in fullscreen has no title bar over the content: no room to keep for it.
                     val top = if (fullscreen.isFullscreen) 0.dp else titleBarHeight
                     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(top = top)) {
-                        if (engine != null && !hasAudioOutput) NoAudioOutputBanner()
                         Box(modifier = Modifier.weight(1f)) {
                             if (engine == null) {
                                 EngineUnavailable()
@@ -203,6 +204,7 @@ fun main() {
                                     logger,
                                     onRestart = ::exitApplication,
                                     installWithoutAsking = updates.installWithoutAsking,
+                                    hasAudioOutput = hasAudioOutput,
                                     onQuitFlushReady = { flushOnQuit = it },
                                 ) {
                                     shortcuts = it
@@ -265,13 +267,14 @@ private const val NO_OUTPUT_SAMPLE_RATE = 44_100
 /** Quitting waits this long at most for the last writes (preferences, Room). */
 private const val QUIT_FLUSH_TIMEOUT_MS = 2_000L
 
+/** [endInset]: room left at the right end, under the window buttons when the banner is the window's top. */
 @Composable
-private fun NoAudioOutputBanner() {
+private fun NoAudioOutputBanner(endInset: Dp) {
     Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
         Text(
             stringResource(Res.string.error_no_audio_output),
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp + endInset, top = 10.dp, bottom = 10.dp),
         )
     }
 }
@@ -284,6 +287,7 @@ private fun DesktopApp(
     logger: Logger,
     onRestart: () -> Unit,
     installWithoutAsking: Boolean,
+    hasAudioOutput: Boolean,
     onQuitFlushReady: (suspend () -> Unit) -> Unit,
     onShortcutsReady: (PracticeShortcuts) -> Unit,
 ) {
@@ -308,9 +312,15 @@ private fun DesktopApp(
                 savePracticeState()
             }
         }
-        Column(modifier = Modifier.fillMaxSize()) {
-            UpdateBanner()
-            Box(modifier = Modifier.weight(1f)) { SlowDownerApp(viewModels = viewModels, activity = actions) }
+        // Above the header; on Windows, the window's top while one shows (see TopBanners).
+        TopBanners(
+            banners = { endInset ->
+                if (!hasAudioOutput) NoAudioOutputBanner(endInset)
+                UpdateBanner(endInset = endInset)
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            SlowDownerApp(viewModels = viewModels, activity = actions)
         }
         SupportPromptHost()
         // After the support prompt: its dialog waits until that one is closed.

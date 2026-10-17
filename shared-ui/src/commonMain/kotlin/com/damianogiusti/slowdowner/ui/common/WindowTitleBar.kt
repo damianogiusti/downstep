@@ -15,6 +15,7 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 /**
  * The window's title bar, where the app's header takes its place (Windows): the header is the area
@@ -61,6 +62,25 @@ enum class TitleBarRegion {
 }
 
 val LocalWindowTitleBar = staticCompositionLocalOf<WindowTitleBar?> { null }
+
+/**
+ * This title bar for a header that is not at the window's top (a banner above it draws the window
+ * buttons): the header still drags the window and its controls keep their clicks, but it leaves
+ * the window buttons, and their room, to the bar above.
+ */
+fun WindowTitleBar.withoutButtons(): WindowTitleBar = this as? TitleBarWithoutButtons ?: TitleBarWithoutButtons(this)
+
+@Stable
+private data class TitleBarWithoutButtons(private val base: WindowTitleBar) : WindowTitleBar {
+    override val buttonsWidth: Dp get() = 0.dp
+
+    @Composable
+    override fun WindowButtons(modifier: Modifier) = Unit
+
+    override fun onRegionChanged(region: Any, kind: TitleBarRegion, bounds: Rect?) = base.onRegionChanged(region, kind, bounds)
+
+    override fun onOverlayChanged(overlay: Any, active: Boolean) = base.onOverlayChanged(overlay, active)
+}
 
 /** The header, or another bar at the top of the window: drags the window where it has no control. */
 fun Modifier.titleBarCaption(): Modifier = this then TitleBarRegionElement(TitleBarRegion.Caption)

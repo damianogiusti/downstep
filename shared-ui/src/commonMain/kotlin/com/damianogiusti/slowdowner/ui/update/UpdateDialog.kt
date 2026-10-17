@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.ui.update
 
 import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
+import com.damianogiusti.slowdowner.ui.common.titleBarControl
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,22 +79,24 @@ fun UpdateHost(
 
 /** A thin strip while a newer version exists. A click opens the dialog again. */
 @Composable
-fun UpdateBanner(viewModel: UpdateViewModel = koinViewModel()) {
+fun UpdateBanner(viewModel: UpdateViewModel = koinViewModel(), endInset: Dp = 0.dp) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val available = state as? UpdateUiState.Available ?: return
-    UpdateBannerContent(version = available.version, onClick = viewModel::onBannerClicked)
+    UpdateBannerContent(version = available.version, onClick = viewModel::onBannerClicked, endInset = endInset)
 }
 
+/** [endInset]: room left at the right end, under the window buttons when the banner is the window's top. */
 @Composable
-internal fun UpdateBannerContent(version: String, onClick: () -> Unit) {
+internal fun UpdateBannerContent(version: String, onClick: () -> Unit, endInset: Dp = 0.dp) {
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        // All of it opens the dialog: a control, not a place to drag the window by.
+        modifier = Modifier.fillMaxWidth().titleBarControl().clickable(onClick = onClick),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 16.dp, end = 8.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp + endInset),
         ) {
             Text(
                 stringResource(Res.string.update_banner, version),
