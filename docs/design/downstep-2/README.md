@@ -82,19 +82,19 @@ dashed amber chips with ✓ / ✕. The strip ends with a dashed **+ New loop `L`
 ### 2.4 Overview waveform (full width)
 - Bars: played = light grey, unplayed = dark grey; inside the active loop they take the loop colour (played solid, unplayed 50%).
 - Every loop draws a tinted region, a 3px top rule and 1px edge lines in its colour; the active one is brighter.
-- Thin bar‑lines (every 4 beats) when *Snap to beat* is on.
+- No bar or beat lines: loop edges are free (Snap to beat was removed after 2.0, see §7.1).
 - **A / B pills** at the bottom with timecodes to 0.1s; a faint bracket shows the zoom window.
 - **Playhead**: 2px line with a glow and a floating timecode pill at the top.
 - Dashed amber outlines + labels for Analyze suggestions.
 
 ### 2.5 Zoom strip
 Attached under the overview, inset to the gutter. Shows the active loop plus ~35% padding each side (minimum 4 beats).
-Beat lines every beat (bar lines stronger). Header text: `ZOOM · <loop> · <window from–to>` and
-`<n> beats · <n> bars` for the loop. A/B lines are draggable here with the same snapping rules.
+No beat lines. Header text: `ZOOM · <loop> · <window from–to>` and `<n> beats · <n> bars` for the loop
+(the length in seconds without a BPM). A/B lines are draggable here, freely, as on the overview.
 
 ### 2.6 Transport row
 - **Left:** loop toggle pill (amber when looping, shows the active loop name or *Loop off*) · active‑loop tool
-  group (◀ nudge · ½ · ×2 · nudge ▶ · ✕ delete) · **Snap to beat** toggle.
+  group (◀ nudge · ½ · ×2 · nudge ▶ · ✕ delete). (The *Snap to beat* toggle that followed it was removed, §7.1.)
 - **Centre:** ⏮ to start · ↺ −5s · **Play/Pause** · ↻ +5s · ⏭ next loop.
 - **Right:** **Pass** counter pill (`Pass 4 · +3% in 2` while progression is on) · keyboard hints (`A B set · [ ] loops · F focus`).
   In focus mode the hints are replaced by large speed and pitch read‑outs.
@@ -124,11 +124,11 @@ list with artwork tile, title, meta (source · loop count); the current track is
 | Target | Gesture | Result |
 |---|---|---|
 | Overview or zoom waveform | click | seek playhead |
-| A or B line (either waveform) | drag | move loop edge; snaps to beat when *Snap* is on; A can't cross B (min 0.5% apart) |
+| A or B line (either waveform) | drag | move loop edge freely (no beat grid); A can't cross B (min 0.5% apart) |
 | Loop chip | click | make active, jump playhead to its start, loop on |
 | Suggested chip ✓ / ✕ | click | accept (becomes a real loop, active) / dismiss |
 | ½ / ×2 | click | halve / double the loop keeping A fixed |
-| ◀ ▶ nudge | click | shift the whole loop one beat (or 1s when snap is off) |
+| ◀ ▶ nudge | click | shift the whole loop by a fixed 1 s of track time |
 | ✕ in tool group | click | delete active loop; the first remaining loop becomes active |
 | Progression steppers | click | ±5% (from/to), ±1% (step), ±1 (every) |
 
@@ -136,9 +136,9 @@ list with artwork tile, title, meta (source · loop count); the current track is
 | Key | Action |
 |---|---|
 | `Space` | play / pause |
-| `L` | new loop at the playhead (8 beats long, snapped) |
+| `L` | new loop starting exactly at the playhead (8 beats long with a BPM, else 8 s) |
 | `Shift+L` | loop on / off |
-| `A` / `B` | set active loop's start / end at the playhead (snapped) |
+| `A` / `B` | set active loop's start / end exactly at the playhead |
 | `[` / `]` | previous / next loop (jumps to its start) |
 | `←` / `→` | seek −5 s / +5 s |
 | `F` | focus mode on / off |
@@ -147,7 +147,7 @@ list with artwork tile, title, meta (source · loop count); the current track is
 ### State feedback
 - Active loop: inverted chip, brighter region, visible A/B pills, tool group enabled, zoom strip follows it.
 - Playing: play icon ↔ pause icon; playhead and timecode pill move; passes tick up at every wrap.
-- Toggles (Metronome, Count‑in, Loop, Snap, Isolate, Progression) fill with their accent when on.
+- Toggles (Metronome, Count‑in, Loop, Isolate, Progression) fill with their accent when on.
 - Suggestions are always dashed until accepted — the app never commits loops on the user's behalf.
 
 ---
@@ -165,9 +165,10 @@ When *Loop* is on and the playhead reaches B, it jumps to A and the loop's **pas
 ### 4.3 Speed and pitch
 Independent; speed 25–200% in 5% steps, pitch ±12 semitones. The transport simulation advances in proportion to speed.
 
-### 4.4 Snap to beat
-BPM is shown as detected (92 in the demo). When on: A/B set/drag, new loops and nudges quantise to the beat grid;
-bar lines appear in both waveforms. Off: free positioning, 1s nudges.
+### 4.4 Snap to beat (removed after 2.0)
+The prototype quantised A/B set/drag, new loops and nudges to a beat grid and drew bar lines while *Snap to beat*
+was on. The app no longer has it: loop edges are always free, nudges are a fixed 1 s and no grid lines are drawn.
+The BPM still sets the length of a new loop (8 beats), the zoom padding (4 beats) and the beat count. See §7.1.
 
 ### 4.5 Zoom strip
 Derived view, no separate zoom control: window = active loop ± max(35% of its length, 4 beats). Changing the loop
@@ -219,7 +220,7 @@ Dark (default) and light, toggled from the header, persisted.
 | `09-suggestion-accepted.png` | Chorus accepted → real loop; Verse dismissed |
 | `10-progression-isolate-metronome.png` | Progression on (speed snapped to 70%), Low isolated, Metronome + Count‑in on |
 | `11-playing-passes-ramp.png` | Playing; pause icon, pass pill with ramp hint, moved playhead |
-| `12-loop-off-snap-off.png` | Loop off, Snap off (no grid lines) |
+| `12-loop-off-snap-off.png` | Loop off, Snap off (no grid lines). Predates §7.1: the app has no Snap toggle any more |
 | `13-new-loop-added.png` | `L` pressed → "Loop 5" (8 beats) created at playhead and active |
 | `14-loop-halved.png` | ½ applied → 4 beats, zoom re‑framed |
 
@@ -230,3 +231,33 @@ Dark (default) and light, toggled from the header, persisted.
 - Real audio engine, EQ, metronome click, count‑in bars, export formats, preset contents.
 - Mic‑based "clean pass" scoring.
 - Responsive behaviour below ~1000px (cards would need to stack).
+
+---
+
+## 7. Changes after 2.0
+
+What the app does differently from the sections above since the 2.0 handoff. The prototype and the screenshots are
+kept as they were (they are the record of the design); where they disagree with this section, this section wins.
+
+### 7.1 Snap to beat removed, play icon centred
+
+**Snap to beat is gone**, with its toggle, its tooltip and its per‑track setting:
+- A/B set (`A` / `B`), A/B drag on both waveforms, `L`, ½ and ×2 are free: positions are kept exactly where the
+  playhead or the pointer is, never rounded to a beat. A still can't cross B (min 0.5% apart, at least 1 s).
+- **◀ ▶ nudge moves the loop by a fixed 1 s of track time** (`LoopMath.NUDGE_SECONDS`), whatever the BPM, the speed
+  or the track length: finer than the ±5 s seek, and the same step every time. Tooltips say "1 s".
+- No bar lines on the overview and no beat lines on the zoom strip: the grid was anchored at 0 s with no
+  downbeat, so on most songs it was off the real beats.
+- The BPM is kept: it still sets the length of a new loop (8 beats; 8 s without one), the zoom padding (4 beats) and
+  the `<n> beats · <n> bars` header, and it is the tempo of the metronome and count‑in.
+- Storage: database version 3 drops `track_practice_state.snap_to_beat` (the table is rebuilt, which works on every
+  SQLite) and adds the columns later features use (`eq_curve`, `detected_bpm`, `beat_offset_seconds`,
+  `tempo_analysis_version`, and `practice_presets.eq_curve`). Backups no longer write `snapToBeat`; older backups
+  that have it still restore (the key is ignored).
+
+**The play icon is optically centred** in the round Play button (68 dp, 28 dp icon), in both themes and in focus
+mode. The triangle's centroid, not its bounding box, now sits on the button's centre: `ic_h_play` is
+`M8.3333 5v14l11-7z` (was `M10.5 5v14l11-7z`), so its vertices' mean is (12, 12) in the 24‑unit viewport. Before, the
+centroid was 2.17 units (2.5 dp) right of centre; the bounding box now leans 1.83 units right, which is the optical
+compensation. `PlayerRenderTest` measures the rendered icon's ink centroid against the button in the dark, light
+and focus renders (within 0.6 dp; it measured 2.52 dp off before the change).
