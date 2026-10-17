@@ -10,7 +10,9 @@ import androidx.compose.ui.unit.min
  * The controls at the bottom always keep their place; what gives way, in this order, is the
  * overview's height, then the cards' padding and read-outs, then the chips' and transport's
  * padding with a lower zoom strip, then the overview again down to [PlayerPartHeights.overviewMin].
- * Only when even that is too tall do the cards scroll ([overflows]).
+ * Only when even that is too tall do the cards scroll ([overflows]). The overview never grows as the
+ * window gets shorter: a stage keeps it at most at the floor of the stage before, so the room a
+ * compaction frees stays below the cards instead of jumping into the overview.
  *
  * A pure function of the window's size and of what is on screen: the player computes it again when
  * the window is resized, never while it plays.
@@ -36,23 +38,27 @@ data class PlayerLayoutFit(
 
         /**
          * The fit for a player of [width] × [height]. [hasLoopCards]: an active loop shows Progression
-         * and Notes. [parts] are the natural heights, measured on the real components.
+         * and Notes. [extraTop]: what shows above the cards besides the header (the loading bar, the
+         * export banner). [parts] are the natural heights, measured on the real components.
          */
         fun of(
             width: Dp,
             height: Dp,
             isFocusMode: Boolean,
             hasLoopCards: Boolean,
+            extraTop: Dp = 0.dp,
             parts: PlayerPartHeights = PlayerPartHeights(),
         ): PlayerLayoutFit {
             val hints = !isFocusMode && width >= parts.keyboardHintsMinWidth
             val stages = if (isFocusMode) focusStages(parts) else stages(parts)
+            val available = height - extraTop
             for ((index, stage) in stages.withIndex()) {
                 val rest = stage.restHeight(parts, width, isFocusMode, hasLoopCards)
-                val room = height - rest
+                val room = available - rest
                 if (room >= stage.overviewMin) {
-                    // Only an uncompressed layout grows the overview into the spare room.
-                    val cap = if (index == 0) stage.overviewMax(parts, isFocusMode) else parts.overview(isFocusMode)
+                    // Only an uncompressed layout grows the overview into the spare room. A later stage
+                    // starts where the one before gave up: more would make the overview jump up 1dp shorter.
+                    val cap = if (index == 0) stage.overviewMax(parts, isFocusMode) else stages[index - 1].overviewMin
                     return stage.toFit(min(room, cap), hints, overflows = false)
                 }
             }
@@ -124,8 +130,6 @@ data class PlayerPartHeights(
     val focusHeader: Dp = 54.dp,
     val chips: Dp = 56.dp,
     val chipsCompact: Dp = 44.dp,
-    /** The design's overview height, and the most a compressed layout keeps. */
-    val overview: Dp = 200.dp,
     /** Grown into spare room on a tall window. */
     val overviewGrown: Dp = 260.dp,
     val overviewFocus: Dp = 260.dp,
@@ -147,6 +151,4 @@ data class PlayerPartHeights(
     val loopCardsOneLineWidth: Dp = 1240.dp,
     val loopCardsWrap: Dp = 36.dp,
     val keyboardHintsMinWidth: Dp = 1180.dp,
-) {
-    fun overview(isFocusMode: Boolean): Dp = if (isFocusMode) overviewFocus else overview
-}
+)

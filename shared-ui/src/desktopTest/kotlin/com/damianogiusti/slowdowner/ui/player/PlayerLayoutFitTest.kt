@@ -37,8 +37,8 @@ class PlayerLayoutFitTest {
         assertTrue(fit.compactCards && fit.compactLoopCards)
         assertFalse(fit.compactChips || fit.compactTransport)
         assertEquals(parts.zoom, fit.zoomHeight)
-        // The room the cards gave goes to the overview, up to the design height.
-        assertEquals(parts.overview, fit.overviewHeight)
+        // The overview stays at the floor it had a dp taller: the room the cards gave stays below them.
+        assertEquals(parts.overviewShrunk, fit.overviewHeight)
     }
 
     @Test
@@ -117,6 +117,51 @@ class PlayerLayoutFitTest {
             previous?.let { assertTrue(used <= it, "$height dp: $used after $it") }
             previous = used
         }
+    }
+
+    @Test
+    fun `the overview never grows when the window gets shorter, at any width, in both modes`() {
+        for (width in listOf(WIDE, NARROW, parts.loopCardsOneLineWidth, parts.loopCardsOneLineWidth - 1.dp)) {
+            for (isFocusMode in listOf(false, true)) {
+                for (hasLoopCards in listOf(false, true)) {
+                    var previous: PlayerLayoutFit? = null
+                    for (height in 1300 downTo 300) {
+                        val fit = PlayerLayoutFit.of(width, height.dp, isFocusMode, hasLoopCards)
+                        val what = "$width × $height dp, focus $isFocusMode, loop cards $hasLoopCards"
+                        previous?.let {
+                            assertTrue(fit.overviewHeight <= it.overviewHeight, "$what: ${fit.overviewHeight} after ${it.overviewHeight}")
+                            assertTrue(fit.zoomHeight <= it.zoomHeight, "$what: zoom ${fit.zoomHeight} after ${it.zoomHeight}")
+                            val used = used(fit, width, hasLoopCards, isFocusMode)
+                            assertTrue(used <= used(it, width, hasLoopCards, isFocusMode), "$what: uses $used")
+                        }
+                        previous = fit
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `the loading bar and the export banner above the cards take their height from the fit`() {
+        val banner = 52.dp
+        listOf(560.dp, 637.dp, 700.dp, 760.dp, 900.dp).forEach { height ->
+            val fit = PlayerLayoutFit.of(WIDE, height, isFocusMode = false, hasLoopCards = true, extraTop = banner)
+
+            assertEquals(PlayerLayoutFit.of(WIDE, height - banner, isFocusMode = false, hasLoopCards = true), fit)
+            assertTrue(fit.overflows || used(fit, WIDE, hasLoopCards = true) + banner <= height, "$height: $fit does not fit")
+        }
+    }
+
+    @Test
+    fun `without the banner's height the cards would scroll under an export`() {
+        // The design-size window under the Windows frame, and the export banner's measured height.
+        val height = 772.dp
+        val banner = 84.dp
+
+        assertTrue(used(PlayerLayoutFit.of(WIDE, height, isFocusMode = false, hasLoopCards = true), WIDE, hasLoopCards = true) + banner > height)
+        val fit = PlayerLayoutFit.of(WIDE, height, isFocusMode = false, hasLoopCards = true, extraTop = banner)
+        assertFalse(fit.overflows)
+        assertTrue(used(fit, WIDE, hasLoopCards = true) + banner <= height)
     }
 
     /** The height of everything but the overview, with nothing compressed. */
