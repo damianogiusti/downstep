@@ -61,13 +61,14 @@ import com.damianogiusti.slowdowner.ui.common.formatPitch
 import com.damianogiusti.slowdowner.ui.common.formatSpeed
 import com.damianogiusti.slowdowner.ui.player.IsolateActions
 import com.damianogiusti.slowdowner.ui.player.SpeedPitchActions
+import com.damianogiusti.slowdowner.ui.theme.DownstepDimens
 import com.damianogiusti.slowdowner.ui.theme.DownstepShapes
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 
-/** Speed 25–200%: amber read-out, slider, −5 / +5, reset (README §2.7). */
+/** Speed 25–200%: amber read-out, slider, −5 / +5, reset (README §2.7). [compact]: for a short window. */
 @Composable
 fun SpeedCard(
     speedPercent: Float,
@@ -75,6 +76,7 @@ fun SpeedCard(
     enabled: Boolean,
     actions: SpeedPitchActions,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     val label = stringResource(Res.string.speed)
     ValueCard(
@@ -84,6 +86,7 @@ fun SpeedCard(
         sliderPosition = sliderPosition,
         onSlider = actions.onSpeedSlider,
         enabled = enabled,
+        compact = compact,
         modifier = modifier,
     ) {
         ControlButton("−5", { actions.onSpeedStep(-1) }, stringResource(Res.string.speed_down_description), enabled = enabled)
@@ -100,6 +103,7 @@ fun PitchCard(
     enabled: Boolean,
     actions: SpeedPitchActions,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     val label = stringResource(Res.string.pitch)
     ValueCard(
@@ -109,6 +113,7 @@ fun PitchCard(
         sliderPosition = sliderPosition,
         onSlider = actions.onPitchSlider,
         enabled = enabled,
+        compact = compact,
         modifier = modifier,
     ) {
         ControlButton("−1", { actions.onPitchStep(-1) }, stringResource(Res.string.pitch_down_description), enabled = enabled)
@@ -124,6 +129,7 @@ fun IsolateCard(
     enabled: Boolean,
     actions: IsolateActions,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     val low = stringResource(Res.string.band_low)
     val mid = stringResource(Res.string.band_mid)
@@ -134,9 +140,10 @@ fun IsolateCard(
     } else {
         stringResource(Res.string.isolate_only, selected.joinToString(" + "))
     }
-    SettingsCard(modifier, spacing = 10.dp) {
+    val spacing = if (compact) 6.dp else 10.dp
+    SettingsCard(modifier, spacing = spacing, verticalPadding = cardPadding(compact)) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+            verticalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterVertically),
             modifier = Modifier.fillRemainingHeight(),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -159,9 +166,9 @@ fun IsolateCard(
                     .alpha(if (enabled) 1f else DISABLED_ALPHA)
                     .padding(BAND_PILL_PADDING),
             ) {
-                BandToggle(low, isolation.low, enabled) { actions.onIsolationChanged(isolation.copy(low = !isolation.low)) }
-                BandToggle(mid, isolation.mid, enabled) { actions.onIsolationChanged(isolation.copy(mid = !isolation.mid)) }
-                BandToggle(high, isolation.high, enabled) { actions.onIsolationChanged(isolation.copy(high = !isolation.high)) }
+                BandToggle(low, isolation.low, enabled, compact) { actions.onIsolationChanged(isolation.copy(low = !isolation.low)) }
+                BandToggle(mid, isolation.mid, enabled, compact) { actions.onIsolationChanged(isolation.copy(mid = !isolation.mid)) }
+                BandToggle(high, isolation.high, enabled, compact) { actions.onIsolationChanged(isolation.copy(high = !isolation.high)) }
             }
         }
     }
@@ -176,10 +183,12 @@ private fun ValueCard(
     sliderPosition: Int,
     onSlider: (Int) -> Unit,
     enabled: Boolean,
+    compact: Boolean,
     modifier: Modifier,
     buttons: @Composable RowScope.() -> Unit,
 ) {
-    SettingsCard(modifier) {
+    val readoutStyle = SlowDownerTheme.type.readout.let { if (compact) it.copy(fontSize = COMPACT_READOUT, lineHeight = COMPACT_READOUT_LINE) else it }
+    SettingsCard(modifier, verticalPadding = cardPadding(compact)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -187,7 +196,7 @@ private fun ValueCard(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.widthIn(min = 96.dp)) {
                 SectionLabel(label)
-                Text(readout, style = SlowDownerTheme.type.readout, color = accent, maxLines = 1)
+                Text(readout, style = readoutStyle, color = accent, maxLines = 1)
             }
             CardSlider(
                 position = sliderPosition,
@@ -300,15 +309,15 @@ private fun ResetButton(label: String, onClick: () -> Unit, enabled: Boolean) {
     }
 }
 
-/** One of the three equal 32dp toggles of the Isolate pill: teal / onTeal when on. */
+/** One of the three equal 32dp toggles (28dp compact) of the Isolate pill: teal / onTeal when on. */
 @Composable
-private fun RowScope.BandToggle(text: String, checked: Boolean, enabled: Boolean, onToggle: () -> Unit) {
+private fun RowScope.BandToggle(text: String, checked: Boolean, enabled: Boolean, compact: Boolean, onToggle: () -> Unit) {
     val colors = SlowDownerTheme.colors
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .weight(1f)
-            .height(32.dp)
+            .height(if (compact) 28.dp else 32.dp)
             .clip(DownstepShapes.pill)
             .background(if (checked) colors.teal else Color.Transparent, DownstepShapes.pill)
             .toggleable(value = checked, enabled = enabled, role = Role.Checkbox, onValueChange = { onToggle() }),
@@ -322,7 +331,12 @@ private fun RowScope.BandToggle(text: String, checked: Boolean, enabled: Boolean
     }
 }
 
+private fun cardPadding(compact: Boolean) = if (compact) COMPACT_CARD_PADDING else DownstepDimens.cardPaddingVertical
+
 private val BAND_PILL_PADDING = 3.dp
+private val COMPACT_CARD_PADDING = 10.dp
+private val COMPACT_READOUT = 26.sp
+private val COMPACT_READOUT_LINE = 30.sp
 private val SLIDER_HEIGHT = 24.dp
 private val THUMB_SIZE = 16.dp
 private val TRACK_HEIGHT = 4.dp

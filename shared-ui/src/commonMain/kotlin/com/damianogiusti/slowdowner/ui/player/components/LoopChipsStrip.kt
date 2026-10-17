@@ -91,7 +91,7 @@ import kotlin.time.TimeSource
  * One chip per loop in time order (colour dot · name · length · pass badge; the active one inverted),
  * then the dashed suggestions with ✓ / ✕ (only when Analyze returned some), then "+ New loop L".
  * A double click on a chip renames it in place (as does Rename in its context menu: secondary click
- * or long press), and the menu deletes it. Scrolls horizontally.
+ * or long press), and the menu deletes it. Scrolls horizontally. [compact]: less padding, for a short window.
  */
 @Composable
 fun LoopChipsStrip(
@@ -99,6 +99,7 @@ fun LoopChipsStrip(
     suggestions: List<SuggestionModel>,
     actions: LoopChipActions,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     // The chip whose name is being edited; one at a time.
     var editingId by remember { mutableStateOf<Long?>(null) }
@@ -108,7 +109,12 @@ fun LoopChipsStrip(
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        contentPadding = PaddingValues(start = DownstepDimens.gutter, end = DownstepDimens.gutter, top = 12.dp, bottom = 10.dp),
+        contentPadding = PaddingValues(
+            start = DownstepDimens.gutter,
+            end = DownstepDimens.gutter,
+            top = if (compact) 6.dp else 12.dp,
+            bottom = if (compact) 4.dp else 10.dp,
+        ),
         modifier = modifier,
     ) {
         items(state.chips, key = { it.id }) { chip ->

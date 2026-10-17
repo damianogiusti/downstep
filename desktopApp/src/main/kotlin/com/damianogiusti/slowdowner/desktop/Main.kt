@@ -13,15 +13,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.lifecycle.ViewModelStore
@@ -59,17 +62,22 @@ import com.damianogiusti.slowdowner.domain.practice.SavePracticeStateUseCase
 import com.damianogiusti.slowdowner.domain.theme.ThemeMode
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
 import org.koin.mp.KoinPlatform
 import java.awt.Dimension
+import java.awt.Rectangle
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.nio.file.Path
+import kotlin.math.roundToInt
 import kotlin.system.exitProcess
 
 fun main() {
@@ -93,13 +101,20 @@ fun main() {
         // Main (Swing) thread, as on Android: engine settings are applied from the UI thread.
         startAppWork(koin, MainScope())
     }
+    // Where the last run left the window, moved onto a screen that is still there.
+    val windowBounds = WindowBoundsStore()
+    val screens = runCatching { usableScreenAreas() }.getOrDefault(emptyList())
+    val initialBounds = restoreWindowBounds(runCatching { windowBounds.read() }.getOrNull(), screens)
     // Set once the ViewModels exist; read by the window's key handler.
     var shortcuts: PracticeShortcuts? = null
     // Set once the ViewModels exist; run after the window is gone.
     var flushOnQuit: (suspend () -> Unit)? = null
     application(exitProcessOnExit = false) {
-        // The size the Downstep 2.0 design is drawn at.
-        val windowState = rememberWindowState(size = DpSize(1280.dp, 820.dp), position = WindowPosition(Alignment.Center))
+        val windowState = rememberWindowState(
+            placement = if (initialBounds.isMaximized) WindowPlacement.Maximized else WindowPlacement.Floating,
+            position = WindowPosition(initialBounds.x.dp, initialBounds.y.dp),
+            size = DpSize(initialBounds.width.dp, initialBounds.height.dp),
+        )
         Window(
             onCloseRequest = ::exitApplication,
             // Shown on Windows: tells which build the band is trying. Hidden on macOS (WindowChrome).
@@ -110,7 +125,7 @@ fun main() {
             onPreviewKeyEvent = { event -> shortcuts?.handle(event) ?: false },
         ) {
             LaunchedEffect(Unit) {
-                window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT)
+                window.minimumSize = minimumWindowSize(screens.firstOrNull())
                 window.useTransparentTitleBar()
                 window.useAppIcon()
                 // A key held while switching away is released in the other app: forget it.
@@ -122,6 +137,7 @@ fun main() {
                 // The cold start as the user sees it: what class-data sharing and a lazy start shorten.
                 sinceLaunchMillis()?.let { println("Window composed $it ms after launch") }
             }
+            LaunchedEffect(windowState) { windowState.saveBoundsTo(windowBounds, initialBounds) }
             // macOS only: there the menus sit in the screen's menu bar. On Windows they would be a bar
             // inside the window, and Alt+F4 already closes it. One window: closing it quits.
             if (isMacOs) MenuBar {
@@ -188,10 +204,38 @@ private fun sinceLaunchMillis(): Long? = ProcessHandle.current().info().startIns
 /** Set by Gradle (-PappVersion, see desktopApp/build.gradle.kts). */
 private val appVersion: String = System.getProperty("slowdowner.version") ?: "dev"
 
-// In points, like Compose's dp on macOS. The player's card rows need this much (README §6: nothing
-// narrower is designed).
-private const val MIN_WIDTH = 1000
-private const val MIN_HEIGHT = 600
+/** [MinimumWindowSize], or the whole usable area of a screen smaller than that. In AWT units, like dp. */
+private fun minimumWindowSize(screen: Rectangle?): Dimension {
+    val width = MinimumWindowSize.width.value.roundToInt()
+    val height = MinimumWindowSize.height.value.roundToInt()
+    return if (screen == null) Dimension(width, height) else Dimension(minOf(width, screen.width), minOf(height, screen.height))
+}
+
+/**
+ * Saves where the window is a moment after it stops moving or resizing, so the next run opens there.
+ * A maximized window keeps the size it had before, to restore to.
+ */
+@OptIn(FlowPreview::class)
+private suspend fun WindowState.saveBoundsTo(store: WindowBoundsStore, initial: WindowBounds) {
+    var floating = initial
+    snapshotFlow { Triple(placement, position, size) }
+        .debounce(WINDOW_SAVE_DELAY_MS)
+        .collect { (placement, position, size) ->
+            if (isMinimized) return@collect
+            if (placement == WindowPlacement.Floating && position is WindowPosition.Absolute && size.isSpecified) {
+                floating = WindowBounds(
+                    position.x.value.roundToInt(),
+                    position.y.value.roundToInt(),
+                    size.width.value.roundToInt(),
+                    size.height.value.roundToInt(),
+                )
+            }
+            val bounds = floating.copy(isMaximized = placement == WindowPlacement.Maximized)
+            withContext(Dispatchers.IO) { runCatching { store.write(bounds) } }
+        }
+}
+
+private const val WINDOW_SAVE_DELAY_MS = 500L
 
 /** A null engine shows the error screen: no library, or a library that does not load. */
 private data class EngineStart(val engine: NativeEngine?, val hasAudioOutput: Boolean)

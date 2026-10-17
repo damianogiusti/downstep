@@ -48,7 +48,8 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * Three columns (1fr auto 1fr): left = loop toggle pill + [loopTools] (LoopToolGroup, wrapping
  * to a second line when narrow); centre = ⏮ · ↺ −5 s · Play/Pause (68dp amber, glow) · ↻ +5 s ·
- * ⏭ next loop; right = [trailing] (pass pill and keyboard hints, or the focus read-outs).
+ * ⏭ next loop; right = [trailing] (pass pill and keyboard hints, or the focus read-outs). [compact]:
+ * less padding above and below, for a short window.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -58,11 +59,12 @@ fun TransportRow(
     loopTools: @Composable () -> Unit,
     trailing: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier.fillMaxWidth().padding(horizontal = DownstepDimens.gutter, vertical = 14.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = DownstepDimens.gutter, vertical = if (compact) 6.dp else 14.dp),
     ) {
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),

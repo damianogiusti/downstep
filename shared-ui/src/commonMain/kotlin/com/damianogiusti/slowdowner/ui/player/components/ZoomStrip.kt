@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.damianogiusti.slowdowner.domain.loops.BeatGrid
@@ -74,6 +75,7 @@ fun ZoomStrip(
     position: () -> Float,
     actions: WaveformActions,
     modifier: Modifier = Modifier,
+    height: Dp = DownstepDimens.zoomStrip,
     drag: LoopDragState = remember { LoopDragState() },
 ) {
     val colors = SlowDownerTheme.colors
@@ -103,7 +105,7 @@ fun ZoomStrip(
         modifier = modifier
             .padding(horizontal = DownstepDimens.gutter)
             .fillMaxWidth()
-            .height(DownstepDimens.zoomStrip)
+            .height(height)
             .clip(Shape)
             .background(colors.surface1)
             .onSizeChanged { width.intValue = it.width }
