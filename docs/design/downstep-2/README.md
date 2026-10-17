@@ -425,3 +425,26 @@ shows them disabled with the "not available yet" tooltip.
   `Player::Settings`, which is all an export copies.
 - Backups carry `detectedBpm` and `beatOffsetSeconds` (optional, older backups restore without them); a restored track
   is analysed again when first opened.
+
+### 7.6 Screenshots of the changes
+
+Taken from the Windows app (`screenshots/`), with a synthetic 100 BPM practice track.
+
+| File | What it shows |
+|---|---|
+| `loops-top-bars-hover-dark.png` | Three loops with top bars; Bridge's bar hovered (grown, opaque, move cursor) |
+| `loops-top-bars-hover-light.png` | Same in light theme, Chorus hovered |
+| `loop-edge-resize-cursor.png` | Resize cursor over a loop's edge |
+| `loop-move-mid-drag.png` | A loop moved by its top bar, drawn live while the button is held |
+| `loop-grab-inactive-mid-drag.png` | An inactive loop grabbed by its bar: active at once, drawn live |
+| `loop-chip-inline-rename.png` | Inline rename in the chip; typing letters that are shortcuts fires none |
+| `topbar-click-plays-loop.png` | A click on another loop's top bar: it becomes active, Loop on, plays from A |
+| `click-outside-loop-off.png` | A click outside the active loop while playing: Loop off, plays on from there |
+| `loop-tools-no-snap.png` | Loop tools without Snap; the nudge is a fixed 1 s |
+| `play-button-light.png`, `play-button-focus-dark.png` | The play icon centred optically, normal and focus mode |
+| `eq-bell-curve-dark.png`, `eq-bell-curve-light.png` | The bell-curve EQ with edited bands, a node's readout |
+| `export-options.png` | Export: full track, loops, or both |
+| `export-batch-progress.png` | One progress banner and one Cancel for the batch |
+| `export-ready-files.png` | The batch's files, *Save to folder…* |
+| `click-options-menu.png` | Click volume, count-in beats, count in at every loop restart |
+| `bpm-dialog-detected-tap.png` | BPM dialog: detected tempo and Tap |
