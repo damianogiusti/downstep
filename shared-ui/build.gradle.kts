@@ -47,6 +47,8 @@ kotlin {
             dependencies {
                 // Skiko's native part for this machine: resources read the system locale through it.
                 implementation(compose.desktop.currentOs)
+                // runDesktopComposeUiTest: semantics and mouse input for the component tests.
+                implementation(compose.desktop.uiTestJUnit4)
                 implementation(kotlin("test"))
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
             }
