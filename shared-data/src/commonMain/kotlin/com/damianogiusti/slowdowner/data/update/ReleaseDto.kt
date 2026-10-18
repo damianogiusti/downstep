@@ -7,7 +7,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ReleaseDto(
     @SerialName("tag_name") val tagName: String,
-    @SerialName("html_url") val htmlUrl: String,
+    /** Empty when the answer has none: the data source puts the repository's releases page in. */
+    @SerialName("html_url") val htmlUrl: String = "",
     val assets: List<ReleaseAssetDto> = emptyList(),
 )
 

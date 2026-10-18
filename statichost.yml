@@ -1,4 +1,6 @@
 # Site build on statichost.eu: the generator needs only Python 3.11+.
+# The download links follow DOWNSTEP_RELEASE_REPO (owner/name, upstream's by default): set it in
+# the site settings of the statichost.eu dashboard, where the build's environment variables live.
 image: python:3.12-slim
 command: cd website && python3 build.py
 public: website/public

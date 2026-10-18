@@ -1,5 +1,6 @@
 # The app folder, zipped as in release.yml: build\dist\Downstep-windows-x64.zip, with the licenses
-# also at the top of the zip. APP_VERSION sets the version (1.0.0 otherwise).
+# also at the top of the zip. APP_VERSION sets the version (a dev version from git otherwise) and
+# RELEASE_REPO the GitHub repository the app updates from (owner/name).
 . (Join-Path $PSScriptRoot 'common.ps1')
 Initialize-Toolchain -Engine
 Invoke-Gradle @(':desktopApp:createDistributable')

@@ -11,11 +11,12 @@ import kotlin.coroutines.coroutineContext
 
 /**
  * The releases of the public repository. No token: GitHub allows 60 requests per hour from one
- * address, and the app asks once per launch.
+ * address, and the app asks once per launch. [pageUrl] stands in for a release without its own page.
  */
 class GitHubReleaseDataSource(
     private val client: OkHttpClient,
-    private val latestUrl: String = LATEST_URL,
+    private val latestUrl: String = latestUrl(DEFAULT_REPO),
+    private val pageUrl: String = pageUrl(DEFAULT_REPO),
 ) : ReleaseDataSource {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -32,7 +33,8 @@ class GitHubReleaseDataSource(
             if (response.code == HTTP_NOT_FOUND) return null
             if (!response.isSuccessful) throw HttpStatusException(response.code)
             val body = response.body?.string() ?: throw IOException("Empty body")
-            return json.decodeFromString(ReleaseDto.serializer(), body)
+            val release = json.decodeFromString(ReleaseDto.serializer(), body)
+            return release.copy(htmlUrl = release.htmlUrl.ifBlank { pageUrl })
         }
     }
 
@@ -67,7 +69,17 @@ class GitHubReleaseDataSource(
     }
 
     companion object {
-        const val LATEST_URL = "https://api.github.com/repos/damianogiusti/downstep/releases/latest"
+        /** owner/name on GitHub. A build can name another one: -PreleaseRepo, see desktopApp/build.gradle.kts. */
+        const val DEFAULT_REPO = "damianogiusti/downstep"
+
+        /** The same rule as the build's check of -PreleaseRepo. */
+        fun isValidRepo(repo: String): Boolean = REPO_NAME.matches(repo)
+
+        fun latestUrl(repo: String) = "https://api.github.com/repos/$repo/releases/latest"
+
+        fun pageUrl(repo: String) = "https://github.com/$repo/releases/latest"
+
+        private val REPO_NAME = Regex("^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$")
         private const val USER_AGENT = "Downstep"
         private const val HTTP_NOT_FOUND = 404
         private const val BUFFER_SIZE = 64 * 1024

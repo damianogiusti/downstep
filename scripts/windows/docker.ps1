@@ -35,6 +35,7 @@ $arguments += @(
     '--mount', "type=volume,source=$gradleVolume,target=/home/builder/.gradle",
     '--mount', "type=volume,source=$workVolume,target=/work",
     '--env', 'APP_VERSION',
+    '--env', 'RELEASE_REPO',
     $image, $Target
 )
 Invoke-Native docker $arguments

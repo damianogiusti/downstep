@@ -8,6 +8,10 @@ set shell := ["sh", "-eu", "-c"]
 script := if os_family() == "windows" { "& ./scripts/windows/" } else { "sh ./scripts/linux/" }
 ext := if os_family() == "windows" { ".ps1" } else { ".sh" }
 docker := if os_family() == "windows" { "& ./scripts/windows/docker.ps1" } else { "sh ./scripts/linux/docker.sh" }
+# just RELEASE_REPO=owner/name package (or the variable in the environment): the GitHub repository
+# the app updates from. APP_VERSION=1.2.3 in the environment sets the version. The scripts pass both
+# to Gradle; both are optional.
+export RELEASE_REPO := env("RELEASE_REPO", "")
 # PowerShell runs a quoted path only after &.
 call := if os_family() == "windows" { "& " } else { "" }
 
