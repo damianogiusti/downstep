@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 64 64">
+  <!-- The Downstep mark: amber tile, ink chevron over a baseline ("down" + "step"). Windows, Linux, the app's window. -->
+  <rect width="64" height="64" rx="14" fill="#F2A541"/>
+  <g fill="none" stroke="#15181D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M17 20l15 15 15-15"/>
+    <path d="M17 47h30"/>
+  </g>
+</svg>
