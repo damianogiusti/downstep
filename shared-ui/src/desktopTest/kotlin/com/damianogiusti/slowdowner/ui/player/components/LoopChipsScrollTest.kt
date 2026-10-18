@@ -96,7 +96,8 @@ class LoopChipsScrollTest {
             scroll(3f, ScrollWheel.Horizontal)
         }
         waitForIdle()
-        assertTrue(boundsOf("Loop 4").left < before - 50, "${boundsOf("Loop 4")}")
+        // How far is the platform's own step (Windows: a share of the width, macOS: 10 dp a unit).
+        assertTrue(boundsOf("Loop 4").left < before - 10, "${boundsOf("Loop 4")}")
     }
 
     @Test
