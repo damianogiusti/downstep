@@ -4,6 +4,10 @@
 
 .DEFAULT_GOAL := help
 
+# make package APP_VERSION=1.2.3 RELEASE_REPO=owner/name: the version, and the GitHub repository the
+# app updates from. The scripts pass them to Gradle; both are optional.
+export APP_VERSION RELEASE_REPO
+
 ifeq ($(OS),Windows_NT)
 # PowerShell, never sh: GNU make for Windows would take sh.exe from PATH (Git's, for example) when
 # SHELL is not set. Windows PowerShell is always there; PowerShell 7 is used when installed.

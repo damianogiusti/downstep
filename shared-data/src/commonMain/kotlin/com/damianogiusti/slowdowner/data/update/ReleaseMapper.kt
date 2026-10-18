@@ -5,9 +5,9 @@ import com.damianogiusti.slowdowner.domain.update.AppVersion
 
 object ReleaseMapper {
 
-    /** Null for a tag that is not a version. [assetName]: the file this computer installs, if any. */
+    /** Null for a tag that is not a release version. [assetName]: the file this computer installs, if any. */
     fun toDomain(dto: ReleaseDto, assetName: String?): AppRelease? {
-        val version = AppVersion.parse(dto.tagName) ?: return null
+        val version = AppVersion.parse(dto.tagName)?.takeUnless { it.isDevelopment } ?: return null
         return AppRelease(
             version = version,
             pageUrl = dto.htmlUrl,

@@ -79,11 +79,13 @@ function Initialize-Toolchain {
     if (-not $env:CXX) { $env:CXX = 'g++' }
 }
 
-# Gradle from the repository root, with -PappVersion when APP_VERSION is set (as in release.yml).
+# Gradle from the repository root, with -PappVersion when APP_VERSION is set and -PreleaseRepo when
+# RELEASE_REPO is set (as in release.yml).
 function Invoke-Gradle {
     param([Parameter(Mandatory)][string[]] $Tasks)
     $arguments = @($Tasks)
     if ($env:APP_VERSION) { $arguments += "-PappVersion=$env:APP_VERSION" }
+    if ($env:RELEASE_REPO) { $arguments += "-PreleaseRepo=$env:RELEASE_REPO" }
     Push-Location $RepoRoot
     try {
         Invoke-Native (Join-Path $RepoRoot 'gradlew.bat') $arguments

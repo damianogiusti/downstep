@@ -6,11 +6,15 @@ target=$(basename "$0" .sh)
 repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
 
-# Gradle from the repository root, with -PappVersion when APP_VERSION is set (as in release.yml).
-# A script can set gradle_wrap to run it through another command (xvfb-run).
+# Gradle from the repository root, with -PappVersion when APP_VERSION is set and -PreleaseRepo when
+# RELEASE_REPO is set (as in release.yml). A script can set gradle_wrap to run it through another
+# command (xvfb-run).
 gradle() {
     if [ -n "${APP_VERSION:-}" ]; then
         set -- "$@" "-PappVersion=$APP_VERSION"
+    fi
+    if [ -n "${RELEASE_REPO:-}" ]; then
+        set -- "$@" "-PreleaseRepo=$RELEASE_REPO"
     fi
     ${gradle_wrap:-} sh ./gradlew "$@"
 }

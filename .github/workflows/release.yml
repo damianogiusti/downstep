@@ -3,7 +3,13 @@
 # same in every release, so the site can link to releases/latest/download/<name>. Run it by hand
 # to check the build without a release.
 # Only the packaging steps get the Sentry secrets: the app carries the DSN (crash reports) and the
-# build uploads the sources for the stack traces. Tests and other builds report nothing.
+# build uploads the sources for the stack traces. Tests and other builds report nothing. Without the
+# secrets (a fork that has not set them) the app reports nothing and the build uploads nothing. The
+# repository variables SENTRY_ORG and SENTRY_PROJECT name another Sentry project than upstream's.
+#
+# Everything follows the repository the workflow runs in: the release is created there, and the
+# packaged app updates from there (-PreleaseRepo). A run without a v1.2.3 tag builds a dev version
+# (from git, see desktopApp/build.gradle.kts), which never updates itself.
 name: Release
 
 on:
@@ -20,6 +26,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          # With the tags: a dev version starts from the latest one.
+          fetch-depth: 0
 
       - uses: actions/setup-java@v5
         with:
@@ -34,18 +43,21 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Empty unless the run is for a v1.2.3 tag: Gradle then makes a dev version.
       - name: Version
-        run: echo "APP_VERSION=$(echo "${GITHUB_REF_NAME#v}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || echo 1.0.0)" >> "$GITHUB_ENV"
+        run: echo "APP_VERSION=$(echo "${GITHUB_REF_NAME#v}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)" >> "$GITHUB_ENV"
 
       - name: Tests
-        run: ./gradlew :engine-desktop:test :desktopApp:test -PappVersion=$APP_VERSION --stacktrace
+        run: ./gradlew :engine-desktop:test :desktopApp:test "-PappVersion=$APP_VERSION" "-PreleaseRepo=$GITHUB_REPOSITORY" --stacktrace
 
       - name: DMG
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
-          ./gradlew :desktopApp:packageDmg -PappVersion=$APP_VERSION --stacktrace
+          ./gradlew :desktopApp:packageDmg "-PappVersion=$APP_VERSION" "-PreleaseRepo=$GITHUB_REPOSITORY" --stacktrace
           mkdir -p dist
           mv desktopApp/build/compose/binaries/main/dmg/Downstep-*.dmg dist/Downstep-mac.dmg
 
@@ -65,6 +77,8 @@ jobs:
       CXX: g++
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-java@v5
         with:
@@ -89,18 +103,20 @@ jobs:
       - name: Version
         run: |
           $v = "$env:GITHUB_REF_NAME".TrimStart("v")
-          if ($v -notmatch '^\d+\.\d+\.\d+$') { $v = "1.0.0" }
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { $v = "" }
           Add-Content -Path $env:GITHUB_ENV -Value "APP_VERSION=$v"
 
       - name: Tests
-        run: ./gradlew.bat :engine-desktop:test :desktopApp:test "-PappVersion=$env:APP_VERSION" --stacktrace
+        run: ./gradlew.bat :engine-desktop:test :desktopApp:test "-PappVersion=$env:APP_VERSION" "-PreleaseRepo=$env:GITHUB_REPOSITORY" --stacktrace
 
       - name: Zip
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
-          ./gradlew.bat :desktopApp:createDistributable "-PappVersion=$env:APP_VERSION" --stacktrace
+          ./gradlew.bat :desktopApp:createDistributable "-PappVersion=$env:APP_VERSION" "-PreleaseRepo=$env:GITHUB_REPOSITORY" --stacktrace
           $stage = "dist/zip"
           New-Item -ItemType Directory -Force "$stage/licenses" | Out-Null
           Copy-Item -Recurse desktopApp/build/compose/binaries/main/app/Downstep "$stage/Downstep"

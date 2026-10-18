@@ -1,7 +1,8 @@
 #!/bin/sh
 # The app for this system, in build/dist. Linux: the app folder as a .tar.gz, with the licenses
 # also at the top as in the Windows zip, and a .deb. macOS: the DMG, as in release.yml.
-# APP_VERSION sets the version (1.0.0 otherwise).
+# APP_VERSION sets the version (a dev version from git otherwise) and RELEASE_REPO the GitHub
+# repository the app updates from (owner/name).
 . "$(dirname "$0")/common.sh"
 check_toolchain
 dist=build/dist

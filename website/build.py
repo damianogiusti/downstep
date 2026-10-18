@@ -8,6 +8,7 @@ Templates in templates/ hold the markup; texts live in i18n/<lang>.toml. A templ
     {{> header }}        templates/_header.html
     {{ @icon:tune }}     inline SVG from templates/icons/ (the app's own Material icons)
     {{ @file }}          download URL of the page's target (FILES below)
+    {{ @releases }}      the releases page of the same repository
     {{ @root }}          relative path to the site root ("", "../", ...)
     {{ @lang }}          language code
     {{ @url:why }}       relative link to another page, in the same language
@@ -18,9 +19,14 @@ Templates in templates/ hold the markup; texts live in i18n/<lang>.toml. A templ
 
 A missing text or page stops the build, so the two languages cannot drift apart silently.
 Python standard library only: python3 build.py, then serve public/.
+
+The download links point to the latest release of a GitHub repository, upstream's by default:
+python3 build.py --release-repo owner/name, or DOWNSTEP_RELEASE_REPO=owner/name (the option wins).
 """
 
+import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -45,8 +51,13 @@ PAGES = {
 }
 GUIDES = ["slow", "key", "loop"]
 
-RELEASES = "https://github.com/damianogiusti/downstep/releases/latest/download/"
-FILES = {"mac": RELEASES + "Downstep-mac.dmg", "windows": RELEASES + "Downstep-windows-x64.zip"}
+# The repository whose releases the site links (owner/name): see main(). The file names are the same
+# in every release (.github/workflows/release.yml), so latest/download/<name> is always the newest.
+DEFAULT_RELEASE_REPO = "damianogiusti/downstep"
+REPO_NAME = re.compile(r"^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$")
+ASSETS = {"mac": "Downstep-mac.dmg", "windows": "Downstep-windows-x64.zip"}
+FILES = {}
+RELEASES_PAGE = {}
 
 # Canonical and hreflang links are absolute, and sitemap.xml is written. With the trailing slash:
 # page paths have none at the start.
@@ -129,6 +140,8 @@ def render(text, lang, page, texts, other):
             return (HERE / "templates" / "icons" / f"{name[6:]}.svg").read_text()
         if name == "@file":
             return FILES[page]
+        if name == "@releases":
+            return RELEASES_PAGE["url"]
         if name == "@root":
             return "../" * here.count("/")
         if name == "@lang":
@@ -171,6 +184,20 @@ def render(text, lang, page, texts, other):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Builds the site into public/.")
+    parser.add_argument(
+        "--release-repo",
+        default=os.environ.get("DOWNSTEP_RELEASE_REPO") or DEFAULT_RELEASE_REPO,
+        help=f"GitHub repository of the downloads, owner/name (default: $DOWNSTEP_RELEASE_REPO or {DEFAULT_RELEASE_REPO})",
+    )
+    repo = parser.parse_args().release_repo
+    if not REPO_NAME.match(repo):
+        sys.exit(f"the release repository must be owner/name on GitHub: '{repo}'")
+    releases = f"https://github.com/{repo}/releases/latest/download/"
+    FILES.update({page: releases + name for page, name in ASSETS.items()})
+    RELEASES_PAGE["url"] = f"https://github.com/{repo}/releases"
+    print("downloads from", repo)
+
     if OUT.exists():
         shutil.rmtree(OUT)
     shutil.copytree(HERE / "static", OUT)

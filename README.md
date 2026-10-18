@@ -59,7 +59,14 @@ make test     # or: just test
 | `docker-shell` | a shell in the container |
 | `docker-clean` | remove the container's volumes and `build/docker-out` |
 
-`APP_VERSION=1.2.3` sets the version of a package, as in the release workflow.
+`APP_VERSION=1.2.3` sets the version of a package, as in the release workflow. Without it, a build
+has a dev version from git: the latest `v*` tag, a dev marker and the commit, like `1.1.1-dev+3f2a9c1`
+(the package itself, which jpackage numbers, is `1.1.1`). A dev build never checks for updates, so a
+package made on your computer never replaces itself with the latest release.
+`RELEASE_REPO=owner/name` sets the GitHub repository the packaged app updates from
+(`damianogiusti/downstep` by default): `make package RELEASE_REPO=owner/name`,
+`just RELEASE_REPO=owner/name package`, or the variable in the environment. With Gradle directly:
+`-PappVersion=1.2.3 -PreleaseRepo=owner/name`.
 
 The Docker targets build the image if needed and run the Linux build from Windows, macOS or Linux.
 The container gets the repository read-only and copies the sources into its own volume, with LF line
@@ -96,6 +103,26 @@ engine-desktop/  Kotlin binding of the engine through FFM (java.lang.foreign)
 desktopApp/      Compose Desktop app for macOS and Windows
 website/         the site, a static page generator (python3 website/build.py, no dependencies)
 ```
+
+## Releasing from a fork
+
+Nothing in the release names this repository: a fork releases on its own.
+
+- Push a `vX.Y.Z` tag to your repository. The release workflow (`.github/workflows/release.yml`)
+  builds the Mac DMG and the Windows zip and creates a draft release in that same repository; it
+  goes public when you publish the draft. A run without a tag (Actions, Run workflow) only builds,
+  with a dev version.
+- The apps from that build update from your repository's releases: the workflow passes its own
+  repository to Gradle (`-PreleaseRepo=${{ github.repository }}`), and the app asks
+  `https://api.github.com/repos/<owner>/<name>/releases/latest`. The file names stay the same.
+- Crash reports: set the secrets `SENTRY_DSN` (the app reports to it) and `SENTRY_AUTH_TOKEN` (the
+  build uploads the sources for the stack traces), and the repository variables `SENTRY_ORG` and
+  `SENTRY_PROJECT` for your own Sentry project. Without them the build still works: the app reports
+  nothing and no sources are uploaded.
+- A package made locally: `RELEASE_REPO=owner/name` with make or just (see Build).
+- The site: `DOWNSTEP_RELEASE_REPO=owner/name python3 website/build.py`, or
+  `--release-repo owner/name`, points the download links at your releases. On statichost.eu, set
+  the variable in the site settings (see `statichost.yml`).
 
 ## About this repository
 

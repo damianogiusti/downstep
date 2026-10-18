@@ -182,7 +182,7 @@ fun desktopModule(
     viewModelOf(::SupportPromptViewModel)
 
     // Updates from the public releases: desktop only, like the prompt above.
-    single<ReleaseDataSource> { GitHubReleaseDataSource(get(), updates.releasesUrl) }
+    single<ReleaseDataSource> { GitHubReleaseDataSource(get(), updates.releasesUrl, updates.releasesPageUrl) }
     single<UpdateInstaller> { DesktopUpdateInstaller(updates.installation, File(directories.cache, "updates/install"), logger) }
     single<UpdateRepository> {
         DefaultUpdateRepository(

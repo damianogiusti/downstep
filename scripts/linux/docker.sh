@@ -39,4 +39,5 @@ docker run --rm --init $interactive \
     --mount "type=volume,source=$gradle_volume,target=/home/builder/.gradle" \
     --mount "type=volume,source=$work_volume,target=/work" \
     --env APP_VERSION \
+    --env RELEASE_REPO \
     "$image" "$target"

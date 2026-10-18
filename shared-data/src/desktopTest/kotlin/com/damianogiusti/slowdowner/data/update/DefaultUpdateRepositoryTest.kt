@@ -71,6 +71,15 @@ class DefaultUpdateRepositoryTest {
     }
 
     @Test
+    fun `when the tag is a dev build then there is no latest release`() = runTest {
+        dataSource.latest = release("v1.0.4-dev+3f2a9c1")
+
+        repository().refresh()
+
+        assertNull(repository.observeLatestRelease().first())
+    }
+
+    @Test
     fun `when offline then network error, logged for development only`() = runTest {
         dataSource.latestError = IOException("Offline")
 

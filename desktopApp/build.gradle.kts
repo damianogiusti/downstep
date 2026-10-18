@@ -87,8 +87,37 @@ val syncLicenses = tasks.register<Sync>("syncLicenses") {
 }
 tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(syncEngineLibrary, syncLicenses) }
 
-// CI passes -PappVersion=1.0.<run number>: the band reports it from the window title or the log.
-val appVersion = providers.gradleProperty("appVersion").getOrElse("1.0.0")
+// A release passes its version (-PappVersion=1.2.3, from the tag in release.yml): the band reports it
+// from the window title or the log. Any other build is a dev version from git: the latest v* tag, the
+// dev marker and the commit, 1.1.1-dev+3f2a9c1. A dev build never updates itself (UpdateSettings).
+// jpackage takes numbers only, so the package itself has the tag's version.
+fun git(vararg args: String): String? = try {
+    val result = providers.exec {
+        commandLine("git", *args)
+        workingDir = rootDir
+        isIgnoreExitValue = true
+    }
+    result.standardOutput.asText.get().trim().takeIf { result.result.get().exitValue == 0 && it.isNotEmpty() }
+} catch (e: Exception) {
+    null // no git, or no repository (the Docker build copies the sources without .git)
+}
+val numericVersion = Regex("""^\d+\.\d+\.\d+$""")
+val releaseVersion: String? = providers.gradleProperty("appVersion").orNull?.takeIf { it.isNotBlank() }
+val devBaseVersion: String =
+    git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*")?.removePrefix("v")?.takeIf { numericVersion.matches(it) }
+        ?: "1.0.0"
+val appVersion: String = releaseVersion
+    ?: "$devBaseVersion-dev" + (git("rev-parse", "--short", "HEAD")?.let { "+$it" } ?: "")
+val packageVersionNumber: String = releaseVersion ?: devBaseVersion
+
+// The GitHub repository the app updates from (owner/name): release.yml passes its own repository, so
+// a fork's releases update from the fork. Locally: -PreleaseRepo=owner/name, or RELEASE_REPO with make/just.
+val releaseRepo: String = providers.gradleProperty("releaseRepo").orNull?.takeIf { it.isNotBlank() }
+    ?: "damianogiusti/downstep"
+if (!Regex("^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$").matches(releaseRepo)) {
+    throw GradleException("releaseRepo must be owner/name on GitHub, like damianogiusti/downstep: '$releaseRepo'")
+}
+logger.info("Downstep $appVersion (package $packageVersionNumber), updates from $releaseRepo")
 // Only the release workflow has it: see CrashReporting. A local try sets SENTRY_ENVIRONMENT=development,
 // so its events stay apart from the users' ones.
 val sentryDsn: String? = providers.environmentVariable("SENTRY_DSN").orNull?.takeIf { it.isNotBlank() }
@@ -100,7 +129,11 @@ compose.desktop {
         mainClass = "com.damianogiusti.slowdowner.desktop.MainKt"
         javaHome = javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(23)) }
             .get().metadata.installationPath.asFile.absolutePath
-        jvmArgs += listOf("--enable-native-access=ALL-UNNAMED", "-Dslowdowner.version=$appVersion")
+        jvmArgs += listOf(
+            "--enable-native-access=ALL-UNNAMED",
+            "-Dslowdowner.version=$appVersion",
+            "-Dslowdowner.releases.repo=$releaseRepo",
+        )
         if (sentryDsn != null) {
             jvmArgs += listOf("-Dslowdowner.sentryDsn=$sentryDsn", "-Dslowdowner.sentryEnvironment=$sentryEnvironment")
         }
@@ -109,7 +142,7 @@ compose.desktop {
             // Each OS packages only its own formats: no .deb on macOS, no DMG on Linux.
             targetFormats(TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "Downstep"
-            packageVersion = appVersion
+            packageVersion = packageVersionNumber
             description = "Slow down and loop audio to practise"
             appResourcesRootDir.set(appResources)
             // Simpler than listing modules by hand; the bundle is bigger, which is fine for personal use.
@@ -184,9 +217,10 @@ tasks.withType<AbstractJLinkTask>().configureEach {
 // tests and the testers' builds report nothing. With the token, the release uploads the sources,
 // so a stack trace shows the code around each line.
 val sentryAuthToken: String? = providers.environmentVariable("SENTRY_AUTH_TOKEN").orNull?.takeIf { it.isNotBlank() }
+// Another repository's releases report to its own Sentry project: SENTRY_ORG and SENTRY_PROJECT.
 sentry {
-    org.set("damianogiusticom")
-    projectName.set("downstep")
+    org.set(providers.environmentVariable("SENTRY_ORG").orNull?.takeIf { it.isNotBlank() } ?: "damianogiusticom")
+    projectName.set(providers.environmentVariable("SENTRY_PROJECT").orNull?.takeIf { it.isNotBlank() } ?: "downstep")
     authToken.set(sentryAuthToken)
     includeSourceContext.set(sentryAuthToken != null)
     // Most stack frames are in the shared modules, not here.
