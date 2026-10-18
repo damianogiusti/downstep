@@ -124,7 +124,8 @@ BPM dialog. The choice follows the header's measured width (a resize), never a f
 ### 2.3 Loop chips strip
 One chip per loop, in time order: colour dot · name · length · **pass badge**. The active chip is inverted
 (light fill on dark, dark fill on light) with an amber pass badge. Suggested loops from Analyze appear as
-dashed amber chips with ✓ / ✕. The strip ends with a dashed **+ New loop `L`** chip. Scrolls horizontally when long.
+dashed amber chips with ✓ / ✕. The strip ends with a dashed **+ New loop `L`** chip. Scrolls horizontally when long,
+also with the plain wheel, with the active chip kept in view and *+ New loop* pinned (§7.12).
 A double click on a chip renames the loop in place (see §7.2).
 
 ### 2.4 Overview waveform (full width)
@@ -464,7 +465,7 @@ editor. §6 lists the EQ as outside the prototype; this is its design.
   under the pointer (or dragged) turns teal and is read out above the plot (`1.2 kHz · +3.5 dB · Q 1.4`); without
   one the line shows the gesture hint. With the EQ off the curve and nodes are drawn in `fg2`. The curve comes from
   `EqResponse`, the same RBJ formula the engine runs, so what is drawn is what is heard.
-- **Kept:** the EQ switch, Reset (back to the starting layout, flat; on/off stays), the preamp slider (±12 dB) and
+- **Kept:** the EQ switch, Reset (back to the starting layout, flat; on/off stays; a button of its own since §7.12), the preamp slider (±12 dB) and
   the time-stretch quality.
 - **Engine:** RBJ peaking biquads (`Biquad.h`, `Equalizer.h`). Changes reach the audio thread lock-free (a seqlock:
   one band's frequency, gain and Q always arrive together) and **glide**: the parameters move once per 32-frame
@@ -756,3 +757,45 @@ taller, to show the whole flyout); the maximized one is the top of a 1920 × 114
 | `titlebar-buttons-hover.png` | The header as the title bar, the window buttons at its end, close hovered red (top of the window) |
 | `titlebar-snap-layouts.png` | Windows 11's snap layouts flyout over our maximize button, which stays lit (top of the window) |
 | `titlebar-maximized.png` | The window maximized: the header at the screen's top, the restore glyph |
+
+### 7.12 A long loop strip, and Reset as a button
+
+Screenshots: the Windows app (packaged build) at 1600 × 1000 px (125%), with a synthetic 60 s track.
+
+**Many loops.** With more loops than the window shows, the strip (§2.3) scrolls on its own and stays usable with a
+mouse:
+- **Wheel:** over the strip the plain (vertical) wheel scrolls the chips sideways, 64 dp a notch, animated; a
+  touchpad's vertical swipe follows the fingers. Shift+wheel and sideways swipes work as before. When the chips fit,
+  or are already at the end the wheel points to, the wheel is left to the window; away from the strip it is never
+  taken.
+- **Overflow shows:** the side(s) with hidden chips fade out over 32 dp, and a thin draggable scrollbar (4 dp, 3 dp
+  in the compact layout; `surface4`, `fg2` on hover) sits in the padding under the chips. Both appear only while
+  the chips overflow; the scrollbar takes no room, so showing it moves nothing (the window still fits, §7.7). It is
+  desktop only (`HorizontalListScrollbar`, an expect/actual); on Android a finger scrolls the strip.
+- **The active chip stays in view:** when the active loop changes (a click, `[` / `]`, a click on a top bar of the
+  overview, `L`, a kept suggestion) or a chip starts a rename, the strip scrolls the least that shows that chip whole
+  and clear of the fades, animated. Nothing else scrolls it: a pass or a playback tick does not, so a strip the user
+  scrolled away stays put. Moving the keyboard focus onto a hidden chip scrolls it in too.
+- **+ New loop is pinned** at the strip's end, outside the scrolling part, so it is always one click away. With few
+  loops it follows the last chip as before. Suggestions stay in the scrolling part, after the loops.
+- The scroll position, the fades and the scrollbar are read at layout and draw time: scrolling recomposes nothing.
+
+**Reset in the effects sheet.** The Equalizer row had a plain text *Reset* right next to the on/off switch, and the
+switch was read as the reset. Now:
+- *Reset* is an outlined button with the reset icon, a tooltip (*Reset the EQ to flat*) and the theme's outline. It
+  is off while the EQ is already in its starting layout. The action is unchanged: flat bands and preamp, on/off
+  kept.
+- The switch says its state, **On** / **Off**, before it; the label toggles it too, and screen readers hear a switch
+  named *Equalizer on*. A vertical rule sets the button and the switch apart.
+- The L / R balance's *Reset* is the same button (tooltip *Center the L / R balance*), off while centred.
+
+| File | What it shows |
+|---|---|
+| `loop-chips-start.png` | 20 loops made with `L`, the newest (first in time) active and in view: fade at the end, the scrollbar under the chips, *+ New loop* pinned |
+| `loop-chips-scrolled.png` | After a few wheel notches over the strip: fades at both ends |
+| `loop-chips-revealed.png` | `[` from the first loop goes round to the last: scrolled fully into view |
+| `eq-reset-button.png` | The effects sheet: outlined Reset buttons (the centred balance's off), the EQ switch labelled Off, a rule between |
+
+![20 loops, scrolled](screenshots/loop-chips-scrolled.png)
+
+![Reset and the labelled switch](screenshots/eq-reset-button.png)
