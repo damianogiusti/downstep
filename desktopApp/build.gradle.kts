@@ -118,19 +118,19 @@ compose.desktop {
                 bundleID = "com.damianogiusti.slowdowner.desktop"
                 // Same floor as the engine (engine/CMakeLists.txt) and the bundled Java runtime.
                 minimumSystemVersion = "11.0"
-                // Built from icons/SlowDowner.svg with icons/make-icns.sh.
-                iconFile.set(project.file("icons/SlowDowner.icns"))
+                // Built from icons/downstep-macos.svg with icons/make-icons.sh.
+                iconFile.set(project.file("icons/downstep.icns"))
             }
             windows {
-                // Built with icons/make-icns.sh too.
-                iconFile.set(project.file("icons/SlowDowner.ico"))
+                // Built from icons/downstep.svg with icons/make-icons.ps1 (or .sh).
+                iconFile.set(project.file("icons/downstep.ico"))
             }
             linux {
                 // downstep_<version>_<arch>.deb, installed in /opt/downstep.
                 packageName = "downstep"
                 menuGroup = "AudioVideo"
                 appCategory = "AudioVideo"
-                iconFile.set(project.file("icons/SlowDowner.png"))
+                iconFile.set(project.file("icons/downstep.png"))
             }
         }
     }
