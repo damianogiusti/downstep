@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.player.components
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -91,7 +92,7 @@ import kotlin.time.TimeSource
  * One chip per loop in time order (colour dot · name · length · pass badge; the active one inverted),
  * then the dashed suggestions with ✓ / ✕ (only when Analyze returned some), then "+ New loop L".
  * A double click on a chip renames it in place (as does Rename in its context menu: secondary click
- * or long press), and the menu deletes it. Scrolls horizontally.
+ * or long press), and the menu deletes it. Scrolls horizontally. [compact]: less padding, for a short window.
  */
 @Composable
 fun LoopChipsStrip(
@@ -99,6 +100,7 @@ fun LoopChipsStrip(
     suggestions: List<SuggestionModel>,
     actions: LoopChipActions,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     // The chip whose name is being edited; one at a time.
     var editingId by remember { mutableStateOf<Long?>(null) }
@@ -108,7 +110,12 @@ fun LoopChipsStrip(
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        contentPadding = PaddingValues(start = DownstepDimens.gutter, end = DownstepDimens.gutter, top = 12.dp, bottom = 10.dp),
+        contentPadding = PaddingValues(
+            start = DownstepDimens.gutter,
+            end = DownstepDimens.gutter,
+            top = if (compact) 6.dp else 12.dp,
+            bottom = if (compact) 4.dp else 10.dp,
+        ),
         modifier = modifier,
     ) {
         items(state.chips, key = { it.id }) { chip ->
@@ -188,7 +195,14 @@ private fun LoopChip(
                 .padding(horizontal = 10.dp),
         ) {
             val text = if (chip.isActive) colors.chipFgActive else colors.fg
-            Box(Modifier.size(8.dp).background(colors.loopColor(chip.colorIndex), CircleShape))
+            // On the fg-filled active chip a loop colour can be as light as fg: a ring of the chip's text
+            // colour keeps the dot 3:1 apart.
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .background(colors.loopColor(chip.colorIndex), CircleShape)
+                    .then(if (chip.isActive) Modifier.border(1.dp, colors.chipFgActive, CircleShape) else Modifier),
+            )
             if (isEditing) {
                 LoopNameEditor(
                     initial = chip.name,
@@ -216,6 +230,7 @@ private fun LoopChip(
             )
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, containerColor = colors.surface2) {
+            TitleBarOverlay()
             DropdownMenuItem(
                 text = { Text(stringResource(Res.string.loop_rename)) },
                 leadingIcon = { Icon(painterResource(Res.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(18.dp)) },
@@ -343,10 +358,11 @@ private fun SuggestionChip(suggestion: SuggestionModel, enabled: Boolean, action
             .padding(start = 12.dp, end = 4.dp),
     ) {
         Text(suggestion.name, style = SlowDownerTheme.type.control, color = colors.amber, maxLines = 1)
+        // Set apart by weight only: amber is just AA as small text, any dimming would not be.
         Text(
             stringResource(Res.string.loop_length_seconds, suggestion.lengthSeconds.roundToInt()),
             style = SlowDownerTheme.type.control.copy(fontWeight = FontWeight.Normal),
-            color = colors.amber.copy(alpha = SUGGESTION_LENGTH_ALPHA),
+            color = colors.amber,
             maxLines = 1,
         )
         RoundIcon(
@@ -424,8 +440,8 @@ private fun NewLoopChip(enabled: Boolean, onClick: () -> Unit) {
     }
 }
 
-private const val LENGTH_ALPHA = 0.6f
+// The least dimming that keeps the length AA on surface1 in every light theme (ThemeContrastTest).
+private const val LENGTH_ALPHA = 0.65f
 private val EDITOR_MIN_WIDTH = 48.dp
 private val EDITOR_MAX_WIDTH = 220.dp
-private const val SUGGESTION_LENGTH_ALPHA = 0.7f
 private val KeyShape = RoundedCornerShape(4.dp)

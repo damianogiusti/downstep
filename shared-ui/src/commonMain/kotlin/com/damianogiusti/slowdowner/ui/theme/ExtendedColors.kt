@@ -46,6 +46,16 @@ data class DownstepColors(
     val scrim: Color,
     /** Text on the inverted (active) loop chip and the selected segment of a segmented pill. */
     val chipFgActive: Color,
+    // Material roles only (see toMaterial), per palette so that every theme's Material screens match it.
+    /** Material's tertiaryContainer and what sits on it. */
+    val tealContainer: Color,
+    val onTealContainer: Color,
+    /** Text on loopColors[2], which is Material's secondary. */
+    val onSecondary: Color,
+    /** Material's error (text and icons on the background), onError and onErrorContainer (on [errBg]). */
+    val error: Color,
+    val onError: Color,
+    val onErrorContainer: Color,
 ) {
     /** The colour of a loop, from its colour index (loop id mod 4, see LoopChipModel.colorIndex). */
     fun loopColor(colorIndex: Int): Color = loopColors[colorIndex.mod(loopColors.size)]

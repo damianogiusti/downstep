@@ -1,5 +1,9 @@
 package com.damianogiusti.slowdowner.ui.playlists
 
+import com.damianogiusti.slowdowner.ui.common.LocalWindowTitleBar
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
+import com.damianogiusti.slowdowner.ui.common.titleBarCaption
+import com.damianogiusti.slowdowner.ui.common.titleBarControl
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -8,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -183,16 +188,30 @@ class PlaylistContentActions(
 fun PlaylistContent(state: PlaylistUiState, actions: PlaylistContentActions) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = actions.onBack) {
-                        Icon(painterResource(Res.drawable.ic_arrow_back), stringResource(Res.string.back))
+            // Windows: the bar is the window's title bar, with the window buttons at its right end.
+            val titleBar = LocalWindowTitleBar.current
+            Box(modifier = if (titleBar != null) Modifier.titleBarCaption() else Modifier) {
+                TopAppBar(
+                    title = {},
+                    navigationIcon = {
+                        IconButton(onClick = actions.onBack, modifier = Modifier.titleBarControl()) {
+                            Icon(painterResource(Res.drawable.ic_arrow_back), stringResource(Res.string.back))
+                        }
+                    },
+                    actions = {
+                        Box(modifier = Modifier.titleBarControl()) {
+                            PlaylistMenu(actions.onRename, actions.onExportBackup, actions.onDelete)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier.padding(end = titleBar?.buttonsWidth ?: 0.dp),
+                )
+                if (titleBar != null) {
+                    Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.matchParentSize()) {
+                        titleBar.WindowButtons(Modifier.fillMaxHeight())
                     }
-                },
-                actions = { PlaylistMenu(actions.onRename, actions.onExportBackup, actions.onDelete) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-            )
+                }
+            }
         },
     ) { padding ->
         val playlist = state.playlist ?: return@Scaffold
@@ -341,6 +360,7 @@ private fun PlaylistMenu(onRename: () -> Unit, onExportBackup: () -> Unit, onDel
             Icon(painterResource(Res.drawable.ic_more_vert), stringResource(Res.string.more_options))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            TitleBarOverlay()
             DropdownMenuItem(
                 text = { Text(stringResource(Res.string.playlist_rename)) },
                 leadingIcon = { Icon(painterResource(Res.drawable.ic_edit), null) },
@@ -387,6 +407,7 @@ private fun TrackInPlaylistMenu(
             )
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            TitleBarOverlay()
             if (canMoveUp) {
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.move_up)) },
@@ -435,6 +456,7 @@ private fun AddTracksSheet(
     onToggle: (LibraryTrack, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    TitleBarOverlay()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),

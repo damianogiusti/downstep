@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.player.components
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -76,6 +77,7 @@ fun ExportOptionsDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    TitleBarOverlay()
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(painterResource(Res.drawable.ic_share), contentDescription = null) },
@@ -141,6 +143,7 @@ private fun ScopeRow(label: String, hint: String, isSelected: Boolean, isEnabled
 /** One file: its name. A batch: how many, and the first few names. */
 @Composable
 fun ExportReadyDialog(files: List<ExportedFile>, onShare: () -> Unit, onSave: () -> Unit, onDismiss: () -> Unit) {
+    TitleBarOverlay()
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(painterResource(Res.drawable.ic_share), contentDescription = null) },

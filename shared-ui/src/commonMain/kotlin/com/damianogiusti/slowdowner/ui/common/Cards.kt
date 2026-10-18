@@ -20,12 +20,14 @@ import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 
 /**
  * A settings card (README §1): surface1, 1px surface3 border, 20dp radius, 20/16 padding. It fills
- * the height it is given, so cards in a row sized to its tallest card line up.
+ * the height it is given, so cards in a row sized to its tallest card line up. A short window asks for
+ * less [verticalPadding].
  */
 @Composable
 fun SettingsCard(
     modifier: Modifier = Modifier,
     spacing: Dp = 12.dp,
+    verticalPadding: Dp = DownstepDimens.cardPaddingVertical,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -34,7 +36,7 @@ fun SettingsCard(
             .fillMaxHeight()
             .background(SlowDownerTheme.colors.surface1, DownstepShapes.card)
             .border(1.dp, SlowDownerTheme.colors.surface3, DownstepShapes.card)
-            .padding(horizontal = DownstepDimens.cardPaddingHorizontal, vertical = DownstepDimens.cardPaddingVertical),
+            .padding(horizontal = DownstepDimens.cardPaddingHorizontal, vertical = verticalPadding),
         content = content,
     )
 }

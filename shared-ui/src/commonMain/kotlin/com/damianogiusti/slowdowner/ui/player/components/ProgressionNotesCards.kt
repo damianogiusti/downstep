@@ -63,6 +63,7 @@ import com.damianogiusti.slowdowner.ui.player.NotesActions
 import com.damianogiusti.slowdowner.ui.player.NotesCardState
 import com.damianogiusti.slowdowner.ui.player.ProgressionActions
 import com.damianogiusti.slowdowner.ui.player.ProgressionCardState
+import com.damianogiusti.slowdowner.ui.theme.DownstepDimens
 import com.damianogiusti.slowdowner.ui.theme.DownstepShapes
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import org.jetbrains.compose.resources.pluralStringResource
@@ -71,7 +72,8 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * Progression of the active loop (README §2.8, §4.6): title and status line with the switch, one
  * sentence of pill-steppers ("From 70% to 100%, raise +3% every 2 passes"), the from → to track.
- * Every edit sends the whole progression; the ViewModel coerces it into range.
+ * Every edit sends the whole progression; the ViewModel coerces it into range. [compact] (a short window)
+ * leaves the track out: the status line already says where the ramp is.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -79,11 +81,12 @@ fun ProgressionCard(
     state: ProgressionCardState,
     actions: ProgressionActions,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     val progression = state.progression
     fun edit(change: Progression.() -> Progression) = actions.onProgressionChanged(state.loopId, progression.change())
 
-    SettingsCard(modifier) {
+    SettingsCard(modifier, spacing = if (compact) 8.dp else 12.dp, verticalPadding = if (compact) COMPACT_PADDING else DownstepDimens.cardPaddingVertical) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
                 CardTitle(stringResource(Res.string.progression), state.loopName)
@@ -143,30 +146,33 @@ fun ProgressionCard(
             )
             SentenceWord(pluralStringResource(Res.plurals.progression_passes_word, progression.everyPasses))
         }
-        ProgressTrack(
-            from = formatSpeed(progression.fromPercent),
-            to = formatSpeed(progression.toPercent),
-            fraction = if (progression.enabled) state.progressFraction else 0f,
-            isOn = progression.enabled,
-        )
+        if (!compact) {
+            ProgressTrack(
+                from = formatSpeed(progression.fromPercent),
+                to = formatSpeed(progression.toPercent),
+                fraction = if (progression.enabled) state.progressFraction else 0f,
+                isOn = progression.enabled,
+            )
+        }
     }
 }
 
 /**
  * Free-text notes of the active loop (README §4.10). The field keeps its own text while typing (the
  * saved one arrives late, debounced by the ViewModel) and starts over from the saved text when the
- * active loop changes.
+ * active loop changes. [compact]: a shorter field, for a short window.
  */
 @Composable
 fun NotesCard(
     state: NotesCardState,
     actions: NotesActions,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     var text by remember(state.loopId) { mutableStateOf(state.notes) }
     val colors = SlowDownerTheme.colors
     val textStyle = SlowDownerTheme.type.body.copy(fontSize = 13.sp, lineHeight = 19.sp, color = colors.fg)
-    SettingsCard(modifier, spacing = 8.dp) {
+    SettingsCard(modifier, spacing = if (compact) 6.dp else 8.dp, verticalPadding = if (compact) COMPACT_PADDING else DownstepDimens.cardPaddingVertical) {
         CardTitle(stringResource(Res.string.notes), state.loopName)
         BasicTextField(
             value = text,
@@ -178,7 +184,7 @@ fun NotesCard(
             cursorBrush = SolidColor(colors.amber),
             modifier = Modifier
                 .fillMaxWidth()
-                .fillRemainingHeight(min = NOTES_MIN_HEIGHT)
+                .fillRemainingHeight(min = if (compact) NOTES_MIN_HEIGHT_COMPACT else NOTES_MIN_HEIGHT)
                 .leavesOnEscape()
                 .reportsTextInputFocus(),
             decorationBox = { innerTextField ->
@@ -335,3 +341,5 @@ private val SWITCH_KNOB_ON = 21.dp
 private val PROGRESS_TRACK = 4.dp
 private val PROGRESS_DOT = 10.dp
 private val NOTES_MIN_HEIGHT = 72.dp
+private val NOTES_MIN_HEIGHT_COMPACT = 40.dp
+private val COMPACT_PADDING = 10.dp

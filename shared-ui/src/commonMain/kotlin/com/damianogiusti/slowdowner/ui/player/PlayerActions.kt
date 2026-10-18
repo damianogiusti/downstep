@@ -5,6 +5,7 @@ import com.damianogiusti.slowdowner.domain.effects.IsolationBands
 import com.damianogiusti.slowdowner.domain.loops.LoopBounds
 import com.damianogiusti.slowdowner.domain.loops.Progression
 import com.damianogiusti.slowdowner.domain.practice.PracticePreset
+import com.damianogiusti.slowdowner.domain.theme.ThemeSelection
 
 // Everything the player's components can trigger, one class per component group. They are built once
 // per screen (remember(viewModel) in PlayerScreen) and hold only stable function references, so a
@@ -19,8 +20,12 @@ class HeaderActions(
     val onAnalyze: () -> Unit,
     val onMetronomeToggled: () -> Unit,
     val onCountInToggled: () -> Unit,
-    val onFocusToggled: () -> Unit,
-    val onThemeToggled: () -> Unit,
+    /** The window's fullscreen on or off. Null where there is none (Android): the header shows no toggle. */
+    val onFullscreenToggled: (() -> Unit)?,
+    /** The theme menu: hover or focus on an item shows it, leaving goes back, a click saves (ThemeViewModel). */
+    val onThemePreview: (ThemeSelection) -> Unit,
+    val onThemePreviewEnd: () -> Unit,
+    val onThemeApplied: (ThemeSelection) -> Unit,
     /** "Save preset…" in the bookmark menu: PlayerScreen shows the name dialog. */
     val onSavePreset: () -> Unit,
     val onPresetSelected: (PracticePreset) -> Unit,
@@ -120,6 +125,5 @@ class PlayerActions(
     val isolate: IsolateActions,
     val progression: ProgressionActions,
     val notes: NotesActions,
-    val onExitFocus: () -> Unit,
     val onCloseDrawer: () -> Unit,
 )

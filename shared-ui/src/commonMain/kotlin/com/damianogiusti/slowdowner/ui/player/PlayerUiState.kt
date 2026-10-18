@@ -182,7 +182,7 @@ data class LoopToolsState(
 @Immutable
 data class PassState(val passes: Int, val progression: ProgressionStatus)
 
-/** Speed and pitch cards, and the focus-mode read-outs. */
+/** Speed and pitch cards. */
 @Immutable
 data class SpeedPitchState(
     val speedPercent: Float = 100f,
@@ -209,9 +209,9 @@ data class ProgressionCardState(
 @Immutable
 data class NotesCardState(val loopId: Long, val loopName: String, val notes: String)
 
-/** Focus mode and the library drawer: UI-only, never saved. */
+/** The library drawer: UI-only, never saved. Fullscreen is the window's (FullscreenControl). */
 @Immutable
-data class PlayerLayout(val isFocusMode: Boolean = false, val isDrawerOpen: Boolean = false)
+data class PlayerLayout(val isDrawerOpen: Boolean = false)
 
 sealed interface ExportUiState {
     data object Idle : ExportUiState

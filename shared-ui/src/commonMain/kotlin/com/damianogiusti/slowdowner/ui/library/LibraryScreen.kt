@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.library
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import com.damianogiusti.slowdowner.ui.common.isDesktop
 import com.damianogiusti.slowdowner.ui.common.reportsTextInputFocus
 import com.damianogiusti.slowdowner.ui.resources.*
@@ -551,6 +552,7 @@ private fun TrackMenu(
     Box {
         DrawerIconButton(painterResource(Res.drawable.ic_d_more), stringResource(Res.string.more_options), { onExpandedChange(true) })
         DropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }) {
+            TitleBarOverlay()
             MenuItem(Res.string.add_to_playlist, Res.drawable.ic_playlist_add) {
                 onExpandedChange(false)
                 onAddToPlaylist()
@@ -574,6 +576,7 @@ private fun LibraryMenu(onLibraryBackup: () -> Unit, onDonate: (() -> Unit)?) {
     Box {
         DrawerIconButton(painterResource(Res.drawable.ic_d_more), stringResource(Res.string.more_options), { expanded = true })
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            TitleBarOverlay()
             MenuItem(Res.string.backup_library, Res.drawable.ic_archive) {
                 expanded = false
                 onLibraryBackup()

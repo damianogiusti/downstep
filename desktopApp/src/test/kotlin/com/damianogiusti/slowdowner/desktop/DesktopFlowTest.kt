@@ -40,6 +40,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.window.WindowState
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 import com.damianogiusti.slowdowner.data.effects.EffectsSettingsDto
 import com.damianogiusti.slowdowner.data.effects.LegacyEqDto
@@ -197,27 +198,49 @@ class DesktopFlowTest {
     }
 
     @Test
-    fun `F toggles focus once per press, Esc closes the drawer, then focus`() {
+    fun `F and F11 toggle fullscreen once per press, Esc closes the drawer, then leaves fullscreen`() {
         val player = koin.get<PlayerViewModel>()
-        val shortcuts = PracticeShortcuts(player, TextInputFocus())
+        val fullscreen = windowFullscreen()
+        val shortcuts = PracticeShortcuts(player, TextInputFocus(), fullscreen)
         SwingUtilities.invokeAndWait {
             assertTrue(shortcuts.handle(keyDown(Key.F)))
             // Auto-repeat while held must not toggle it back.
             shortcuts.handle(keyDown(Key.F))
-            assertTrue(player.layout.value.isFocusMode)
+            assertTrue(fullscreen.isFullscreen)
             shortcuts.handle(keyUp(Key.F))
+            assertTrue(shortcuts.handle(keyDown(Key.F11)))
+            shortcuts.handle(keyDown(Key.F11))
+            assertFalse(fullscreen.isFullscreen)
+            shortcuts.handle(keyUp(Key.F11))
+            assertTrue(shortcuts.handle(keyDown(Key.F11)))
+            assertTrue(fullscreen.isFullscreen)
+            shortcuts.handle(keyUp(Key.F11))
 
+            // Esc reaches the shortcuts before the focused element: the drawer closes first, before anything.
             player.onDrawerOpened()
             assertTrue(shortcuts.handle(keyDown(Key.Escape)))
             assertFalse(player.layout.value.isDrawerOpen, "Esc closes the drawer first")
-            assertTrue(player.layout.value.isFocusMode)
-            assertTrue(shortcuts.handle(keyDown(Key.Escape)))
-            assertFalse(player.layout.value.isFocusMode)
-            assertFalse(shortcuts.handle(keyDown(Key.Escape)), "nothing to close: Esc goes on to dialogs")
+            assertTrue(fullscreen.isFullscreen)
+            // Nothing of the player's to close: on to the menus and dialogs, and only then to the window's
+            // back, which leaves fullscreen (LeaveFullscreenOnBack, see FullscreenPlayerTest).
+            assertFalse(shortcuts.handle(keyDown(Key.Escape)), "a menu or a dialog gets Esc before fullscreen")
+            assertTrue(fullscreen.isFullscreen)
+            assertTrue(fullscreen.exit())
 
-            // ⌃F belongs to the system and the menus.
+            // ⌃F belongs to the system and the menus, ⌃⌘F to the macOS menu item.
             assertFalse(shortcuts.handle(keyDown(Key.F, ctrl = true)))
-            assertFalse(player.layout.value.isFocusMode)
+            assertFalse(shortcuts.handle(keyDown(Key.F11, ctrl = true)))
+            assertFalse(fullscreen.isFullscreen)
+        }
+    }
+
+    @Test
+    fun `without a window F and F11 are not the player's`() {
+        val player = koin.get<PlayerViewModel>()
+        val shortcuts = PracticeShortcuts(player, TextInputFocus())
+        SwingUtilities.invokeAndWait {
+            assertFalse(shortcuts.handle(keyDown(Key.F)))
+            assertFalse(shortcuts.handle(keyDown(Key.F11)))
         }
     }
 
@@ -226,7 +249,8 @@ class DesktopFlowTest {
     fun `while a loop chip is renamed the practice keys are left to its field`() {
         val player = koin.get<PlayerViewModel>()
         val textInput = TextInputFocus()
-        val shortcuts = PracticeShortcuts(player, textInput)
+        val fullscreen = windowFullscreen()
+        val shortcuts = PracticeShortcuts(player, textInput, fullscreen)
         val chips = LoopChipsState(listOf(LoopChipModel(1, "Solo", 0, 8f, 0, isActive = true)), enabled = true)
         val actions = LoopChipActions({}, {}, { _, _ -> }, {}, {}, {})
         SwingUtilities.invokeAndWait {
@@ -247,11 +271,16 @@ class DesktopFlowTest {
                 scene.render(16_000_000)
                 assertTrue(textInput.isTyping)
 
-                assertFalse(shortcuts.handle(keyDown(Key.F)), "F is typed, not focus mode")
+                assertFalse(shortcuts.handle(keyDown(Key.F)), "F is typed, not fullscreen")
                 assertFalse(shortcuts.handle(keyDown(Key.L)))
                 assertFalse(shortcuts.handle(keyDown(Key.Spacebar)))
-                assertFalse(player.layout.value.isFocusMode)
+                assertFalse(fullscreen.isFullscreen)
                 assertFalse(shortcuts.handle(keyDown(Key.Escape)), "Esc cancels the rename, it is not the window's")
+                fullscreen.enter()
+                assertTrue(fullscreen.isFullscreen)
+                // F11 types nothing: it toggles while typing too.
+                assertTrue(shortcuts.handle(keyDown(Key.F11)))
+                assertFalse(fullscreen.isFullscreen)
             } finally {
                 scene.close()
             }
@@ -268,7 +297,8 @@ class DesktopFlowTest {
         val loops = koin.get<LoopRepository>()
         SwingUtilities.invokeAndWait { player.onTrackSelected(imported.track) }
         waitUntil { engine.isOpen }
-        val shortcuts = PracticeShortcuts(player, TextInputFocus())
+        val fullscreen = windowFullscreen()
+        val shortcuts = PracticeShortcuts(player, TextInputFocus(), fullscreen)
 
         SwingUtilities.invokeAndWait {
             player.onShownChanged(false)
@@ -276,10 +306,11 @@ class DesktopFlowTest {
             assertFalse(shortcuts.handle(Key.A))
             assertFalse(shortcuts.handle(Key.B))
             assertFalse(shortcuts.handle(Key.RightBracket))
-            assertFalse(shortcuts.handle(Key.F))
-            assertFalse(player.layout.value.isFocusMode)
             // Left to the playlist screen, which goes back.
             assertFalse(shortcuts.handle(Key.Escape))
+            // Fullscreen is the window's: it works over a playlist too.
+            assertTrue(shortcuts.handle(Key.F))
+            assertTrue(fullscreen.isFullscreen)
         }
         // Give a loop edit, had one started, the time to land.
         Thread.sleep(300)
@@ -298,18 +329,22 @@ class DesktopFlowTest {
     @Test
     fun `a key released with a modifier held still works on the next press`() {
         val player = koin.get<PlayerViewModel>()
-        val shortcuts = PracticeShortcuts(player, TextInputFocus())
+        val fullscreen = windowFullscreen()
+        val shortcuts = PracticeShortcuts(player, TextInputFocus(), fullscreen)
         SwingUtilities.invokeAndWait {
             shortcuts.handle(keyDown(Key.F))
             shortcuts.handle(keyUp(Key.F, ctrl = true))
             shortcuts.handle(keyDown(Key.F))
-            assertFalse(player.layout.value.isFocusMode, "F was stuck as held")
+            assertFalse(fullscreen.isFullscreen, "F was stuck as held")
             // Held while the window lost focus: the release went to another app.
             shortcuts.onFocusLost()
             shortcuts.handle(keyDown(Key.F))
-            assertTrue(player.layout.value.isFocusMode)
+            assertTrue(fullscreen.isFullscreen)
         }
     }
+
+    /** A window's fullscreen without the window: its placement only. */
+    private fun windowFullscreen() = WindowFullscreen(WindowState(), CoroutineScope(Dispatchers.Unconfined))
 
     private fun keyDown(key: Key, ctrl: Boolean = false) = keyEvent(key, KeyEventType.KeyDown, ctrl = ctrl)
 

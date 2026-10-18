@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.desktop
 
 import com.damianogiusti.slowdowner.logging.Logger
+import com.damianogiusti.slowdowner.ui.common.FullscreenControl
 import com.damianogiusti.slowdowner.ui.navigation.ActivityActions
 import com.damianogiusti.slowdowner.ui.navigation.ActivityViewModels
 import java.awt.Desktop
@@ -20,7 +21,7 @@ class DesktopActions(
     private val logger: Logger,
 ) {
 
-    fun toActivityActions() = ActivityActions(
+    fun toActivityActions(fullscreen: FullscreenControl? = null) = ActivityActions(
         onPickFile = { pickFile(AUDIO_EXTENSIONS)?.let { viewModels.imports.onDocumentPicked(it.path) } },
         onOpenSpotify = null,
         onPlayStop = viewModels.player::onPlayStopClicked,
@@ -40,6 +41,7 @@ class DesktopActions(
         onShareBackup = { reveal(File(it.path)) },
         onSaveBackup = { file -> saveAs(file.name)?.let { viewModels.backup.onSaveTargetPicked(it.path) } },
         onDonate = { openDonation(DonateSource.LIBRARY_MENU, logger) },
+        fullscreen = fullscreen,
     )
 
     private fun pickFile(extensions: Set<String>): File? {

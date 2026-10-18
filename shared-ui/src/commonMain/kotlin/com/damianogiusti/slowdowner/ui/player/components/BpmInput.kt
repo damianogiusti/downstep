@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.player.components
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -81,6 +82,7 @@ fun BpmDialog(
     // rounded to a tenth (its beat grid drifting from the music's), or round a typed one again.
     val save: () -> Unit = { if (isPrefilledBpm(currentBpm, detectedBpm, value.text)) onDismiss() else onConfirm(parsed) }
 
+    TitleBarOverlay()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(Res.string.bpm_dialog_title)) },

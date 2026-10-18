@@ -55,7 +55,7 @@
     <string name="quality_very_high">Max</string>
 
     <string name="export">Esporta</string>
-    <string name="export_running">Esporto in MP3… %1$d%%</string>
+    <string name="export_running">Esporto in MP3… %1$d%</string>
     <string name="export_ready_title">Export pronto</string>
     <string name="export_ready_text">"%1$s" è pronto. Velocità, pitch ed effetti sono applicati.</string>
     <string name="export_share">Condividi</string>
@@ -221,6 +221,13 @@
     <string name="menu_window">Finestra</string>
     <string name="menu_close_window">Chiudi finestra</string>
     <string name="menu_minimize">Contrai</string>
+    <!-- Windows: the window buttons at the header's right end, which replaces the title bar. -->
+    <string name="window_minimize">Riduci a icona</string>
+    <string name="window_maximize">Ingrandisci</string>
+    <string name="window_restore">Ripristina giù</string>
+    <string name="window_close">Chiudi</string>
+    <string name="menu_enter_fullscreen">Attiva modalità a tutto schermo</string>
+    <string name="menu_exit_fullscreen">Esci da modalità a tutto schermo</string>
     <string name="menu_help">Aiuto</string>
 
     <!-- Support prompt (desktop) -->
@@ -242,7 +249,7 @@
     <string name="update_later">Più tardi</string>
     <string name="update_cancel">Annulla</string>
     <string name="update_retry">Riprova</string>
-    <string name="update_downloading">Scaricamento… %1$d%%</string>
+    <string name="update_downloading">Scaricamento… %1$d%</string>
     <string name="update_preparing">Installazione…</string>
     <string name="update_restarting">Riavvio…</string>
     <string name="update_network_error">Il download non è finito. Controlla la connessione e riprova.</string>
@@ -250,7 +257,7 @@
     <string name="update_banner">È disponibile Downstep %1$s</string>
     <string name="update_banner_action">Aggiorna</string>
 
-    <!-- Downstep 2.0 player. Component groups: H header, chips, transport · W waveform · C cards · D drawer, focus, title bar -->
+    <!-- Downstep 2.0 player. Component groups: H header, chips, transport · W waveform · C cards · D drawer, title bar -->
     <!-- Header (H) -->
     <string name="library_open_description">Apri la libreria</string>
     <string name="header_bpm">%1$s BPM</string>
@@ -277,9 +284,21 @@
     <string name="count_in">Conteggio</string>
     <string name="count_in_unavailable">Il conteggio iniziale non è ancora disponibile</string>
     <string name="error_click_needs_bpm">Imposta prima il tempo del brano.</string>
-    <string name="focus_mode">Modalità focus (F)</string>
-    <string name="exit_focus">Esci dal focus</string>
-    <string name="theme_toggle">Chiaro / scuro</string>
+    <string name="fullscreen_enter">Schermo intero (F)</string>
+    <string name="fullscreen_exit">Esci da schermo intero (Esc)</string>
+    <string name="theme">Tema</string>
+    <string name="theme_mode">Modalità</string>
+    <string name="theme_mode_dark">Scuro</string>
+    <string name="theme_mode_light">Chiaro</string>
+    <string name="theme_palettes">Temi</string>
+    <string name="theme_downstep">Downstep</string>
+    <string name="theme_graphite">Grafite</string>
+    <string name="theme_midnight">Mezzanotte</string>
+    <string name="theme_forest">Foresta</string>
+    <string name="theme_rosewood">Palissandro</string>
+    <string name="theme_dusk">Crepuscolo</string>
+    <string name="theme_sandstone">Arenaria</string>
+    <string name="theme_high_contrast">Alto contrasto</string>
     <string name="presets_none">Ancora nessun preset per questo brano</string>
     <string name="external_meta">Aperto da un\'altra app</string>
     <string name="loading_track">Apro “%1$s”…</string>
@@ -307,7 +326,7 @@
     <string name="pass_at_target">obiettivo raggiunto</string>
     <string name="hint_set">imposta</string>
     <string name="hint_loops">loop</string>
-    <string name="hint_focus">focus</string>
+    <string name="hint_fullscreen">schermo intero</string>
     <!-- Waveform and zoom strip (W) -->
     <string name="waveform_description">Forma d\'onda, durata %1$s</string>
     <string name="zoom_title">ZOOM · %1$s · %2$s – %3$s</string>
@@ -349,11 +368,9 @@
     <string name="stepper_increase">Aumenta %1$s</string>
     <string name="notes">Note</string>
     <string name="notes_placeholder">Accordi, diteggiatura, cosa ascoltare…</string>
-    <!-- Library drawer, focus mode, title bar (D) -->
+    <!-- Library drawer, title bar (D) -->
     <string name="close">Chiudi</string>
     <string name="drawer_track_meta">%1$s · %2$s</string>
-    <string name="focus_title">%1$s — %2$s</string>
-    <string name="focus_no_loop">nessun loop</string>
     <string name="title_bar">Downstep %1$s</string>
     <!-- Group H additions (component agents append here only) -->
     <!-- Group W additions -->
@@ -376,7 +393,7 @@
         <item quantity="one">%1$d file</item>
         <item quantity="other">%1$d file</item>
     </plurals>
-    <string name="export_running_many">Esporto %1$s in MP3… %2$d%%</string>
+    <string name="export_running_many">Esporto %1$s in MP3… %2$d%</string>
     <string name="export_ready_text_many">%1$s pronti. Velocità, intonazione ed effetti sono applicati.</string>
     <string name="export_ready_more">…e altri %1$d</string>
     <string name="export_save_folder">Salva in una cartella…</string>

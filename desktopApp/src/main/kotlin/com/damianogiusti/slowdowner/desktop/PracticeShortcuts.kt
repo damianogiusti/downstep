@@ -16,16 +16,24 @@ import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 /**
  * Keys for practising with the hands on the instrument (README §3, "Keyboard"):
  * Space play/pause · L new loop at the playhead · ⇧L loop on/off · A / B active loop start / end at
- * the playhead · [ / ] previous / next loop · ←/→ 5 s back/forward (with ⇧ 1 s) · F focus mode ·
- * Esc close the drawer, then leave focus. While a playlist covers the player only Space and the
- * arrows act on it.
+ * the playhead · [ / ] previous / next loop · ←/→ 5 s back/forward (with ⇧ 1 s) · F or F11
+ * fullscreen · Esc close the drawer, else leave fullscreen. While a playlist covers the player only
+ * Space, the arrows and fullscreen act.
  *
- * Handled before the focused element, so Space never re-clicks the last button and the arrows never
- * move a slider. Only a focused text field (notes, search, BPM) keeps its keys ([TextInputFocus]).
+ * Handled before the focused element ([handle]), so Space never re-clicks the last button and the
+ * arrows never move a slider. Only a focused text field (notes, search, BPM, a chip's name, the theme
+ * menu) keeps its keys ([TextInputFocus]). Leaving fullscreen is the exception: Esc first goes to what
+ * is open (a menu, a dialog, a sheet, a text field) and only one that nobody took leaves fullscreen
+ * ([LeaveFullscreenOnBack]).
  */
-class PracticeShortcuts(private val player: PlayerViewModel, private val textInput: TextInputFocus) {
+class PracticeShortcuts(
+    private val player: PlayerViewModel,
+    private val textInput: TextInputFocus,
+    /** Null without a window (tests of the player alone). */
+    private val fullscreen: WindowFullscreen? = null,
+) {
 
-    /** Keys held down: auto-repeat must not add a loop per repeat, or toggle focus back and forth. */
+    /** Keys held down: auto-repeat must not add a loop per repeat, or toggle fullscreen back and forth. */
     private val held = mutableSetOf<Key>()
 
     /** Physical keys that typed [ or ] on a layout without bracket keys, to match their release. */
@@ -33,7 +41,10 @@ class PracticeShortcuts(private val player: PlayerViewModel, private val textInp
 
     fun handle(event: KeyEvent): Boolean {
         if (event.type == KeyEventType.KeyUp) return onKeyUp(event)
-        if (event.type != KeyEventType.KeyDown || !isPracticeChord(event)) return false
+        if (event.type != KeyEventType.KeyDown) return false
+        // F11 types nothing: it works while typing too, as in a browser.
+        if (event.key == Key.F11 && !event.isMetaPressed && !event.isCtrlPressed && !event.isAltPressed) return handle(Key.F11)
+        if (!isPracticeChord(event)) return false
         val key = event.practiceKey() ?: return false
         return handle(key, shift = event.isShiftPressed)
     }
@@ -48,9 +59,10 @@ class PracticeShortcuts(private val player: PlayerViewModel, private val textInp
             return true
         }
         if (key !in ONCE) return false
-        // A playlist covers the player: Space stays (transport), the rest would edit it unseen, and Esc
-        // goes on to the playlist screen, which goes back.
-        if (!player.isShown && key != Key.Spacebar) return false
+        // A playlist covers the player: Space stays (transport), fullscreen is the window's, the rest
+        // would edit it unseen, and Esc goes on to the playlist screen, which goes back.
+        if (!player.isShown && key !in WINDOW_KEYS) return false
+        if (key in FULLSCREEN_KEYS && fullscreen == null) return false
         if (!held.add(key)) return true
         when (key) {
             Key.Spacebar -> player.onPlayStopClicked()
@@ -59,10 +71,11 @@ class PracticeShortcuts(private val player: PlayerViewModel, private val textInp
             Key.B -> player.onSetLoopEndAtPlayhead()
             Key.LeftBracket -> player.onPreviousLoopClicked()
             Key.RightBracket -> player.onNextLoopClicked()
-            Key.F -> player.onFocusToggled()
+            Key.F, Key.F11 -> fullscreen?.toggle()
             Key.Escape -> {
                 // Released at once: Esc does nothing on repeat anyway, and dialogs get the next one.
                 held -= key
+                // Fullscreen is left as the window's back (LeaveFullscreenOnBack), once what is open closed.
                 return player.onEscape()
             }
         }
@@ -107,7 +120,11 @@ class PracticeShortcuts(private val player: PlayerViewModel, private val textInp
 
     private companion object {
         val REPEATING = setOf(Key.DirectionLeft, Key.DirectionRight)
-        val ONCE = setOf(Key.Spacebar, Key.L, Key.A, Key.B, Key.LeftBracket, Key.RightBracket, Key.F, Key.Escape)
+        val FULLSCREEN_KEYS = setOf(Key.F, Key.F11)
+        val ONCE = setOf(Key.Spacebar, Key.L, Key.A, Key.B, Key.LeftBracket, Key.RightBracket, Key.Escape) + FULLSCREEN_KEYS
+
+        /** Keys that act while a playlist covers the player: the transport's and the window's. */
+        val WINDOW_KEYS = setOf(Key.Spacebar) + FULLSCREEN_KEYS
         const val SEEK_SECONDS = 5f
         const val FINE_SEEK_SECONDS = 1f
     }

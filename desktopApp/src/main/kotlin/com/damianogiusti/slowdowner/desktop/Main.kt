@@ -13,14 +13,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -30,13 +32,17 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
 import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
+import com.damianogiusti.slowdowner.desktop.windows.WindowsTitleBar
+import com.damianogiusti.slowdowner.desktop.windows.WindowsTitleBarHook
 import com.damianogiusti.slowdowner.di.uiModule
 import com.damianogiusti.slowdowner.di.useCasesModule
 import com.damianogiusti.slowdowner.logging.Logger
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.common.LocalTextInputFocus
+import com.damianogiusti.slowdowner.ui.common.LocalWindowTitleBar
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
+import com.damianogiusti.slowdowner.ui.common.TopBanners
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.navigation.ActivityViewModels
 import com.damianogiusti.slowdowner.ui.navigation.SlowDownerApp
@@ -47,6 +53,8 @@ import com.damianogiusti.slowdowner.ui.resources.error_no_audio_output
 import com.damianogiusti.slowdowner.ui.resources.menu_close_window
 import com.damianogiusti.slowdowner.ui.resources.menu_file
 import com.damianogiusti.slowdowner.ui.resources.menu_help
+import com.damianogiusti.slowdowner.ui.resources.menu_enter_fullscreen
+import com.damianogiusti.slowdowner.ui.resources.menu_exit_fullscreen
 import com.damianogiusti.slowdowner.ui.resources.menu_minimize
 import com.damianogiusti.slowdowner.ui.resources.menu_window
 import com.damianogiusti.slowdowner.ui.resources.support_donate
@@ -55,8 +63,9 @@ import com.damianogiusti.slowdowner.ui.update.UpdateBanner
 import com.damianogiusti.slowdowner.ui.update.UpdateHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import com.damianogiusti.slowdowner.ui.theme.ThemeViewModel
+import com.damianogiusti.slowdowner.ui.theme.themeById
 import com.damianogiusti.slowdowner.domain.practice.SavePracticeStateUseCase
-import com.damianogiusti.slowdowner.domain.theme.ThemeMode
+import com.damianogiusti.slowdowner.domain.theme.ThemeSelection
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -66,7 +75,6 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
 import org.koin.mp.KoinPlatform
-import java.awt.Dimension
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.nio.file.Path
@@ -93,24 +101,51 @@ fun main() {
         // Main (Swing) thread, as on Android: engine settings are applied from the UI thread.
         startAppWork(koin, MainScope())
     }
+    // Where the last run left the window, moved onto a screen that is still there.
+    val windowBounds = WindowBoundsStore()
+    val screens = runCatching { usableScreenAreas() }.getOrDefault(emptyList())
+    val initialBounds = restoreWindowBounds(runCatching { windowBounds.read() }.getOrNull(), screens)
     // Set once the ViewModels exist; read by the window's key handler.
     var shortcuts: PracticeShortcuts? = null
     // Set once the ViewModels exist; run after the window is gone.
     var flushOnQuit: (suspend () -> Unit)? = null
     application(exitProcessOnExit = false) {
-        // The size the Downstep 2.0 design is drawn at.
-        val windowState = rememberWindowState(size = DpSize(1280.dp, 820.dp), position = WindowPosition(Alignment.Center))
+        val windowState = rememberWindowState(
+            placement = if (initialBounds.isMaximized) WindowPlacement.Maximized else WindowPlacement.Floating,
+            position = WindowPosition(initialBounds.x.dp, initialBounds.y.dp),
+            size = DpSize(initialBounds.width.dp, initialBounds.height.dp),
+        )
         Window(
             onCloseRequest = ::exitApplication,
-            // Shown on Windows: tells which build the band is trying. Hidden on macOS (WindowChrome).
+            // Tells which build the band is trying, in the taskbar and Alt+Tab (and to screen readers). Not
+            // drawn: on macOS the title bar is transparent (WindowChrome), on Windows the header replaces it.
             title = "Downstep $appVersion",
             // From the first frame, so the coffee cup never shows; sharper sizes follow below.
             icon = remember { runCatching { appIconPainter() }.getOrNull() },
             state = windowState,
             onPreviewKeyEvent = { event -> shortcuts?.handle(event) ?: false },
         ) {
+            val scope = rememberCoroutineScope()
+            // Windows: the header replaces the title bar, before the window first shows. Null elsewhere,
+            // or when it cannot: the window then keeps the system's title bar. Without an engine there
+            // is no header, only the error screen: the system's title bar moves and closes the window.
+            val titleBarHook = remember { if (isWindows && engine != null) WindowsTitleBarHook.install(window, logger) else null }
+            val fullscreen = remember(windowState) {
+                WindowFullscreen(windowState, scope, awtPlacement = { window.placement }, borderless = titleBarHook?.asBorderlessFullscreen())
+            }
+            val titleBar = remember(titleBarHook, fullscreen) {
+                titleBarHook?.let { hook ->
+                    WindowsTitleBar(hook, isFullscreen = { fullscreen.isFullscreen }, isMaximized = { windowState.placement == WindowPlacement.Maximized })
+                        .apply { onLeaveFullscreenRequested = { fullscreen.exit() } }
+                }
+            }
+            LaunchedEffect(fullscreen) { fullscreen.trackRestorePlacement() }
+            // AWT's fullscreen only: a file picker or another app taking the focus must not minimize it.
+            if (isWindows && titleBarHook == null) LaunchedEffect(windowState) { window.keepFullscreenOnFocusLoss(windowState) }
             LaunchedEffect(Unit) {
-                window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT)
+                // From the screen the window opens on: restored bounds may be on a smaller one than the primary.
+                window.minimumSize = minimumWindowSize(initialBounds, screens)
+                titleBarHook?.minimumSize = window.minimumSize
                 window.useTransparentTitleBar()
                 window.useAppIcon()
                 // A key held while switching away is released in the other app: forget it.
@@ -122,6 +157,13 @@ fun main() {
                 // The cold start as the user sees it: what class-data sharing and a lazy start shorten.
                 sinceLaunchMillis()?.let { println("Window composed $it ms after launch") }
             }
+            LaunchedEffect(windowState) {
+                windowState.saveBoundsTo(
+                    windowBounds,
+                    initialBounds,
+                    isWindowFullscreen = { window.placement == WindowPlacement.Fullscreen || fullscreen.isFullscreen },
+                )
+            }
             // macOS only: there the menus sit in the screen's menu bar. On Windows they would be a bar
             // inside the window, and Alt+F4 already closes it. One window: closing it quits.
             if (isMacOs) MenuBar {
@@ -130,6 +172,12 @@ fun main() {
                 }
                 Menu(stringResource(Res.string.menu_window)) {
                     Item(stringResource(Res.string.menu_minimize), shortcut = KeyShortcut(Key.M, meta = true)) { windowState.isMinimized = true }
+                    // macOS's own shortcut for it; the green button does the same.
+                    Item(
+                        stringResource(if (fullscreen.isFullscreen) Res.string.menu_exit_fullscreen else Res.string.menu_enter_fullscreen),
+                        shortcut = KeyShortcut(Key.F, ctrl = true, meta = true),
+                        onClick = fullscreen::toggle,
+                    )
                 }
                 // Where Mac users look for things about the app itself. Windows has the library menu only.
                 Menu(stringResource(Res.string.menu_help)) {
@@ -139,21 +187,25 @@ fun main() {
             // One store for the window, as the activity is on Android: pickers report into these ViewModels,
             // and the player, its effects and the theme live as long as the window.
             val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
-            CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
-                // Without an engine there is no Koin: the error screen gets the default theme.
-                val themeMode = if (engine != null) koinViewModel<ThemeViewModel>().mode.collectAsStateWithLifecycle().value else ThemeMode.DEFAULT
-                SlowDownerTheme(themeMode) {
-                    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(top = titleBarHeight)) {
-                        if (engine != null && !hasAudioOutput) NoAudioOutputBanner()
+            CompositionLocalProvider(LocalViewModelStoreOwner provides owner, LocalWindowTitleBar provides titleBar) {
+                // Without an engine there is no Koin: the error screen gets the default theme. The theme
+                // on screen includes the theme menu's preview.
+                val theme = if (engine != null) koinViewModel<ThemeViewModel>().effective.collectAsStateWithLifecycle().value else ThemeSelection.DEFAULT
+                SlowDownerTheme(theme.mode, themeById(theme.themeId)) {
+                    // A macOS window in fullscreen has no title bar over the content: no room to keep for it.
+                    val top = if (fullscreen.isFullscreen) 0.dp else titleBarHeight
+                    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(top = top)) {
                         Box(modifier = Modifier.weight(1f)) {
                             if (engine == null) {
                                 EngineUnavailable()
                             } else {
                                 DesktopApp(
                                     window,
+                                    fullscreen,
                                     logger,
                                     onRestart = ::exitApplication,
                                     installWithoutAsking = updates.installWithoutAsking,
+                                    hasAudioOutput = hasAudioOutput,
                                     onQuitFlushReady = { flushOnQuit = it },
                                 ) {
                                     shortcuts = it
@@ -180,6 +232,12 @@ fun main() {
     exitProcess(0)
 }
 
+private fun WindowsTitleBarHook.asBorderlessFullscreen() = object : BorderlessFullscreen {
+    override fun enter() = enterFullscreen()
+
+    override fun exit() = exitFullscreen()
+}
+
 /** Null where the OS does not tell when the process started. */
 private fun sinceLaunchMillis(): Long? = ProcessHandle.current().info().startInstant().map {
     java.time.Duration.between(it, java.time.Instant.now()).toMillis()
@@ -187,11 +245,6 @@ private fun sinceLaunchMillis(): Long? = ProcessHandle.current().info().startIns
 
 /** Set by Gradle (-PappVersion, see desktopApp/build.gradle.kts). */
 private val appVersion: String = System.getProperty("slowdowner.version") ?: "dev"
-
-// In points, like Compose's dp on macOS. The player's card rows need this much (README §6: nothing
-// narrower is designed).
-private const val MIN_WIDTH = 1000
-private const val MIN_HEIGHT = 600
 
 /** A null engine shows the error screen: no library, or a library that does not load. */
 private data class EngineStart(val engine: NativeEngine?, val hasAudioOutput: Boolean)
@@ -215,13 +268,14 @@ private const val NO_OUTPUT_SAMPLE_RATE = 44_100
 /** Quitting waits this long at most for the last writes (preferences, Room). */
 private const val QUIT_FLUSH_TIMEOUT_MS = 2_000L
 
+/** [endInset]: room left at the right end, under the window buttons when the banner is the window's top. */
 @Composable
-private fun NoAudioOutputBanner() {
+private fun NoAudioOutputBanner(endInset: Dp) {
     Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
         Text(
             stringResource(Res.string.error_no_audio_output),
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp + endInset, top = 10.dp, bottom = 10.dp),
         )
     }
 }
@@ -230,13 +284,17 @@ private fun NoAudioOutputBanner() {
 @Composable
 private fun DesktopApp(
     window: java.awt.Frame,
+    fullscreen: WindowFullscreen,
     logger: Logger,
     onRestart: () -> Unit,
     installWithoutAsking: Boolean,
+    hasAudioOutput: Boolean,
     onQuitFlushReady: (suspend () -> Unit) -> Unit,
     onShortcutsReady: (PracticeShortcuts) -> Unit,
 ) {
     val textInput = remember { TextInputFocus() }
+    // First, so that every menu, dialog and sheet opened later gets Esc before it.
+    LeaveFullscreenOnBack(fullscreen, textInput)
     CompositionLocalProvider(LocalTextInputFocus provides textInput) {
         val player = koinViewModel<PlayerViewModel>()
         val imports = koinViewModel<ImportViewModel>()
@@ -244,8 +302,8 @@ private fun DesktopApp(
         val effects = koinViewModel<EffectsViewModel>()
         // One instance for the window's life, so SlowDownerApp's arguments stay equal between recompositions.
         val viewModels = remember(player, imports, backup, effects) { ActivityViewModels(player, imports, backup, effects) }
-        val actions = remember(viewModels) { DesktopActions(window, viewModels, logger).toActivityActions() }
-        LaunchedEffect(viewModels.player) { onShortcutsReady(PracticeShortcuts(viewModels.player, textInput)) }
+        val actions = remember(viewModels, fullscreen) { DesktopActions(window, viewModels, logger).toActivityActions(fullscreen) }
+        LaunchedEffect(viewModels.player, fullscreen) { onShortcutsReady(PracticeShortcuts(viewModels.player, textInput, fullscreen)) }
         LaunchedEffect(viewModels) {
             val savePracticeState = KoinPlatform.getKoin().get<SavePracticeStateUseCase>()
             onQuitFlushReady {
@@ -255,9 +313,15 @@ private fun DesktopApp(
                 savePracticeState()
             }
         }
-        Column(modifier = Modifier.fillMaxSize()) {
-            UpdateBanner()
-            Box(modifier = Modifier.weight(1f)) { SlowDownerApp(viewModels = viewModels, activity = actions) }
+        // Above the header; on Windows, the window's top while one shows (see TopBanners).
+        TopBanners(
+            banners = { endInset ->
+                if (!hasAudioOutput) NoAudioOutputBanner(endInset)
+                UpdateBanner(endInset = endInset)
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            SlowDownerApp(viewModels = viewModels, activity = actions)
         }
         SupportPromptHost()
         // After the support prompt: its dialog waits until that one is closed.

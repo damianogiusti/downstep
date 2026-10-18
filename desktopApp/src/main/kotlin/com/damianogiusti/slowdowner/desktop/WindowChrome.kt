@@ -22,9 +22,13 @@ val isMacOs: Boolean = System.getProperty("os.name").orEmpty().startsWith("Mac")
  */
 val titleBarHeight: Dp = if (isMacOs) 28.dp else 0.dp
 
-/** macOS "unified" look: content under a transparent title bar, no title text. No-op elsewhere. */
+/**
+ * macOS "unified" look: content under a transparent title bar, no title text. Fullscreenable too: the
+ * green button enters the native fullscreen, the one [WindowFullscreen] toggles. No-op elsewhere.
+ */
 fun ComposeWindow.useTransparentTitleBar() {
     if (!isMacOs) return
+    rootPane.putClientProperty("apple.awt.fullscreenable", true)
     rootPane.putClientProperty("apple.awt.fullWindowContent", true)
     rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
     rootPane.putClientProperty("apple.awt.windowTitleVisible", false)

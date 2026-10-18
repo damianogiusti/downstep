@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.backup
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -89,6 +90,7 @@ private data class BackupBannerProgress(val isExport: Boolean, val done: Int, va
 
 @Composable
 fun BackupReadyDialog(file: BackupFile, onShare: () -> Unit, onSave: () -> Unit, onDismiss: () -> Unit) {
+    TitleBarOverlay()
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(painterResource(Res.drawable.ic_archive), contentDescription = null) },
@@ -107,6 +109,7 @@ fun BackupReadyDialog(file: BackupFile, onShare: () -> Unit, onSave: () -> Unit,
 /** Stacked: three actions do not fit in a row on a phone, and a wrapped row leaves a gap. */
 @Composable
 fun PlaylistConflictDialog(names: List<String>, onChoice: (PlaylistConflictChoice) -> Unit, onDismiss: () -> Unit) {
+    TitleBarOverlay()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(pluralStringResource(Res.plurals.backup_playlist_conflict_title, names.size)) },

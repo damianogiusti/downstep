@@ -77,14 +77,10 @@ fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = "tnum")
 class DownstepType internal constructor(
     /** Track title in the header: 26/30, −0.3 tracking. */
     val title: TextStyle,
-    /** Compact title in focus mode: 20. */
-    val focusTitle: TextStyle,
     /** Library drawer title: 24. */
     val drawerTitle: TextStyle,
     /** Speed and pitch cards: 34/38. */
     val readout: TextStyle,
-    /** Speed and pitch beside the transport in focus mode: 18. */
-    val focusReadout: TextStyle,
     /** Buttons, pills, chips: Inter 500, 13. */
     val control: TextStyle,
     /** Chip names, emphasised controls: Inter 600, 13. */
@@ -101,10 +97,8 @@ class DownstepType internal constructor(
 
 private fun downstepType(displayFamily: FontFamily, textFamily: FontFamily) = DownstepType(
     title = style(displayFamily, 26, 30, FontWeight.Bold, -0.3).tabular(),
-    focusTitle = style(displayFamily, 20, 26, FontWeight.Bold, -0.2).tabular(),
     drawerTitle = style(displayFamily, 24, 30, FontWeight.Bold, 0.0).tabular(),
     readout = style(displayFamily, 34, 38, FontWeight.Bold, 0.0).tabular(),
-    focusReadout = style(displayFamily, 18, 22, FontWeight.Bold, 0.0).tabular(),
     control = style(textFamily, 13, 18, FontWeight.Medium, 0.0).tabular(),
     controlStrong = style(textFamily, 13, 18, FontWeight.SemiBold, 0.0).tabular(),
     body = style(textFamily, 14, 20, FontWeight.Normal, 0.0).tabular(),

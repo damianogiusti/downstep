@@ -25,12 +25,18 @@ dependencies {
     // Dispatchers.Main on the Swing thread, for viewModelScope.
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0")
     implementation("org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
+    // The window's back (Esc), which menus and dialogs close on: fullscreen is left from there, last.
+    // The version Compose already brings at runtime.
+    implementation("org.jetbrains.androidx.navigationevent:navigationevent-compose:1.1.0")
     implementation(platform("io.insert-koin:koin-bom:4.1.1"))
     implementation("io.insert-koin:koin-core")
     implementation("io.insert-koin:koin-compose-viewmodel")
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     implementation("io.sentry:sentry:8.61.0")
+    // Windows: the header replaces the title bar, through a hook on the window's procedure (windows/).
+    implementation("net.java.dev.jna:jna:5.17.0")
+    implementation("net.java.dev.jna:jna-platform:5.17.0")
 
     testImplementation(kotlin("test"))
     testImplementation("io.insert-koin:koin-test")
@@ -51,6 +57,8 @@ tasks.test {
     // The real app swap (scripts, disk images, Trash) runs only in CI, on machines that are thrown away:
     // ./gradlew :desktopApp:test -PupdateSwapTests=true. Never on a developer's computer.
     systemProperty("slowdowner.updateSwapTests", providers.gradleProperty("updateSwapTests").getOrElse("false"))
+    // A real full-screen window, over the whole screen for a moment: ./gradlew :desktopApp:test -PfullscreenWindowTests=true.
+    systemProperty("slowdowner.fullscreenWindowTests", providers.gradleProperty("fullscreenWindowTests").getOrElse("false"))
     enabled = osName.startsWith("Mac") || isWindows || isLinux
 }
 

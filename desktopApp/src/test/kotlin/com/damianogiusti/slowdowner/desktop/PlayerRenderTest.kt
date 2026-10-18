@@ -49,7 +49,7 @@ import kotlin.test.assertTrue
 
 /**
  * Renders the Downstep 2.0 player as the design shows it (README §2): a track with three loops and a
- * BPM, in both themes, in focus mode and with the library drawer open. The PNGs land in
+ * BPM, in both themes and with the library drawer open. The PNGs land in
  * build/screenshots for a side-by-side look with docs/design/downstep-2/screenshots; the asserts check
  * the colours that say the right layout is up (amber Play button, the drawer's panel).
  */
@@ -82,17 +82,9 @@ class PlayerRenderTest {
     @Test
     fun `the light player uses the light palette`() {
         val image = renderPlayer("player-light.png", ThemeMode.Light)
-        assertColorNear(image, PLAY_BUTTON_X, PLAY_BUTTON_Y, 0xA86400, "Play button")
+        assertColorNear(image, PLAY_BUTTON_X, PLAY_BUTTON_Y, 0x935100, "Play button")
         assertColorNear(image, 4, image.height - 4, 0xFAF6F0, "background")
-        assertPlayIconCentred(image, 0xA86400)
-    }
-
-    @Test
-    fun `focus mode keeps the practice core`() {
-        val image = renderPlayer("player-focus.png", ThemeMode.Dark) { it.onFocusToggled() }
-        // No cards below the transport: the bottom of the window is the plain background.
-        assertColorNear(image, image.width / 2, image.height - 40, 0x0F1114, "background under the transport")
-        assertPlayIconCentred(image, 0xF2A541)
+        assertPlayIconCentred(image, 0x935100)
     }
 
     @Test
@@ -186,7 +178,7 @@ class PlayerRenderTest {
     /**
      * The play triangle's visual centre (its ink-weighted centroid) is the centre of the round button,
      * within [ICON_CENTRE_TOLERANCE_DP] on both axes: not its bounding box, which leans right. The
-     * button is found by its [amber] pixels near the middle of the window (focus mode moves it up).
+     * button is found by its [amber] pixels near the bottom centre of the window, where the transport sits.
      */
     private fun assertPlayIconCentred(image: Image, amber: Int) {
         val bitmap = org.jetbrains.skia.Bitmap.makeFromImage(image)
@@ -195,7 +187,7 @@ class PlayerRenderTest {
             return listOf(16, 8, 0).maxOf { shift -> abs(((pixel shr shift) and 0xFF) - ((amber shr shift) and 0xFF)) }
         }
         val searchX = (640 - 50) * SCALE until (640 + 50) * SCALE
-        val searchY = (473 - 80) * SCALE until (473 + 80) * SCALE
+        val searchY = (PLAY_BUTTON_Y_DP - 80) * SCALE until minOf(PLAY_BUTTON_Y_DP + 80, HEIGHT_DP) * SCALE
         val disc = searchY.flatMap { y -> searchX.filter { x -> distance(x, y) <= 24 }.map { x -> x to y } }
         assertTrue(disc.isNotEmpty(), "no Play button found")
         val left = disc.minOf { it.first }
@@ -249,15 +241,18 @@ class PlayerRenderTest {
     private fun noActions() = ActivityActions(
         onPickFile = {}, onOpenSpotify = null, onPlayStop = {}, onPlaybackStarted = {},
         onShareExport = {}, onSaveExport = {}, onPickBackup = {}, onShareBackup = {}, onSaveBackup = {},
+        // As in the app: the header shows the fullscreen toggle.
+        fullscreen = TestFullscreen(),
     )
 
     private companion object {
         const val WIDTH_DP = 1280
         const val HEIGHT_DP = 860
         const val SCALE = 2
-        // Inside the 68dp Play button beside its icon (the transport row is centred).
+        // Inside the 68dp Play button beside its icon: the transport row is centred, at the bottom, 14dp padding.
         const val PLAY_BUTTON_X = (640 + 24) * SCALE
-        const val PLAY_BUTTON_Y = 473 * SCALE
+        const val PLAY_BUTTON_Y_DP = HEIGHT_DP - 14 - 34
+        const val PLAY_BUTTON_Y = PLAY_BUTTON_Y_DP * SCALE
         // The box-centred triangle was 2.5dp off; a quarter of that is rounding and anti-aliasing.
         const val ICON_CENTRE_TOLERANCE_DP = 0.6
     }

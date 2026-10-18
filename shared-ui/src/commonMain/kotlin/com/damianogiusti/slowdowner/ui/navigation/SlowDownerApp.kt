@@ -41,6 +41,7 @@ import com.damianogiusti.slowdowner.ui.backup.PlaylistConflictDialog
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.common.CollectMessages
 import com.damianogiusti.slowdowner.ui.common.ConfirmDialog
+import com.damianogiusti.slowdowner.ui.common.FullscreenControl
 import com.damianogiusti.slowdowner.ui.library.ImportBanner
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.library.LibraryNavigation
@@ -53,10 +54,12 @@ import com.damianogiusti.slowdowner.ui.player.components.ExportReadyDialog
 import com.damianogiusti.slowdowner.ui.playlists.AddToPlaylistSheet
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistNavigation
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistScreen
+import com.damianogiusti.slowdowner.ui.theme.ThemeViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.viewmodel.koinViewModel
 
 /** What the app needs from the activity: pickers, share sheet, service, permissions. */
 class ActivityActions(
@@ -75,6 +78,8 @@ class ActivityActions(
     val onSaveBackup: (BackupFile) -> Unit,
     /** Null where the app is not published (Android): the Donate menu item is then hidden. */
     val onDonate: (() -> Unit)? = null,
+    /** The window's fullscreen (desktop). Null on Android: the header then has no fullscreen toggle. */
+    val fullscreen: FullscreenControl? = null,
 )
 
 /** ViewModels scoped to the activity: results of activity pickers and intents land in them. */
@@ -97,6 +102,8 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
     val playerViewModel = viewModels.player
     val importViewModel = viewModels.imports
     val backupViewModel = viewModels.backup
+    // The window's, as the root's: a destination's own would keep the theme menu's previews from the root.
+    val themeViewModel = koinViewModel<ThemeViewModel>()
     val navController = rememberNavController()
     val currentEntry by navController.currentBackStackEntryAsState()
     // The window's practice keys edit the player: only while it is the screen shown.
@@ -119,6 +126,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
         PlayerNavigation(
             onPlayStop = activity.onPlayStop,
             onAddToPlaylist = { trackForPlaylist = it },
+            fullscreen = activity.fullscreen,
             library = LibraryNavigation(
                 onTrackClick = playerViewModel::onTrackSelected,
                 onPlaylistClick = {
@@ -154,6 +162,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                     navigation = playerNavigation,
                     snackbarHostState = snackbarHostState,
                     effects = viewModels.effects,
+                    theme = themeViewModel,
                 )
             }
             composable<PlaylistRoute>(

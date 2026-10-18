@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.effects
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import com.damianogiusti.slowdowner.ui.common.formatSignedDecimal
 import org.jetbrains.compose.resources.StringResource
 import com.damianogiusti.slowdowner.ui.resources.*
@@ -53,6 +54,7 @@ fun EffectsSheet(
     viewModel: EffectsViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    TitleBarOverlay()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,

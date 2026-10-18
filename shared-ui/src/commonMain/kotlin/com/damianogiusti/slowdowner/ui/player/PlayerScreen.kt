@@ -4,12 +4,14 @@ import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,12 +25,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.practice.PracticePreset
 import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
 import com.damianogiusti.slowdowner.ui.common.ConfirmDialog
+import com.damianogiusti.slowdowner.ui.common.FullscreenControl
 import com.damianogiusti.slowdowner.ui.common.TextInputDialog
 import com.damianogiusti.slowdowner.ui.common.TextInputDialogTexts
 import com.damianogiusti.slowdowner.ui.common.clearsFocusOnPress
@@ -41,8 +48,6 @@ import com.damianogiusti.slowdowner.ui.library.LibraryNavigation
 import com.damianogiusti.slowdowner.ui.library.LibraryViewModel
 import com.damianogiusti.slowdowner.ui.player.components.BpmDialog
 import com.damianogiusti.slowdowner.ui.player.components.ExportBanner
-import com.damianogiusti.slowdowner.ui.player.components.FocusHeader
-import com.damianogiusti.slowdowner.ui.player.components.FocusReadouts
 import com.damianogiusti.slowdowner.ui.player.components.IsolateCard
 import com.damianogiusti.slowdowner.ui.player.components.KeyboardHints
 import com.damianogiusti.slowdowner.ui.player.components.LoopChipsStrip
@@ -60,6 +65,7 @@ import com.damianogiusti.slowdowner.ui.player.components.waveform.LoopDragState
 import com.damianogiusti.slowdowner.ui.theme.DownstepDimens
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import com.damianogiusti.slowdowner.ui.theme.ThemeViewModel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import org.jetbrains.compose.resources.stringResource
@@ -72,12 +78,21 @@ class PlayerNavigation(
     val onPlayStop: () -> Unit,
     val onAddToPlaylist: (LibraryTrack) -> Unit,
     val library: LibraryNavigation,
+    /** The window's fullscreen, for the header's toggle: null where there is none (Android). */
+    val fullscreen: FullscreenControl? = null,
 )
 
 /**
- * The root screen (README §2): header, loop chips, overview waveform + zoom strip, transport, Speed /
- * Pitch / Isolate cards, Progression / Notes cards; focus mode keeps only the practice core (§4.9); the
- * library is a drawer over it (§2.9).
+ * The root screen (README §2). The header sits on top, with the loading bar and the export banner
+ * under it. The controls are anchored to the bottom of the window: loop chips, overview waveform,
+ * zoom strip, transport. The cards fill the middle: Speed · Pitch · Isolate first, the settings of
+ * every pass, then Progression · Notes, which belong to the active loop and so sit right above the
+ * chips that name it. The library is a drawer over it (§2.9). Fullscreen (the header's toggle, F,
+ * F11) is the window's business: the same layout, given the whole screen.
+ *
+ * [PlayerLayoutFit] makes it all fit the window's height: the overview, the zoom strip and the cards
+ * give way before anything scrolls, and then only the cards do; on a tall window or a full screen the
+ * overview and the zoom strip grow instead. It changes on a resize, never while playing.
  *
  * Every part collects its own flow in a small host below, so a change recomposes only that part. The
  * playhead is passed down as a function and read in draw code (or the clock) only.
@@ -89,6 +104,7 @@ fun PlayerScreen(
     snackbarHostState: SnackbarHostState,
     // Scoped to the window like the player: the Isolate overlay outlives the effects sheet.
     effects: EffectsViewModel = koinViewModel(),
+    // The window's, which the root's theme follows: the menu's previews go through it.
     theme: ThemeViewModel = koinViewModel(),
 ) {
     val dialogs = remember { PlayerDialogs() }
@@ -98,35 +114,44 @@ fun PlayerScreen(
     val positionState = viewModel.position.collectAsStateWithLifecycle()
     val position = remember(positionState) { positionState.reader() }
     val layout by viewModel.layout.collectAsStateWithLifecycle()
+    // Only whether they show: the fit needs nothing else from the loop cards.
+    val hasLoopCards by remember(viewModel) {
+        combine(viewModel.progression, viewModel.notes) { progression, notes -> progression != null || notes != null }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(viewModel.progression.value != null || viewModel.notes.value != null)
     // One loop drag for both waveforms: the zoom strip draws a drag on the overview live, and back.
     val loopDrag = remember { LoopDragState() }
+    // The loading bar and the export banner above the cards, measured: the fit leaves them room. Set
+    // only when one appears or goes, never as the export's fraction moves.
+    var extraTop by remember { mutableStateOf(0.dp) }
+    val density = LocalDensity.current
 
     // A click outside Notes (or the drawer's search) ends typing: the shortcuts work again.
     Box(modifier = Modifier.fillMaxSize().background(SlowDownerTheme.colors.bg).clearsFocusOnPress()) {
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            if (layout.isFocusMode) {
-                FocusHeaderHost(viewModel, actions.onExitFocus)
-            } else {
-                HeaderHost(viewModel, actions.header)
-                LoadingHost(viewModel)
-                ExportBannerHost(viewModel)
-                ChipsHost(viewModel, actions.chips)
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val height = maxHeight
+            val fit = remember(maxWidth, height, hasLoopCards, extraTop) {
+                PlayerLayoutFit.of(maxWidth, height, hasLoopCards, extraTop)
             }
-            OverviewHost(viewModel, position, actions.waveform, if (layout.isFocusMode) DownstepDimens.waveformFocus else DownstepDimens.waveform, loopDrag)
-            ZoomHost(viewModel, position, actions.waveform, loopDrag)
-            TransportHost(viewModel, actions, layout.isFocusMode)
-            if (!layout.isFocusMode) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(DownstepDimens.cardGap),
-                    // Cards of a row share its tallest card's height, as in the design.
-                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
-                        .padding(start = DownstepDimens.gutter, end = DownstepDimens.gutter, top = 4.dp, bottom = 12.dp),
-                ) {
-                    SpeedHost(viewModel, actions.speedPitch, Modifier.weight(1.2f))
-                    PitchHost(viewModel, actions.speedPitch, Modifier.weight(1.2f))
-                    IsolateHost(effects, actions.isolate, Modifier.weight(1f))
+            Column(modifier = Modifier.fillMaxSize()) {
+                HeaderHost(viewModel, theme, navigation.fullscreen, actions.header)
+                Column(modifier = Modifier.fillMaxWidth().onSizeChanged { extraTop = with(density) { it.height.toDp() } }) {
+                    LoadingHost(viewModel)
+                    ExportBannerHost(viewModel)
                 }
-                LoopCardsHost(viewModel, actions)
+                Column(modifier = Modifier.weight(1f).testTag(PlayerTags.CARDS).verticalScroll(rememberScrollState())) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(DownstepDimens.cardGap),
+                        // Cards of a row share its tallest card's height, as in the design.
+                        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
+                            .padding(horizontal = DownstepDimens.gutter, vertical = cardRowPadding(fit.compactCards)),
+                    ) {
+                        SpeedHost(viewModel, actions.speedPitch, fit.compactCards, Modifier.weight(1.2f))
+                        PitchHost(viewModel, actions.speedPitch, fit.compactCards, Modifier.weight(1.2f))
+                        IsolateHost(effects, actions.isolate, fit.compactCards, Modifier.weight(1f))
+                    }
+                    LoopCardsHost(viewModel, actions, fit.compactLoopCards)
+                }
+                PracticeControls(viewModel, position, actions, fit, loopDrag)
             }
         }
         LibraryDrawer(
@@ -139,6 +164,37 @@ fun PlayerScreen(
 
     PlayerDialogsHost(viewModel, effects, dialogs)
 }
+
+/** Test tags of the player's areas, for the layout tests. */
+object PlayerTags {
+    /** The middle area with the cards: the only part that scrolls, as a last resort. */
+    const val CARDS = "player-cards"
+    /** The bottom block: chips, overview, zoom strip, transport. */
+    const val CONTROLS = "player-controls"
+    const val TRANSPORT = "player-transport"
+    /** The overview waveform: taller on a tall window or a full screen. */
+    const val OVERVIEW = "player-overview"
+}
+
+/** Loop chips, overview, zoom strip and transport: the block at the bottom. */
+@Composable
+private fun PracticeControls(
+    viewModel: PlayerViewModel,
+    position: () -> Float,
+    actions: PlayerActions,
+    fit: PlayerLayoutFit,
+    loopDrag: LoopDragState,
+) {
+    Column(modifier = Modifier.fillMaxWidth().testTag(PlayerTags.CONTROLS)) {
+        ChipsHost(viewModel, actions.chips, fit.compactChips)
+        OverviewHost(viewModel, position, actions.waveform, fit.overviewHeight, loopDrag)
+        ZoomHost(viewModel, position, actions.waveform, fit.zoomHeight, loopDrag)
+        TransportHost(viewModel, actions, fit.compactTransport, fit.showKeyboardHints)
+    }
+}
+
+/** Above and below the Speed · Pitch · Isolate row. */
+private fun cardRowPadding(compact: Boolean) = if (compact) 6.dp else 10.dp
 
 /** Dialogs and sheets the header opens; plain Compose state, never saved. */
 @Stable
@@ -162,8 +218,11 @@ private fun playerActions(
         onAnalyze = viewModel::onAnalyzeClicked,
         onMetronomeToggled = viewModel::onMetronomeToggled,
         onCountInToggled = viewModel::onCountInToggled,
-        onFocusToggled = viewModel::onFocusToggled,
-        onThemeToggled = theme::onToggle,
+        // A function reference: the same object for the screen's life, like every other action.
+        onFullscreenToggled = navigation.fullscreen?.let { it::toggle },
+        onThemePreview = theme::onPreview,
+        onThemePreviewEnd = theme::onPreviewEnd,
+        onThemeApplied = theme::onApply,
         onSavePreset = { dialogs.showSavePreset = true },
         onPresetSelected = viewModel::onPresetSelected,
         onPresetDelete = { dialogs.presetToDelete = it },
@@ -213,7 +272,6 @@ private fun playerActions(
     isolate = IsolateActions(effects::onIsolationChanged),
     progression = ProgressionActions(viewModel::onProgressionChanged),
     notes = NotesActions(viewModel::onNotesChanged),
-    onExitFocus = viewModel::onFocusToggled,
     onCloseDrawer = viewModel::onDrawerClosed,
 )
 
@@ -221,12 +279,13 @@ private fun playerActions(
 private fun State<Float>.reader(): () -> Float = { value }
 
 @Composable
-private fun HeaderHost(viewModel: PlayerViewModel, actions: HeaderActions) {
+private fun HeaderHost(viewModel: PlayerViewModel, theme: ThemeViewModel, fullscreen: FullscreenControl?, actions: HeaderActions) {
     val state by viewModel.header.collectAsStateWithLifecycle()
     val presets by viewModel.presets.collectAsStateWithLifecycle()
     val clicks by viewModel.clicks.collectAsStateWithLifecycle()
     val analysis by remember(viewModel) { viewModel.analysis.map { it.status }.distinctUntilChanged() }
         .collectAsStateWithLifecycle(AnalysisStatus.Idle)
+    val themeSelection by theme.selection.collectAsStateWithLifecycle()
     PlayerHeader(
         state = state,
         trackCount = rememberTrackCount(),
@@ -234,8 +293,10 @@ private fun HeaderHost(viewModel: PlayerViewModel, actions: HeaderActions) {
         analysis = analysis,
         clicks = clicks,
         presets = presets,
-        // The theme on screen, whatever the ThemeViewModel was asked last.
-        isDarkTheme = SlowDownerTheme.colors.isDark,
+        // The chosen theme, for the menu's checks: changes on a pick only, never on a preview.
+        theme = themeSelection,
+        // Read here: entering or leaving fullscreen, by the toggle or by the OS, recomposes the header only.
+        isFullscreen = fullscreen?.isFullscreen ?: false,
         actions = actions,
     )
 }
@@ -276,19 +337,11 @@ private fun ExportBannerHost(viewModel: PlayerViewModel) {
 }
 
 @Composable
-private fun ChipsHost(viewModel: PlayerViewModel, actions: LoopChipActions) {
+private fun ChipsHost(viewModel: PlayerViewModel, actions: LoopChipActions, compact: Boolean) {
     val state by viewModel.loopChips.collectAsStateWithLifecycle()
     val suggestions by remember(viewModel) { viewModel.analysis.map { it.suggestions }.distinctUntilChanged() }
         .collectAsStateWithLifecycle(emptyList())
-    LoopChipsStrip(state, suggestions, actions)
-}
-
-@Composable
-private fun FocusHeaderHost(viewModel: PlayerViewModel, onExitFocus: () -> Unit) {
-    val title by remember(viewModel) { viewModel.header.map { it.title }.distinctUntilChanged() }.collectAsStateWithLifecycle(null)
-    val loopName by remember(viewModel) { viewModel.transport.map { it.activeLoopName }.distinctUntilChanged() }
-        .collectAsStateWithLifecycle(null)
-    FocusHeader(title, loopName, onExitFocus)
+    LoopChipsStrip(state, suggestions, actions, compact = compact)
 }
 
 @Composable
@@ -296,27 +349,29 @@ private fun OverviewHost(
     viewModel: PlayerViewModel,
     position: () -> Float,
     actions: WaveformActions,
-    height: androidx.compose.ui.unit.Dp,
+    height: Dp,
     drag: LoopDragState,
 ) {
     val state by viewModel.overview.collectAsStateWithLifecycle()
-    OverviewWaveform(state, position, actions, height = height, drag = drag)
+    OverviewWaveform(state, position, actions, Modifier.testTag(PlayerTags.OVERVIEW), height = height, drag = drag)
 }
 
 @Composable
-private fun ZoomHost(viewModel: PlayerViewModel, position: () -> Float, actions: WaveformActions, drag: LoopDragState) {
+private fun ZoomHost(viewModel: PlayerViewModel, position: () -> Float, actions: WaveformActions, height: Dp, drag: LoopDragState) {
     val state by viewModel.zoom.collectAsStateWithLifecycle()
-    state?.let { ZoomStrip(it, position, actions, drag = drag) }
+    state?.let { ZoomStrip(it, position, actions, height = height, drag = drag) }
 }
 
 @Composable
-private fun TransportHost(viewModel: PlayerViewModel, actions: PlayerActions, isFocusMode: Boolean) {
+private fun TransportHost(viewModel: PlayerViewModel, actions: PlayerActions, compact: Boolean, showKeyboardHints: Boolean) {
     val state by viewModel.transport.collectAsStateWithLifecycle()
     TransportRow(
         state = state,
         actions = actions.transport,
         loopTools = { LoopToolsHost(viewModel, actions.loopTools) },
-        trailing = { TransportTrailing(viewModel, isFocusMode) },
+        trailing = { TransportTrailing(viewModel, showKeyboardHints) },
+        modifier = Modifier.testTag(PlayerTags.TRANSPORT),
+        compact = compact,
     )
 }
 
@@ -326,51 +381,47 @@ private fun LoopToolsHost(viewModel: PlayerViewModel, actions: LoopToolActions) 
     LoopToolGroup(state, actions)
 }
 
-/** Focus: big speed and pitch, then the pass pill. Otherwise: the pass pill, then the key hints. */
+/** The pass pill, then the key hints where they fit. */
 @Composable
-private fun TransportTrailing(viewModel: PlayerViewModel, isFocusMode: Boolean) {
-    if (isFocusMode) {
-        val speedPitch by viewModel.speedPitch.collectAsStateWithLifecycle()
-        FocusReadouts(speedPitch.speedPercent, speedPitch.pitchSemitones)
-    }
+private fun TransportTrailing(viewModel: PlayerViewModel, showKeyboardHints: Boolean) {
     val passes by viewModel.passes.collectAsStateWithLifecycle()
     passes?.let { PassPill(it) }
-    if (!isFocusMode) KeyboardHints()
+    if (showKeyboardHints) KeyboardHints()
 }
 
 @Composable
-private fun SpeedHost(viewModel: PlayerViewModel, actions: SpeedPitchActions, modifier: Modifier) {
+private fun SpeedHost(viewModel: PlayerViewModel, actions: SpeedPitchActions, compact: Boolean, modifier: Modifier) {
     val state by viewModel.speedPitch.collectAsStateWithLifecycle()
-    SpeedCard(state.speedPercent, state.speedSlider, state.enabled, actions, modifier)
+    SpeedCard(state.speedPercent, state.speedSlider, state.enabled, actions, modifier, compact)
 }
 
 @Composable
-private fun PitchHost(viewModel: PlayerViewModel, actions: SpeedPitchActions, modifier: Modifier) {
+private fun PitchHost(viewModel: PlayerViewModel, actions: SpeedPitchActions, compact: Boolean, modifier: Modifier) {
     val state by viewModel.speedPitch.collectAsStateWithLifecycle()
-    PitchCard(state.pitchSemitones, state.pitchSlider, state.enabled, actions, modifier)
+    PitchCard(state.pitchSemitones, state.pitchSlider, state.enabled, actions, modifier, compact)
 }
 
 @Composable
-private fun IsolateHost(effects: EffectsViewModel, actions: IsolateActions, modifier: Modifier) {
+private fun IsolateHost(effects: EffectsViewModel, actions: IsolateActions, compact: Boolean, modifier: Modifier) {
     val isolation by effects.isolation.collectAsStateWithLifecycle()
     // Isolation edits the EQ: possible once the saved EQ is loaded.
     val isReady by remember(effects) { effects.state.map { it != null }.distinctUntilChanged() }.collectAsStateWithLifecycle(false)
-    IsolateCard(isolation, isReady, actions, modifier)
+    IsolateCard(isolation, isReady, actions, modifier, compact)
 }
 
 /** Progression and Notes: only for an active loop (README §2.8). */
 @Composable
-private fun LoopCardsHost(viewModel: PlayerViewModel, actions: PlayerActions) {
+private fun LoopCardsHost(viewModel: PlayerViewModel, actions: PlayerActions, compact: Boolean) {
     val progression by viewModel.progression.collectAsStateWithLifecycle()
     val notes by viewModel.notes.collectAsStateWithLifecycle()
     if (progression == null && notes == null) return
     Row(
         horizontalArrangement = Arrangement.spacedBy(DownstepDimens.cardGap),
         modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
-            .padding(start = DownstepDimens.gutter, end = DownstepDimens.gutter, bottom = DownstepDimens.gutter),
+            .padding(start = DownstepDimens.gutter, end = DownstepDimens.gutter, bottom = if (compact) 6.dp else 12.dp),
     ) {
-        progression?.let { ProgressionCard(it, actions.progression, Modifier.weight(1.3f)) }
-        notes?.let { NotesCard(it, actions.notes, Modifier.weight(1f)) }
+        progression?.let { ProgressionCard(it, actions.progression, Modifier.weight(1.3f), compact) }
+        notes?.let { NotesCard(it, actions.notes, Modifier.weight(1f), compact) }
     }
 }
 
