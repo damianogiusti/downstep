@@ -1,7 +1,7 @@
 # Downstep 2.0 — Player redesign handoff
 
 Prototype of the redesigned Downstep player (practice / transcription: speed, pitch, loops).
-Built from the current app's theme (`Color.kt`, `Type.kt`), fonts and app icon in `EvolveHQ/downstep`.
+Built from the current app's theme (`Color.kt`, `Type.kt`), fonts and app icon in this repository.
 
 ```
 handoff/
