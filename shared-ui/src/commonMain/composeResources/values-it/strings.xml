@@ -43,6 +43,11 @@
     <string name="reset">Reset</string>
     <string name="eq_title">Equalizzatore</string>
     <string name="eq_preamp">Preamp</string>
+    <string name="eq_reset_tooltip">Riporta l'EQ a piatto</string>
+    <string name="mix_reset_tooltip">Centra il bilanciamento L / R</string>
+    <string name="eq_switch_on">Attivo</string>
+    <string name="eq_switch_off">Spento</string>
+    <string name="eq_switch_description">Equalizzatore attivo</string>
     <string name="decimal_separator">,</string>
     <string name="gain_format">%1$s dB</string>
     <string name="hz_format">%1$d Hz</string>
