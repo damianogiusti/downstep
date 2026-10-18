@@ -1,17 +1,24 @@
 package com.damianogiusti.slowdowner.ui.effects
 
 import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
+import com.damianogiusti.slowdowner.ui.common.Tooltip
 import com.damianogiusti.slowdowner.ui.common.formatSignedDecimal
 import org.jetbrains.compose.resources.StringResource
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,14 +29,22 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -110,8 +125,14 @@ fun EffectsSheetContent(
             Text(
                 text = stringResource(Res.string.mix_format, 100 - state.mixRightPercent, state.mixRightPercent),
                 style = MaterialTheme.typography.labelMedium.tabular(),
+                modifier = Modifier.padding(end = 12.dp),
             )
-            TextButton(onClick = onMixReset) { Text(stringResource(Res.string.reset)) }
+            ResetButton(
+                tooltip = stringResource(Res.string.mix_reset_tooltip),
+                enabled = state.mixSlider != SLIDER_MAX / 2,
+                onClick = onMixReset,
+                modifier = Modifier.testTag(EffectsTags.MIX_RESET),
+            )
         }
         ValueSlider(value = state.mixSlider, max = SLIDER_MAX, onValueChange = onMixChanged, modifier = Modifier.fillMaxWidth())
 
@@ -124,8 +145,24 @@ fun EffectsSheetContent(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onEqReset) { Text(stringResource(Res.string.reset)) }
-            Switch(checked = settings.eq.enabled, onCheckedChange = onEqToggled)
+            // Reset is a button and the switch says what it is, with a rule between: read as one
+            // control, the switch was taken for the reset.
+            ResetButton(
+                tooltip = stringResource(Res.string.eq_reset_tooltip),
+                enabled = settings.eq != EqCurve(enabled = settings.eq.enabled),
+                onClick = onEqReset,
+                modifier = Modifier.testTag(EffectsTags.EQ_RESET),
+            )
+            VerticalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(horizontal = 12.dp).height(24.dp),
+            )
+            LabelledSwitch(
+                checked = settings.eq.enabled,
+                onCheckedChange = onEqToggled,
+                description = stringResource(Res.string.eq_switch_description),
+                modifier = Modifier.testTag(EffectsTags.EQ_SWITCH),
+            )
         }
         Column(
             modifier = Modifier
@@ -155,6 +192,59 @@ fun EffectsSheetContent(
                 .fillMaxWidth()
                 .padding(top = 8.dp),
         )
+    }
+}
+
+/** Test tags of the sheet. */
+object EffectsTags {
+    const val MIX_RESET = "effects-mix-reset"
+    const val EQ_RESET = "effects-eq-reset"
+    const val EQ_SWITCH = "effects-eq-switch"
+}
+
+/** Reset as a button of its own (outlined, icon and label), off when there is nothing to reset. */
+@Composable
+private fun ResetButton(tooltip: String, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Tooltip(tooltip) {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            contentPadding = PaddingValues(start = 10.dp, end = 14.dp),
+            modifier = modifier.height(32.dp),
+        ) {
+            Icon(painterResource(Res.drawable.ic_c_reset), contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(Res.string.reset), style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+/** A switch with its state in words before it ("On" / "Off"); the label toggles it too. */
+@Composable
+private fun LabelledSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    description: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
+            .clip(MaterialTheme.shapes.small)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .semantics { contentDescription = description }
+            .padding(start = 8.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+    ) {
+        Text(
+            stringResource(if (checked) Res.string.eq_switch_on else Res.string.eq_switch_off),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (checked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End,
+            // On and Off take the same room: the row does not shift when it flips.
+            modifier = Modifier.widthIn(min = 44.dp),
+        )
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 
