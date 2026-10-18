@@ -40,6 +40,8 @@ kotlin {
         getByName("desktopTest").dependencies {
             implementation("junit:junit:4.13.2")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+            // MigrationTestHelper: builds old versions from the exported schemas.
+            implementation("androidx.room:room-testing:2.8.5")
         }
     }
 }

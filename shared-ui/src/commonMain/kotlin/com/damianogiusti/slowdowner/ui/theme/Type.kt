@@ -2,7 +2,9 @@ package com.damianogiusti.slowdowner.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -65,3 +67,51 @@ private fun typography(displayFamily: FontFamily, textFamily: FontFamily) = Typo
 
 /** Fixed-width digits, so speed, pitch and time readouts don't shift while they change. */
 fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = "tnum")
+
+/**
+ * The player's type scale (README §1 "Type"), read through [SlowDownerTheme.type]. Space Grotesk 700
+ * for the title and big read-outs, Inter for everything else. All tabular: timecodes and percentages
+ * never jitter.
+ */
+@Immutable
+class DownstepType internal constructor(
+    /** Track title in the header: 26/30, −0.3 tracking. */
+    val title: TextStyle,
+    /** Library drawer title: 24. */
+    val drawerTitle: TextStyle,
+    /** Speed and pitch cards: 34/38. */
+    val readout: TextStyle,
+    /** Buttons, pills, chips: Inter 500, 13. */
+    val control: TextStyle,
+    /** Chip names, emphasised controls: Inter 600, 13. */
+    val controlStrong: TextStyle,
+    /** Drawer row titles, notes text, progression sentence: Inter 400, 14. */
+    val body: TextStyle,
+    /** Meta lines, hints: Inter 400, 12. */
+    val meta: TextStyle,
+    /** Uppercase section labels (SPEED, PITCH, NOTES · Solo): Inter 500, 11, 0.6 tracking. */
+    val sectionLabel: TextStyle,
+    /** A/B and playhead timecode pills, small waveform labels: Inter 600, 10–11. */
+    val tag: TextStyle,
+)
+
+private fun downstepType(displayFamily: FontFamily, textFamily: FontFamily) = DownstepType(
+    title = style(displayFamily, 26, 30, FontWeight.Bold, -0.3).tabular(),
+    drawerTitle = style(displayFamily, 24, 30, FontWeight.Bold, 0.0).tabular(),
+    readout = style(displayFamily, 34, 38, FontWeight.Bold, 0.0).tabular(),
+    control = style(textFamily, 13, 18, FontWeight.Medium, 0.0).tabular(),
+    controlStrong = style(textFamily, 13, 18, FontWeight.SemiBold, 0.0).tabular(),
+    body = style(textFamily, 14, 20, FontWeight.Normal, 0.0).tabular(),
+    meta = style(textFamily, 12, 16, FontWeight.Normal, 0.0).tabular(),
+    sectionLabel = style(textFamily, 11, 14, FontWeight.Medium, 0.6).tabular(),
+    tag = style(textFamily, 11, 14, FontWeight.SemiBold, 0.0).tabular(),
+)
+
+@Composable
+internal fun rememberDownstepType(): DownstepType {
+    val displayFamily = spaceGrotesk()
+    val textFamily = inter()
+    return remember(displayFamily, textFamily) { downstepType(displayFamily, textFamily) }
+}
+
+internal val LocalDownstepType = staticCompositionLocalOf<DownstepType> { error("DownstepType outside SlowDownerTheme") }

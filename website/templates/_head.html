@@ -17,11 +17,19 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{{ @base }}assets/og-card.png">
 {{ @jsonld }}
 <meta name="theme-color" content="#0F1114" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#FAF6F0" media="(prefers-color-scheme: light)">
-<link rel="icon" href="{{ @root }}assets/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="{{ @root }}assets/icon.png">
+<link rel="icon" href="{{ @root }}favicon.svg" type="image/svg+xml">
+<link rel="icon" href="{{ @root }}favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="{{ @root }}favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="{{ @root }}apple-touch-icon.png">
+<link rel="apple-touch-icon" href="{{ @root }}apple-touch-icon-167.png" sizes="167x167">
+<link rel="apple-touch-icon" href="{{ @root }}apple-touch-icon-152.png" sizes="152x152">
+<link rel="mask-icon" href="{{ @root }}safari-pinned-tab.svg" color="#F2A541">
+<link rel="manifest" href="{{ @root }}site.webmanifest">
+<meta name="msapplication-config" content="{{ @root }}browserconfig.xml">
 <link rel="preload" href="{{ @root }}assets/fonts/space_grotesk_bold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="{{ @root }}style.css">
 <script>(function () {

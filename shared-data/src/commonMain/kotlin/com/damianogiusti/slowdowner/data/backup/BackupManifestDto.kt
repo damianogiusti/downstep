@@ -36,6 +36,20 @@ data class BackupTrackDto(
     val audio: String,
     val practiceState: BackupSettingsDto? = null,
     val presets: List<BackupPresetDto> = emptyList(),
+    // Named loops came after version 1 of the format: every field is optional, so older backups
+    // restore without them and older apps skip them (unknown keys are ignored).
+    val loops: List<BackupLoopDto> = emptyList(),
+    /** Index in [loops] of the active one. */
+    val activeLoop: Int? = null,
+    val bpm: Float? = null,
+    // "snapToBeat" (Snap to beat, removed after 2.0) is no longer written; backups that still carry
+    // it restore fine, the key is ignored like any unknown one.
+    /** The track's own EQ; absent when it uses the global one (and in backups made before). */
+    val eq: BackupEqDto? = null,
+    // The tempo analysis (after 2.0), optional like the loops. A restored track is analysed again
+    // when first opened (the analysis version is not kept), and uses these meanwhile.
+    val detectedBpm: Float? = null,
+    val beatOffsetSeconds: Float? = null,
 )
 
 @Serializable
@@ -48,7 +62,42 @@ data class BackupSettingsDto(
 )
 
 @Serializable
-data class BackupPresetDto(val name: String, val settings: BackupSettingsDto)
+data class BackupPresetDto(
+    val name: String,
+    val settings: BackupSettingsDto,
+    /** Absent for a preset without an EQ (and in backups made before). */
+    val eq: BackupEqDto? = null,
+)
+
+/** An EQ curve: its bells, preamp and switch, as the app saves them (EqCurve). */
+@Serializable
+data class BackupEqDto(
+    val enabled: Boolean = false,
+    val preampDb: Float = 0f,
+    val bands: List<BackupEqBandDto> = emptyList(),
+)
+
+@Serializable
+data class BackupEqBandDto(val frequencyHz: Float, val gainDb: Float, val q: Float = 1f)
 
 @Serializable
 data class BackupPlaylistDto(val name: String, val trackIds: List<String> = emptyList())
+
+@Serializable
+data class BackupLoopDto(
+    val name: String,
+    val start: Float,
+    val end: Float,
+    val passes: Int = 0,
+    val notes: String = "",
+    val progression: BackupProgressionDto? = null,
+)
+
+@Serializable
+data class BackupProgressionDto(
+    val enabled: Boolean,
+    val fromPercent: Float,
+    val toPercent: Float,
+    val stepPercent: Float,
+    val everyPasses: Int,
+)

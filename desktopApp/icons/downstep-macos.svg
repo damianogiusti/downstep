@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 64 64">
+  <!-- downstep.svg for the macOS bundle: the same tile, the glyph at 84 % around the centre. -->
+  <rect width="64" height="64" rx="14" fill="#F2A541"/>
+  <g fill="none" stroke="#15181D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" transform="translate(32 32) scale(0.84) translate(-32 -32)">
+    <path d="M17 20l15 15 15-15"/>
+    <path d="M17 47h30"/>
+  </g>
+</svg>

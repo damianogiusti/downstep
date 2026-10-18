@@ -1,14 +1,22 @@
 package com.damianogiusti.slowdowner.di
 
+import com.damianogiusti.slowdowner.domain.analysis.AnalyzeSectionsUseCase
 import com.damianogiusti.slowdowner.domain.backup.ExportLibraryBackupUseCase
 import com.damianogiusti.slowdowner.domain.backup.ExportPlaylistBackupUseCase
 import com.damianogiusti.slowdowner.domain.backup.ExportTrackBackupUseCase
 import com.damianogiusti.slowdowner.domain.backup.FindPlaylistConflictsUseCase
 import com.damianogiusti.slowdowner.domain.backup.RestoreBackupUseCase
 import com.damianogiusti.slowdowner.domain.backup.SaveBackupUseCase
+import com.damianogiusti.slowdowner.domain.click.ObserveClickSettingsUseCase
+import com.damianogiusti.slowdowner.domain.click.SetCountInUseCase
+import com.damianogiusti.slowdowner.domain.click.SetMetronomeUseCase
+import com.damianogiusti.slowdowner.domain.click.UpdateClickSettingsUseCase
+import com.damianogiusti.slowdowner.domain.effects.ActiveEq
 import com.damianogiusti.slowdowner.domain.effects.ApplyEffectsSettingsUseCase
+import com.damianogiusti.slowdowner.domain.effects.LoadTrackEqUseCase
 import com.damianogiusti.slowdowner.domain.effects.ObserveEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.effects.RestoreEffectsSettingsUseCase
+import com.damianogiusti.slowdowner.domain.effects.SetBandIsolationUseCase
 import com.damianogiusti.slowdowner.domain.effects.UpdateEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
@@ -17,6 +25,17 @@ import com.damianogiusti.slowdowner.domain.library.ImportDocumentUseCase
 import com.damianogiusti.slowdowner.domain.library.ImportTrackFromUrlUseCase
 import com.damianogiusti.slowdowner.domain.library.ObserveLibraryUseCase
 import com.damianogiusti.slowdowner.domain.library.RemoveTrackUseCase
+import com.damianogiusti.slowdowner.domain.loops.CreateLoopUseCase
+import com.damianogiusti.slowdowner.domain.loops.DeleteLoopUseCase
+import com.damianogiusti.slowdowner.domain.loops.ObserveLoopsUseCase
+import com.damianogiusti.slowdowner.domain.loops.RecordLoopPassUseCase
+import com.damianogiusti.slowdowner.domain.loops.RenameLoopUseCase
+import com.damianogiusti.slowdowner.domain.loops.ResetLoopPassesUseCase
+import com.damianogiusti.slowdowner.domain.loops.SetActiveLoopUseCase
+import com.damianogiusti.slowdowner.domain.loops.SetTrackBpmUseCase
+import com.damianogiusti.slowdowner.domain.loops.UpdateLoopNotesUseCase
+import com.damianogiusti.slowdowner.domain.loops.UpdateLoopProgressionUseCase
+import com.damianogiusti.slowdowner.domain.loops.UpdateLoopRegionUseCase
 import com.damianogiusti.slowdowner.domain.playback.CloseTrackUseCase
 import com.damianogiusti.slowdowner.domain.playback.HandleEndOfTrackUseCase
 import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
@@ -41,6 +60,9 @@ import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.SetLoopRegionUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
+import com.damianogiusti.slowdowner.domain.tempo.DetectTrackTempoUseCase
+import com.damianogiusti.slowdowner.domain.theme.ObserveThemeUseCase
+import com.damianogiusti.slowdowner.domain.theme.SetThemeUseCase
 import org.koin.core.module.dsl.factoryOf
 import org.koin.dsl.module
 
@@ -54,7 +76,8 @@ val useCasesModule = module {
     factoryOf(::FindImportableUrlUseCase)
     factoryOf(::ImportTrackFromUrlUseCase)
     factoryOf(::ImportDocumentUseCase)
-    factoryOf(::OpenTrackUseCase)
+    // Explicit lambda: the decode dispatcher keeps its default (IO).
+    factory { OpenTrackUseCase(get(), get()) }
     factoryOf(::CloseTrackUseCase)
     factoryOf(::ObserveNowPlayingUseCase)
     factoryOf(::HandleEndOfTrackUseCase)
@@ -62,6 +85,10 @@ val useCasesModule = module {
     factoryOf(::ObserveEffectsSettingsUseCase)
     factoryOf(::UpdateEffectsSettingsUseCase)
     factoryOf(::RestoreEffectsSettingsUseCase)
+    factoryOf(::SetBandIsolationUseCase)
+    factoryOf(::LoadTrackEqUseCase)
+    // Shared by the EQ editor and the presets.
+    single { ActiveEq() }
     factoryOf(::ExportTrackUseCase)
     factoryOf(::SaveExportUseCase)
     factoryOf(::SavePracticeStateUseCase)
@@ -75,6 +102,27 @@ val useCasesModule = module {
     factoryOf(::SavePresetUseCase)
     factoryOf(::ApplyPresetUseCase)
     factoryOf(::DeletePresetUseCase)
+    factoryOf(::ObserveLoopsUseCase)
+    factoryOf(::SetActiveLoopUseCase)
+    factoryOf(::CreateLoopUseCase)
+    factoryOf(::RenameLoopUseCase)
+    factoryOf(::UpdateLoopNotesUseCase)
+    factoryOf(::UpdateLoopRegionUseCase)
+    factoryOf(::DeleteLoopUseCase)
+    factoryOf(::RecordLoopPassUseCase)
+    factoryOf(::ResetLoopPassesUseCase)
+    factoryOf(::UpdateLoopProgressionUseCase)
+    factoryOf(::SetTrackBpmUseCase)
+    // Optional backends: null where the platform binds none, and the use case reports unavailable.
+    // Section analysis has no backend yet; the desktop engine clicks and detects tempo.
+    factory { AnalyzeSectionsUseCase(getOrNull()) }
+    factory { SetMetronomeUseCase(getOrNull()) }
+    factory { SetCountInUseCase(getOrNull()) }
+    factory { DetectTrackTempoUseCase(getOrNull(), get(), get()) }
+    factoryOf(::ObserveClickSettingsUseCase)
+    factoryOf(::UpdateClickSettingsUseCase)
+    factoryOf(::ObserveThemeUseCase)
+    factoryOf(::SetThemeUseCase)
     factoryOf(::ObservePlaylistsUseCase)
     factoryOf(::ObservePlaylistUseCase)
     factoryOf(::ObservePlaylistMembershipUseCase)

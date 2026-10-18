@@ -6,7 +6,9 @@ import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -17,7 +19,7 @@ class GitHubReleaseDataSourceTest {
 
     private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply { start() }
     private val base = "http://127.0.0.1:${server.address.port}"
-    private val dataSource = GitHubReleaseDataSource(OkHttpClient(), "$base/latest")
+    private val dataSource = GitHubReleaseDataSource(OkHttpClient(), "$base/latest", "$base/releases/latest")
 
     @After
     fun tearDown() {
@@ -42,6 +44,37 @@ class GitHubReleaseDataSourceTest {
             release?.assets?.first(),
         )
         assertNull(release?.assets?.last()?.digest)
+    }
+
+    @Test
+    fun `when the answer has no page then the releases page stands in`() {
+        answer("/latest", 200, """{"tag_name":"v1.0.4","assets":[]}""".toByteArray())
+
+        assertEquals("$base/releases/latest", dataSource.latest()?.htmlUrl)
+    }
+
+    @Test
+    fun `when a repository is named then the API and the page are its own`() {
+        assertEquals(
+            "https://api.github.com/repos/someone/downstep-fork/releases/latest",
+            GitHubReleaseDataSource.latestUrl("someone/downstep-fork"),
+        )
+        assertEquals("https://github.com/someone/downstep-fork/releases/latest", GitHubReleaseDataSource.pageUrl("someone/downstep-fork"))
+        assertEquals(
+            "https://api.github.com/repos/damianogiusti/downstep/releases/latest",
+            GitHubReleaseDataSource.latestUrl(GitHubReleaseDataSource.DEFAULT_REPO),
+        )
+    }
+
+    @Test
+    fun `when a repository name is checked then only owner and name pass`() {
+        assertTrue(GitHubReleaseDataSource.isValidRepo("damianogiusti/downstep"))
+        assertTrue(GitHubReleaseDataSource.isValidRepo("some-one/down.step_2"))
+        assertFalse(GitHubReleaseDataSource.isValidRepo("downstep"))
+        assertFalse(GitHubReleaseDataSource.isValidRepo("a/b/c"))
+        assertFalse(GitHubReleaseDataSource.isValidRepo("some one/downstep"))
+        assertFalse(GitHubReleaseDataSource.isValidRepo("someone/downstep?x=1"))
+        assertFalse(GitHubReleaseDataSource.isValidRepo(""))
     }
 
     @Test

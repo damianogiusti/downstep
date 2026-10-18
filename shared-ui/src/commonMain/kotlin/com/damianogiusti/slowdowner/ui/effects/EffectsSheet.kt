@@ -1,17 +1,24 @@
 package com.damianogiusti.slowdowner.ui.effects
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
+import com.damianogiusti.slowdowner.ui.common.Tooltip
 import com.damianogiusti.slowdowner.ui.common.formatSignedDecimal
-import com.damianogiusti.slowdowner.ui.common.formatDecimal
 import org.jetbrains.compose.resources.StringResource
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,14 +29,22 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -38,6 +53,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 import com.damianogiusti.slowdowner.domain.effects.EffectsSettings
+import com.damianogiusti.slowdowner.domain.effects.EqBand
+import com.damianogiusti.slowdowner.domain.effects.EqCurve
 import com.damianogiusti.slowdowner.domain.effects.ProcessingQuality
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine.Companion.SLIDER_MAX
 import com.damianogiusti.slowdowner.ui.common.ValueSlider
@@ -52,6 +69,7 @@ fun EffectsSheet(
     viewModel: EffectsViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    TitleBarOverlay()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -67,6 +85,7 @@ fun EffectsSheet(
                 onEqReset = viewModel::onEqReset,
                 onPreampChanged = viewModel::onPreampChanged,
                 onBandChanged = viewModel::onBandChanged,
+                onBandGainReset = viewModel::onBandGainReset,
                 onQualitySelected = viewModel::onQualitySelected,
             )
         }
@@ -81,7 +100,8 @@ fun EffectsSheetContent(
     onEqToggled: (Boolean) -> Unit,
     onEqReset: () -> Unit,
     onPreampChanged: (Float) -> Unit,
-    onBandChanged: (band: Int, gainDb: Float) -> Unit,
+    onBandChanged: (index: Int, band: EqBand) -> Unit,
+    onBandGainReset: (index: Int) -> Unit,
     onQualitySelected: (ProcessingQuality) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -95,7 +115,7 @@ fun EffectsSheetContent(
     ) {
         Text(stringResource(Res.string.effects), style = MaterialTheme.typography.titleLarge)
         Text(
-            stringResource(Res.string.effects_subtitle),
+            stringResource(if (state.trackId != null) Res.string.effects_subtitle else Res.string.effects_subtitle_default),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 16.dp),
@@ -105,8 +125,14 @@ fun EffectsSheetContent(
             Text(
                 text = stringResource(Res.string.mix_format, 100 - state.mixRightPercent, state.mixRightPercent),
                 style = MaterialTheme.typography.labelMedium.tabular(),
+                modifier = Modifier.padding(end = 12.dp),
             )
-            TextButton(onClick = onMixReset) { Text(stringResource(Res.string.reset)) }
+            ResetButton(
+                tooltip = stringResource(Res.string.mix_reset_tooltip),
+                enabled = state.mixSlider != SLIDER_MAX / 2,
+                onClick = onMixReset,
+                modifier = Modifier.testTag(EffectsTags.MIX_RESET),
+            )
         }
         ValueSlider(value = state.mixSlider, max = SLIDER_MAX, onValueChange = onMixChanged, modifier = Modifier.fillMaxWidth())
 
@@ -119,8 +145,24 @@ fun EffectsSheetContent(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onEqReset) { Text(stringResource(Res.string.reset)) }
-            Switch(checked = settings.eqEnabled, onCheckedChange = onEqToggled)
+            // Reset is a button and the switch says what it is, with a rule between: read as one
+            // control, the switch was taken for the reset.
+            ResetButton(
+                tooltip = stringResource(Res.string.eq_reset_tooltip),
+                enabled = settings.eq != EqCurve(enabled = settings.eq.enabled),
+                onClick = onEqReset,
+                modifier = Modifier.testTag(EffectsTags.EQ_RESET),
+            )
+            VerticalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(horizontal = 12.dp).height(24.dp),
+            )
+            LabelledSwitch(
+                checked = settings.eq.enabled,
+                onCheckedChange = onEqToggled,
+                description = stringResource(Res.string.eq_switch_description),
+                modifier = Modifier.testTag(EffectsTags.EQ_SWITCH),
+            )
         }
         Column(
             modifier = Modifier
@@ -128,15 +170,13 @@ fun EffectsSheetContent(
                 .background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.medium)
                 .padding(horizontal = 12.dp, vertical = 4.dp),
         ) {
-            GainRow(stringResource(Res.string.eq_preamp), settings.preampDb, MaterialTheme.colorScheme.tertiary, onPreampChanged)
-            EffectsSettings.BAND_FREQUENCIES_HZ.forEachIndexed { index, hz ->
-                GainRow(
-                    label = formatFrequency(hz),
-                    gainDb = settings.bandGainsDb[index],
-                    accent = MaterialTheme.colorScheme.primary,
-                    onGainChanged = { onBandChanged(index, it) },
-                )
-            }
+            EqGraph(
+                curve = settings.eq,
+                onBandChanged = onBandChanged,
+                onBandGainReset = onBandGainReset,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+            )
+            GainRow(stringResource(Res.string.eq_preamp), settings.eq.preampDb, MaterialTheme.colorScheme.tertiary, onPreampChanged)
         }
 
         SectionLabel(stringResource(Res.string.quality_title), Modifier.padding(top = 20.dp))
@@ -152,6 +192,59 @@ fun EffectsSheetContent(
                 .fillMaxWidth()
                 .padding(top = 8.dp),
         )
+    }
+}
+
+/** Test tags of the sheet. */
+object EffectsTags {
+    const val MIX_RESET = "effects-mix-reset"
+    const val EQ_RESET = "effects-eq-reset"
+    const val EQ_SWITCH = "effects-eq-switch"
+}
+
+/** Reset as a button of its own (outlined, icon and label), off when there is nothing to reset. */
+@Composable
+private fun ResetButton(tooltip: String, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Tooltip(tooltip) {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            contentPadding = PaddingValues(start = 10.dp, end = 14.dp),
+            modifier = modifier.height(32.dp),
+        ) {
+            Icon(painterResource(Res.drawable.ic_c_reset), contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(Res.string.reset), style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+/** A switch with its state in words before it ("On" / "Off"); the label toggles it too. */
+@Composable
+private fun LabelledSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    description: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
+            .clip(MaterialTheme.shapes.small)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .semantics { contentDescription = description }
+            .padding(start = 8.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+    ) {
+        Text(
+            stringResource(if (checked) Res.string.eq_switch_on else Res.string.eq_switch_off),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (checked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End,
+            // On and Off take the same room: the row does not shift when it flips.
+            modifier = Modifier.widthIn(min = 44.dp),
+        )
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 
@@ -214,10 +307,6 @@ private fun QualityChoice(
     }
 }
 
-@Composable
-private fun formatFrequency(hz: Int) =
-    if (hz >= 1000) stringResource(Res.string.khz_format, formatDecimal(hz / 1000f, stringResource(Res.string.decimal_separator))) else stringResource(Res.string.hz_format, hz)
-
 private val ProcessingQuality.label: StringResource
     get() = when (this) {
         ProcessingQuality.LOW -> Res.string.quality_low
@@ -226,13 +315,13 @@ private val ProcessingQuality.label: StringResource
         ProcessingQuality.VERY_HIGH -> Res.string.quality_very_high
     }
 
-// 0.1 dB per step over the engine's ±12 dB range.
+// 0.1 dB per step over the preamp's ±12 dB range.
 private const val GAIN_STEPS = 240
-private const val GAIN_RANGE_DB = EffectsSettings.MAX_GAIN_DB - EffectsSettings.MIN_GAIN_DB
+private const val GAIN_RANGE_DB = EqCurve.MAX_PREAMP_DB - EqCurve.MIN_PREAMP_DB
 
-private fun sliderToDb(position: Int) = EffectsSettings.MIN_GAIN_DB + position * GAIN_RANGE_DB / GAIN_STEPS
+private fun sliderToDb(position: Int) = EqCurve.MIN_PREAMP_DB + position * GAIN_RANGE_DB / GAIN_STEPS
 
-private fun dbToSlider(gainDb: Float) = ((gainDb - EffectsSettings.MIN_GAIN_DB) * GAIN_STEPS / GAIN_RANGE_DB).roundToInt()
+private fun dbToSlider(gainDb: Float) = ((gainDb - EqCurve.MIN_PREAMP_DB) * GAIN_STEPS / GAIN_RANGE_DB).roundToInt()
 
 @Preview(showBackground = true)
 @Composable
@@ -242,12 +331,11 @@ private fun EffectsSheetContentPreview() {
             EffectsSheetContent(
                 state = EffectsUiState(
                     settings = EffectsSettings(
-                        eqEnabled = true,
-                        preampDb = -2f,
-                        bandGainsDb = listOf(3f, 1.5f, 0f, -2f, 0f, 4.5f, 6f),
+                        eq = EqCurve.fromLegacyGains(enabled = true, preampDb = -2f, gainsDb = listOf(3f, 1.5f, 0f, -2f, 0f, 4.5f, 6f)),
                     ),
                     mixSlider = SLIDER_MAX / 2,
                     mixRightPercent = 50,
+                    trackId = "preview",
                 ),
                 onMixChanged = {},
                 onMixReset = {},
@@ -255,6 +343,7 @@ private fun EffectsSheetContentPreview() {
                 onEqReset = {},
                 onPreampChanged = {},
                 onBandChanged = { _, _ -> },
+                onBandGainReset = {},
                 onQualitySelected = {},
             )
         }

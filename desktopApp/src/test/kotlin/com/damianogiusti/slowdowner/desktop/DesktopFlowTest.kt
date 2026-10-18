@@ -7,6 +7,7 @@ import com.damianogiusti.slowdowner.di.useCasesModule
 import com.damianogiusti.slowdowner.domain.backup.BackupExportResult
 import com.damianogiusti.slowdowner.domain.backup.ExportLibraryBackupUseCase
 import com.damianogiusti.slowdowner.domain.backup.PlaylistConflictChoice
+import com.damianogiusti.slowdowner.domain.loops.LoopRepository
 import com.damianogiusti.slowdowner.domain.library.ImportDocumentUseCase
 import com.damianogiusti.slowdowner.domain.playlists.AddTrackToPlaylistUseCase
 import com.damianogiusti.slowdowner.domain.playlists.CreatePlaylistUseCase
@@ -22,9 +23,27 @@ import com.damianogiusti.slowdowner.domain.library.ObserveLibraryUseCase
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.practice.OpenTrackForPracticeUseCase
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.InternalComposeUiApi
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import com.damianogiusti.slowdowner.ui.common.LocalTextInputFocus
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
+import com.damianogiusti.slowdowner.ui.player.LoopChipActions
+import com.damianogiusti.slowdowner.ui.player.LoopChipModel
+import com.damianogiusti.slowdowner.ui.player.LoopChipsState
+import com.damianogiusti.slowdowner.ui.player.components.LoopChipsStrip
+import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.window.WindowState
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 import com.damianogiusti.slowdowner.data.effects.EffectsSettingsDto
+import com.damianogiusti.slowdowner.data.effects.LegacyEqDto
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
 import com.damianogiusti.slowdowner.domain.effects.ProcessingQuality
 import com.damianogiusti.slowdowner.domain.practice.ObservePracticeStatesUseCase
@@ -60,7 +79,7 @@ class DesktopFlowTest {
     private val effectsStore = InMemoryEffectsSettingsStore()
     private val supportPromptStore = InMemorySupportPromptStore()
     private val koin = startKoin {
-        modules(desktopModule(directories, native, effectsStore, supportPromptStore), useCasesModule, uiModule)
+        modules(desktopModule(directories, native, effectsStore, supportPromptStore, clickSettingsStore = InMemoryClickSettingsStore()), useCasesModule, uiModule)
     }.koin
 
     @AfterTest
@@ -93,7 +112,8 @@ class DesktopFlowTest {
 
     @Test
     fun `at start the saved effects reach the engine`() = runBlocking<Unit> {
-        effectsStore.write(EffectsSettingsDto(eqEnabled = true, preampDb = -3f, bandGainsDb = List(7) { 2f }, qualityName = "LOW"))
+        // The first EQ's settings, as an older version left them: migrated on the way.
+        effectsStore.write(EffectsSettingsDto(eqCurveJson = null, qualityName = "LOW", legacyEq = LegacyEqDto(true, -3f, List(7) { 2f })))
         val scope = CoroutineScope(Dispatchers.Default)
         startAppWork(koin, scope)
         waitUntil { koin.get<EffectsEngine>().quality == ProcessingQuality.LOW }
@@ -134,7 +154,9 @@ class DesktopFlowTest {
         val engine = koin.get<PlaybackEngine>()
         // The ViewModel works on the Swing thread, as in the app.
         SwingUtilities.invokeAndWait { player.onTrackSelected(imported.track) }
-        waitUntil { engine.isOpen }
+        // Until the open is over: the engine opens before the track's saved settings (and position)
+        // are applied, and a late apply would move the playhead back under the test.
+        waitUntil { engine.isOpen && !player.header.value.isLoading }
         val textInput = TextInputFocus()
         val shortcuts = PracticeShortcuts(player, textInput)
 
@@ -145,14 +167,196 @@ class DesktopFlowTest {
         assertTrue(engine.isPlaying, "auto-repeat paused playback")
         SwingUtilities.invokeAndWait { shortcuts.onSpaceReleased() }
         native.render(44_100 * 2)
+        // No loop yet: A starts a new one at the playhead, and it loops.
         SwingUtilities.invokeAndWait { shortcuts.handle(Key.A) }
+        waitUntil { engine.isLoopOn }
+        assertEquals(0.2f, engine.loopStart, 0.02f)
         native.render(44_100 * 2)
         SwingUtilities.invokeAndWait { shortcuts.handle(Key.B) }
-        assertTrue(engine.isLoopOn, "B closes the loop")
-        assertTrue(abs(engine.loopEnd - engine.loopStart - 0.2f) < 0.02f, "loop ${engine.loopStart}..${engine.loopEnd}")
+        waitUntil { abs(engine.loopEnd - engine.loopStart - 0.2f) < 0.02f }
+        assertTrue(engine.isLoopOn, "B keeps looping")
+        // Shift+L turns looping off, the loop stays.
+        SwingUtilities.invokeAndWait { shortcuts.handle(Key.L, shift = true) }
+        waitUntil { !engine.isLoopOn }
         SwingUtilities.invokeAndWait { assertFalse(shortcuts.handle(Key.Q), "not a practice key") }
+        // L adds a second loop near the start, and makes it the active one.
+        SwingUtilities.invokeAndWait {
+            player.onSeek(0.05f)
+            // ⇧L is still held otherwise.
+            shortcuts.handle(keyUp(Key.L))
+            shortcuts.handle(Key.L)
+        }
+        waitUntil { abs(engine.loopStart - 0.05f) < 0.02f }
+        // [ typed with AltGr on another key (Italian layout): previous loop, round to the last. Released,
+        // then again: the first one, so the release was matched to the key that typed it.
+        SwingUtilities.invokeAndWait { assertTrue(shortcuts.handle(altGr(Key.Grave, '['))) }
+        waitUntil { abs(engine.loopStart - 0.2f) < 0.02f }
+        SwingUtilities.invokeAndWait { shortcuts.handle(keyUp(Key.Grave)) }
+        SwingUtilities.invokeAndWait { shortcuts.handle(altGr(Key.Grave, '[')) }
+        waitUntil { abs(engine.loopStart - 0.05f) < 0.02f }
         source.delete()
     }
+
+    @Test
+    fun `F and F11 toggle fullscreen once per press, Esc closes the drawer, then leaves fullscreen`() {
+        val player = koin.get<PlayerViewModel>()
+        val fullscreen = windowFullscreen()
+        val shortcuts = PracticeShortcuts(player, TextInputFocus(), fullscreen)
+        SwingUtilities.invokeAndWait {
+            assertTrue(shortcuts.handle(keyDown(Key.F)))
+            // Auto-repeat while held must not toggle it back.
+            shortcuts.handle(keyDown(Key.F))
+            assertTrue(fullscreen.isFullscreen)
+            shortcuts.handle(keyUp(Key.F))
+            assertTrue(shortcuts.handle(keyDown(Key.F11)))
+            shortcuts.handle(keyDown(Key.F11))
+            assertFalse(fullscreen.isFullscreen)
+            shortcuts.handle(keyUp(Key.F11))
+            assertTrue(shortcuts.handle(keyDown(Key.F11)))
+            assertTrue(fullscreen.isFullscreen)
+            shortcuts.handle(keyUp(Key.F11))
+
+            // Esc reaches the shortcuts before the focused element: the drawer closes first, before anything.
+            player.onDrawerOpened()
+            assertTrue(shortcuts.handle(keyDown(Key.Escape)))
+            assertFalse(player.layout.value.isDrawerOpen, "Esc closes the drawer first")
+            assertTrue(fullscreen.isFullscreen)
+            // Nothing of the player's to close: on to the menus and dialogs, and only then to the window's
+            // back, which leaves fullscreen (LeaveFullscreenOnBack, see FullscreenPlayerTest).
+            assertFalse(shortcuts.handle(keyDown(Key.Escape)), "a menu or a dialog gets Esc before fullscreen")
+            assertTrue(fullscreen.isFullscreen)
+            assertTrue(fullscreen.exit())
+
+            // ⌃F belongs to the system and the menus, ⌃⌘F to the macOS menu item.
+            assertFalse(shortcuts.handle(keyDown(Key.F, ctrl = true)))
+            assertFalse(shortcuts.handle(keyDown(Key.F11, ctrl = true)))
+            assertFalse(fullscreen.isFullscreen)
+        }
+    }
+
+    @Test
+    fun `without a window F and F11 are not the player's`() {
+        val player = koin.get<PlayerViewModel>()
+        val shortcuts = PracticeShortcuts(player, TextInputFocus())
+        SwingUtilities.invokeAndWait {
+            assertFalse(shortcuts.handle(keyDown(Key.F)))
+            assertFalse(shortcuts.handle(keyDown(Key.F11)))
+        }
+    }
+
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Test
+    fun `while a loop chip is renamed the practice keys are left to its field`() {
+        val player = koin.get<PlayerViewModel>()
+        val textInput = TextInputFocus()
+        val fullscreen = windowFullscreen()
+        val shortcuts = PracticeShortcuts(player, textInput, fullscreen)
+        val chips = LoopChipsState(listOf(LoopChipModel(1, "Solo", 0, 8f, 0, isActive = true)), enabled = true)
+        val actions = LoopChipActions({}, {}, { _, _ -> }, {}, {}, {})
+        SwingUtilities.invokeAndWait {
+            val scene = ImageComposeScene(width = 400, height = 80, density = Density(1f)) {
+                CompositionLocalProvider(LocalTextInputFocus provides textInput) {
+                    SlowDownerTheme { LoopChipsStrip(chips, emptyList(), actions) }
+                }
+            }
+            try {
+                scene.render(0)
+                // A double click on the chip: its name becomes a text field.
+                repeat(2) {
+                    scene.sendPointerEvent(PointerEventType.Press, Offset(50f, 29f), button = PointerButton.Primary)
+                    scene.render(0)
+                    scene.sendPointerEvent(PointerEventType.Release, Offset(50f, 29f), button = PointerButton.Primary)
+                    scene.render(0)
+                }
+                scene.render(16_000_000)
+                assertTrue(textInput.isTyping)
+
+                assertFalse(shortcuts.handle(keyDown(Key.F)), "F is typed, not fullscreen")
+                assertFalse(shortcuts.handle(keyDown(Key.L)))
+                assertFalse(shortcuts.handle(keyDown(Key.Spacebar)))
+                assertFalse(fullscreen.isFullscreen)
+                assertFalse(shortcuts.handle(keyDown(Key.Escape)), "Esc cancels the rename, it is not the window's")
+                fullscreen.enter()
+                assertTrue(fullscreen.isFullscreen)
+                // F11 types nothing: it toggles while typing too.
+                assertTrue(shortcuts.handle(keyDown(Key.F11)))
+                assertFalse(fullscreen.isFullscreen)
+            } finally {
+                scene.close()
+            }
+        }
+    }
+
+    @Test
+    fun `while a playlist covers the player its loop and layout keys do nothing`() = runBlocking<Unit> {
+        val source = toneFile()
+        val imported = koin.get<ImportDocumentUseCase>()(source.path)
+        assertIs<ImportResult.Success>(imported)
+        val player = koin.get<PlayerViewModel>()
+        val engine = koin.get<PlaybackEngine>()
+        val loops = koin.get<LoopRepository>()
+        SwingUtilities.invokeAndWait { player.onTrackSelected(imported.track) }
+        waitUntil { engine.isOpen }
+        val fullscreen = windowFullscreen()
+        val shortcuts = PracticeShortcuts(player, TextInputFocus(), fullscreen)
+
+        SwingUtilities.invokeAndWait {
+            player.onShownChanged(false)
+            assertFalse(shortcuts.handle(Key.L), "L would add a loop out of sight")
+            assertFalse(shortcuts.handle(Key.A))
+            assertFalse(shortcuts.handle(Key.B))
+            assertFalse(shortcuts.handle(Key.RightBracket))
+            // Left to the playlist screen, which goes back.
+            assertFalse(shortcuts.handle(Key.Escape))
+            // Fullscreen is the window's: it works over a playlist too.
+            assertTrue(shortcuts.handle(Key.F))
+            assertTrue(fullscreen.isFullscreen)
+        }
+        // Give a loop edit, had one started, the time to land.
+        Thread.sleep(300)
+        assertTrue(loops.trackLoops(imported.track.id).loops.isEmpty())
+        assertFalse(engine.isLoopOn)
+
+        // Back on the player: the same keys work again.
+        SwingUtilities.invokeAndWait {
+            player.onShownChanged(true)
+            assertTrue(shortcuts.handle(Key.L))
+        }
+        waitUntil { player.loopChips.value.chips.size == 1 }
+        source.delete()
+    }
+
+    @Test
+    fun `a key released with a modifier held still works on the next press`() {
+        val player = koin.get<PlayerViewModel>()
+        val fullscreen = windowFullscreen()
+        val shortcuts = PracticeShortcuts(player, TextInputFocus(), fullscreen)
+        SwingUtilities.invokeAndWait {
+            shortcuts.handle(keyDown(Key.F))
+            shortcuts.handle(keyUp(Key.F, ctrl = true))
+            shortcuts.handle(keyDown(Key.F))
+            assertFalse(fullscreen.isFullscreen, "F was stuck as held")
+            // Held while the window lost focus: the release went to another app.
+            shortcuts.onFocusLost()
+            shortcuts.handle(keyDown(Key.F))
+            assertTrue(fullscreen.isFullscreen)
+        }
+    }
+
+    /** A window's fullscreen without the window: its placement only. */
+    private fun windowFullscreen() = WindowFullscreen(WindowState(), CoroutineScope(Dispatchers.Unconfined))
+
+    private fun keyDown(key: Key, ctrl: Boolean = false) = keyEvent(key, KeyEventType.KeyDown, ctrl = ctrl)
+
+    private fun keyUp(key: Key, ctrl: Boolean = false) = keyEvent(key, KeyEventType.KeyUp, ctrl = ctrl)
+
+    /** ⌃⌥ + [key] typing [char]: AltGr on Windows. */
+    private fun altGr(key: Key, char: Char) = keyEvent(key, KeyEventType.KeyDown, char, ctrl = true, alt = true)
+
+    // The test-only constructor: what the window passes is built from AWT events internally.
+    @OptIn(InternalComposeUiApi::class)
+    private fun keyEvent(key: Key, type: KeyEventType, char: Char? = null, ctrl: Boolean = false, alt: Boolean = false) =
+        KeyEvent(key, type, codePoint = char?.code ?: 0, isCtrlPressed = ctrl, isAltPressed = alt)
 
     @Test
     fun `restoring a playlist that changed since the backup asks, then overwrites it`() = runBlocking<Unit> {

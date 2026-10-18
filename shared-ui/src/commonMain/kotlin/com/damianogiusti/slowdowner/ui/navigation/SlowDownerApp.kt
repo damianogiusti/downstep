@@ -1,18 +1,12 @@
 package com.damianogiusti.slowdowner.ui.navigation
 
 import com.damianogiusti.slowdowner.ui.resources.*
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -26,13 +20,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -45,21 +38,28 @@ import com.damianogiusti.slowdowner.ui.backup.BackupReadyDialog
 import com.damianogiusti.slowdowner.ui.backup.BackupUiState
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.backup.PlaylistConflictDialog
+import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.common.CollectMessages
 import com.damianogiusti.slowdowner.ui.common.ConfirmDialog
+import com.damianogiusti.slowdowner.ui.common.FullscreenControl
 import com.damianogiusti.slowdowner.ui.library.ImportBanner
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.library.LibraryNavigation
-import com.damianogiusti.slowdowner.ui.library.LibraryScreen
 import com.damianogiusti.slowdowner.ui.player.ExportUiState
-import com.damianogiusti.slowdowner.ui.player.MiniPlayerBar
 import com.damianogiusti.slowdowner.ui.player.PlayerNavigation
 import com.damianogiusti.slowdowner.ui.player.PlayerScreen
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
+import com.damianogiusti.slowdowner.ui.player.components.ExportOptionsDialog
 import com.damianogiusti.slowdowner.ui.player.components.ExportReadyDialog
 import com.damianogiusti.slowdowner.ui.playlists.AddToPlaylistSheet
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistNavigation
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistScreen
+import com.damianogiusti.slowdowner.ui.theme.ThemeViewModel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.viewmodel.koinViewModel
 
 /** What the app needs from the activity: pickers, share sheet, service, permissions. */
 class ActivityActions(
@@ -69,13 +69,17 @@ class ActivityActions(
     /** Wraps play/stop to ask for the notification permission first. */
     val onPlayStop: () -> Unit,
     val onPlaybackStarted: () -> Unit,
-    val onShareExport: (ExportedFile) -> Unit,
-    val onSaveExport: (ExportedFile) -> Unit,
+    /** Every file of the export batch (one or more). */
+    val onShareExport: (List<ExportedFile>) -> Unit,
+    /** One file: a save-as picker. More: a folder picker, and they are saved next to each other. */
+    val onSaveExport: (List<ExportedFile>) -> Unit,
     val onPickBackup: () -> Unit,
     val onShareBackup: (BackupFile) -> Unit,
     val onSaveBackup: (BackupFile) -> Unit,
     /** Null where the app is not published (Android): the Donate menu item is then hidden. */
     val onDonate: (() -> Unit)? = null,
+    /** The window's fullscreen (desktop). Null on Android: the header then has no fullscreen toggle. */
+    val fullscreen: FullscreenControl? = null,
 )
 
 /** ViewModels scoped to the activity: results of activity pickers and intents land in them. */
@@ -83,148 +87,98 @@ class ActivityViewModels(
     val player: PlayerViewModel,
     val imports: ImportViewModel,
     val backup: BackupViewModel,
+    /** The EQ and Isolate overlay: window-scoped like the player, and flushed with it on quit. */
+    val effects: EffectsViewModel,
 )
 
 /**
- * Root of the UI: navigation between library, playlists and player, with the mini player,
- * the import progress and the snackbars shared by every screen.
+ * Root of the UI: the player is the screen (Downstep 2.0), the library a drawer over it, and a
+ * playlist opens on top. Also the import and backup progress, their dialogs and the snackbars.
+ *
+ * It observes no player state: each part of the player collects its own (see PlayerScreen).
  */
 @Composable
 fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
     val playerViewModel = viewModels.player
     val importViewModel = viewModels.imports
     val backupViewModel = viewModels.backup
+    // The window's, as the root's: a destination's own would keep the theme menu's previews from the root.
+    val themeViewModel = koinViewModel<ThemeViewModel>()
     val navController = rememberNavController()
+    val currentEntry by navController.currentBackStackEntryAsState()
+    // The window's practice keys edit the player: only while it is the screen shown.
+    LaunchedEffect(currentEntry, playerViewModel) {
+        playerViewModel.onShownChanged(currentEntry?.destination?.hasRoute<PlayerRoute>() ?: true)
+    }
     val snackbarHostState = remember { SnackbarHostState() }
-    val player by playerViewModel.state.collectAsStateWithLifecycle()
-    val import by importViewModel.state.collectAsStateWithLifecycle()
-    val backup by backupViewModel.state.collectAsStateWithLifecycle()
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    val isOnPlayer = backStackEntry?.destination?.hasRoute<PlayerRoute>() == true
     var trackForPlaylist by remember { mutableStateOf<LibraryTrack?>(null) }
 
     CollectMessages(playerViewModel.messages, snackbarHostState)
     CollectMessages(importViewModel.messages, snackbarHostState)
     CollectMessages(backupViewModel.messages, snackbarHostState)
 
-    val isPlaying = player.controls.isPlaying
-    LaunchedEffect(isPlaying) { if (isPlaying) activity.onPlaybackStarted() }
+    LaunchedEffect(playerViewModel, activity) {
+        playerViewModel.transport.map { it.isPlaying }.distinctUntilChanged().filter { it }.collect { activity.onPlaybackStarted() }
+    }
+    LaunchedEffect(importViewModel, playerViewModel) { importViewModel.importedTracks.collect(playerViewModel::onTrackSelected) }
 
-    // Phones (and narrow windows) get one screen at a time; wide windows get the library and the
-    // player side by side, with the player always visible.
-    BoxWithConstraints {
-        val windowWidth = maxWidth
-        val isWide = windowWidth >= WIDE_LAYOUT_MIN_WIDTH
-        val openTrack: (LibraryTrack) -> Unit = { track ->
-            playerViewModel.onTrackSelected(track)
-            if (!isWide && !isOnPlayer) navController.navigate(PlayerRoute) { launchSingleTop = true }
-        }
-        val currentOpenTrack by rememberUpdatedState(openTrack)
-        LaunchedEffect(importViewModel) { importViewModel.importedTracks.collect { currentOpenTrack(it) } }
-        // The window got wide while the player page was open: the pane takes over.
-        LaunchedEffect(isWide, isOnPlayer) { if (isWide && isOnPlayer) navController.popBackStack() }
+    val playerNavigation = remember(playerViewModel, importViewModel, backupViewModel, activity, navController) {
+        PlayerNavigation(
+            onPlayStop = activity.onPlayStop,
+            onAddToPlaylist = { trackForPlaylist = it },
+            fullscreen = activity.fullscreen,
+            library = LibraryNavigation(
+                onTrackClick = playerViewModel::onTrackSelected,
+                onPlaylistClick = {
+                    playerViewModel.onDrawerClosed()
+                    navController.navigate(PlaylistRoute(it.id)) { launchSingleTop = true }
+                },
+                onAddToPlaylist = { trackForPlaylist = it },
+                onImportFile = activity.onPickFile,
+                onImportSpotify = activity.onOpenSpotify,
+                onImportLink = importViewModel::onTextShared,
+                onRestoreBackup = activity.onPickBackup,
+                onExportTrackBackup = backupViewModel::onExportTrack,
+                onExportLibraryBackup = backupViewModel::onExportLibrary,
+                onDonate = activity.onDonate,
+            ),
+        )
+    }
 
-        Scaffold(
-            // Screens handle their own insets; this one only stacks the bottom bar.
-            contentWindowInsets = WindowInsets(0),
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            bottomBar = {
-                val track = player.track
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .navigationBarsPadding()
-                        .padding(horizontal = 12.dp),
-                ) {
-                    BackupBanner(backup, onCancelExport = backupViewModel::onExportCancelClicked)
-                    ImportBanner(import)
-                    AnimatedVisibility(
-                        visible = track != null && player.controls.isOpen && !isOnPlayer && !isWide,
-                        enter = slideInVertically { it } + fadeIn(),
-                        exit = slideOutVertically { it } + fadeOut(),
-                    ) {
-                        if (track != null) {
-                            MiniPlayerBar(
-                                track = track,
-                                controls = player.controls,
-                                onOpen = { navController.navigate(PlayerRoute) { launchSingleTop = true } },
-                                onPlayStop = activity.onPlayStop,
-                                modifier = Modifier.padding(bottom = 12.dp),
-                            )
-                        }
-                    }
-                }
-            },
-        ) { padding ->
-            val screens = @Composable { modifier: Modifier ->
-                NavHost(
-                    navController = navController,
-                    startDestination = LibraryRoute,
-                    modifier = modifier,
-                ) {
-                    composable<LibraryRoute> {
-                        LibraryScreen(
-                            navigation = LibraryNavigation(
-                                onTrackClick = openTrack,
-                                onPlaylistClick = { navController.navigate(PlaylistRoute(it.id)) },
-                                onAddToPlaylist = { trackForPlaylist = it },
-                                onImportFile = activity.onPickFile,
-                                onImportSpotify = activity.onOpenSpotify,
-                                onImportLink = importViewModel::onTextShared,
-                                onRestoreBackup = activity.onPickBackup,
-                                onExportTrackBackup = backupViewModel::onExportTrack,
-                                onExportLibraryBackup = backupViewModel::onExportLibrary,
-                                onDonate = activity.onDonate,
-                            ),
-                            snackbarHostState = snackbarHostState,
-                        )
-                    }
-                    composable<PlaylistRoute> {
-                        PlaylistScreen(
-                            navigation = PlaylistNavigation(
-                                onBack = { navController.popBackStack() },
-                                onTrackClick = openTrack,
-                                onExportBackup = backupViewModel::onExportPlaylist,
-                                onExportTrackBackup = backupViewModel::onExportTrack,
-                            ),
-                            snackbarHostState = snackbarHostState,
-                        )
-                    }
-                    composable<PlayerRoute>(
-                        enterTransition = { slideInVertically(tween(PLAYER_TRANSITION_MS)) { it } },
-                        exitTransition = { fadeOut(tween(PLAYER_TRANSITION_MS)) },
-                        popEnterTransition = { fadeIn(tween(PLAYER_TRANSITION_MS)) },
-                        popExitTransition = { slideOutVertically(tween(PLAYER_TRANSITION_MS)) { it } },
-                    ) {
-                        PlayerScreen(
-                            viewModel = playerViewModel,
-                            navigation = PlayerNavigation(
-                                onCollapse = { navController.popBackStack() },
-                                onPlayStop = activity.onPlayStop,
-                                onAddToPlaylist = { trackForPlaylist = it },
-                            ),
-                        )
-                    }
+    Scaffold(
+        // Screens handle their own insets; this one only stacks the bottom bar.
+        contentWindowInsets = WindowInsets(0),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = { ProgressBanners(importViewModel, backupViewModel) },
+    ) { padding ->
+        NavHost(
+            navController = navController,
+            startDestination = PlayerRoute,
+            modifier = Modifier.padding(padding).consumeWindowInsets(padding),
+        ) {
+            composable<PlayerRoute> {
+                PlayerScreen(
+                    viewModel = playerViewModel,
+                    navigation = playerNavigation,
+                    snackbarHostState = snackbarHostState,
+                    effects = viewModels.effects,
+                    theme = themeViewModel,
+                )
             }
-            }
-            val contentModifier = Modifier.padding(padding).consumeWindowInsets(padding)
-            if (isWide) {
-                Row(modifier = contentModifier) {
-                    screens(Modifier.weight(1f))
-                    VerticalDivider()
-                    Box(modifier = Modifier.width((windowWidth * PLAYER_PANE_FRACTION).coerceIn(PLAYER_PANE_MIN, PLAYER_PANE_MAX))) {
-                        PlayerScreen(
-                            viewModel = playerViewModel,
-                            navigation = PlayerNavigation(
-                                onCollapse = null,
-                                onPlayStop = activity.onPlayStop,
-                                onAddToPlaylist = { trackForPlaylist = it },
-                            ),
-                        )
-                    }
-                }
-            } else {
-                screens(contentModifier)
+            composable<PlaylistRoute>(
+                enterTransition = { slideInHorizontally(tween(TRANSITION_MS)) { it } + fadeIn(tween(TRANSITION_MS)) },
+                exitTransition = { fadeOut(tween(TRANSITION_MS)) },
+                popExitTransition = { slideOutHorizontally(tween(TRANSITION_MS)) { it } + fadeOut(tween(TRANSITION_MS)) },
+            ) {
+                PlaylistScreen(
+                    navigation = PlaylistNavigation(
+                        onBack = { navController.popBackStack() },
+                        onTrackClick = { track -> openFromPlaylist(navController, playerViewModel, track) },
+                        onExportBackup = backupViewModel::onExportPlaylist,
+                        onExportTrackBackup = backupViewModel::onExportTrack,
+                    ),
+                    snackbarHostState = snackbarHostState,
+                )
             }
         }
     }
@@ -232,18 +186,61 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
     trackForPlaylist?.let { track ->
         AddToPlaylistSheet(track = track, snackbarHostState = snackbarHostState, onDismiss = { trackForPlaylist = null })
     }
-    (player.export as? ExportUiState.Ready)?.let { ready ->
-        ExportReadyDialog(
-            file = ready.file,
-            onShare = {
-                activity.onShareExport(ready.file)
-                playerViewModel.onExportDismissed()
-            },
-            // The dialog stays until a target is picked: see PlayerViewModel.onExportSaveTargetPicked.
-            onSave = { activity.onSaveExport(ready.file) },
+    ExportReadyHost(playerViewModel, activity)
+    BackupDialogsHost(backupViewModel, activity)
+}
+
+/** Back to the player with the track loading. */
+private fun openFromPlaylist(navController: NavHostController, player: PlayerViewModel, track: LibraryTrack) {
+    player.onTrackSelected(track)
+    navController.popBackStack(PlayerRoute, inclusive = false)
+}
+
+@Composable
+private fun ProgressBanners(importViewModel: ImportViewModel, backupViewModel: BackupViewModel) {
+    val import by importViewModel.state.collectAsStateWithLifecycle()
+    val backup by backupViewModel.state.collectAsStateWithLifecycle()
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .navigationBarsPadding()
+            .padding(horizontal = 12.dp),
+    ) {
+        BackupBanner(backup, onCancelExport = backupViewModel::onExportCancelClicked)
+        ImportBanner(import)
+    }
+}
+
+@Composable
+private fun ExportReadyHost(playerViewModel: PlayerViewModel, activity: ActivityActions) {
+    val export by playerViewModel.export.collectAsStateWithLifecycle()
+    (export as? ExportUiState.Choosing)?.let { choosing ->
+        ExportOptionsDialog(
+            scope = choosing.scope,
+            loopCount = choosing.loopCount,
+            onScopeChange = playerViewModel::onExportScopeChanged,
+            onConfirm = playerViewModel::onExportConfirmed,
             onDismiss = playerViewModel::onExportDismissed,
         )
     }
+    (export as? ExportUiState.Ready)?.let { ready ->
+        ExportReadyDialog(
+            files = ready.files,
+            onShare = {
+                activity.onShareExport(ready.files)
+                playerViewModel.onExportDismissed()
+            },
+            // The dialog stays until a target is picked: see PlayerViewModel.onExportSaveTargetPicked
+            // and onExportSaveFolderPicked.
+            onSave = { activity.onSaveExport(ready.files) },
+            onDismiss = playerViewModel::onExportDismissed,
+        )
+    }
+}
+
+@Composable
+private fun BackupDialogsHost(backupViewModel: BackupViewModel, activity: ActivityActions) {
+    val backup by backupViewModel.state.collectAsStateWithLifecycle()
     (backup as? BackupUiState.Ready)?.let { ready ->
         BackupReadyDialog(
             file = ready.file,
@@ -273,10 +270,4 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
     }
 }
 
-private const val PLAYER_TRANSITION_MS = 320
-
-/** Material's "expanded" window class: from here the player gets its own pane. */
-private val WIDE_LAYOUT_MIN_WIDTH = 840.dp
-private const val PLAYER_PANE_FRACTION = 0.42f
-private val PLAYER_PANE_MIN = 420.dp
-private val PLAYER_PANE_MAX = 560.dp
+private const val TRANSITION_MS = 280

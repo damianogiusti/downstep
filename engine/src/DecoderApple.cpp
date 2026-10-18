@@ -1,6 +1,7 @@
 #include "Pcm.h"
 
 #include <AudioToolbox/AudioToolbox.h>
+#include <sys/stat.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -67,7 +68,10 @@ bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error) {
     out.sampleRate = int(fileFormat.mSampleRate);
     out.channels = channels;
     out.data.assign(size_t(channels), {});
-    for (auto &channel : out.data) channel.reserve(size_t(std::max<SInt64>(lengthFrames, 0)));
+    // The header's length is a hint only: reservePcm caps it.
+    struct stat stats {};
+    const uint64_t bytes = stat(path.c_str(), &stats) == 0 ? uint64_t(stats.st_size) : 0;
+    reservePcm(out, int64_t(lengthFrames), bytes);
 
     constexpr UInt32 chunkFrames = 32768;
     std::vector<std::vector<float>> chunk(static_cast<size_t>(channels), std::vector<float>(chunkFrames));

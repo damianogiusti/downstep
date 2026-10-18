@@ -1,12 +1,18 @@
 package com.damianogiusti.slowdowner.ui.playlists
 
+import com.damianogiusti.slowdowner.ui.common.LocalWindowTitleBar
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
+import com.damianogiusti.slowdowner.ui.common.titleBarCaption
+import com.damianogiusti.slowdowner.ui.common.titleBarControl
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -43,6 +49,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -88,21 +101,37 @@ fun PlaylistScreen(
     var showDelete by rememberSaveable { mutableStateOf(false) }
     var showAddTracks by rememberSaveable { mutableStateOf(false) }
 
-    PlaylistContent(
-        state = state,
-        actions = PlaylistContentActions(
-            onBack = navigation.onBack,
-            onTrackClick = navigation.onTrackClick,
-            onPractice = { state.tracks.firstOrNull()?.let { navigation.onTrackClick(it.track) } },
-            onAddTracks = { showAddTracks = true },
-            onRename = { showRename = true },
-            onExportBackup = { state.playlist?.let(navigation.onExportBackup) },
-            onDelete = { showDelete = true },
-            onExportTrackBackup = navigation.onExportTrackBackup,
-            onRemoveTrack = viewModel::onRemoveTrack,
-            onReorder = viewModel::onReorder,
-        ),
-    )
+    // Esc goes back to the player. The window's shortcuts leave it to this screen, and key events
+    // reach only the focused element's ancestors: the screen takes the focus when it opens.
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .focusRequester(focus)
+            .focusable()
+            .onPreviewKeyEvent { event ->
+                if (event.key != Key.Escape || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                navigation.onBack()
+                true
+            },
+    ) {
+        PlaylistContent(
+            state = state,
+            actions = PlaylistContentActions(
+                onBack = navigation.onBack,
+                onTrackClick = navigation.onTrackClick,
+                onPractice = { state.tracks.firstOrNull()?.let { navigation.onTrackClick(it.track) } },
+                onAddTracks = { showAddTracks = true },
+                onRename = { showRename = true },
+                onExportBackup = { state.playlist?.let(navigation.onExportBackup) },
+                onDelete = { showDelete = true },
+                onExportTrackBackup = navigation.onExportTrackBackup,
+                onRemoveTrack = viewModel::onRemoveTrack,
+                onReorder = viewModel::onReorder,
+            ),
+        )
+    }
 
     val playlist = state.playlist ?: return
     if (showRename) {
@@ -159,16 +188,30 @@ class PlaylistContentActions(
 fun PlaylistContent(state: PlaylistUiState, actions: PlaylistContentActions) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = actions.onBack) {
-                        Icon(painterResource(Res.drawable.ic_arrow_back), stringResource(Res.string.back))
+            // Windows: the bar is the window's title bar, with the window buttons at its right end.
+            val titleBar = LocalWindowTitleBar.current
+            Box(modifier = if (titleBar != null) Modifier.titleBarCaption() else Modifier) {
+                TopAppBar(
+                    title = {},
+                    navigationIcon = {
+                        IconButton(onClick = actions.onBack, modifier = Modifier.titleBarControl()) {
+                            Icon(painterResource(Res.drawable.ic_arrow_back), stringResource(Res.string.back))
+                        }
+                    },
+                    actions = {
+                        Box(modifier = Modifier.titleBarControl()) {
+                            PlaylistMenu(actions.onRename, actions.onExportBackup, actions.onDelete)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier.padding(end = titleBar?.buttonsWidth ?: 0.dp),
+                )
+                if (titleBar != null) {
+                    Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.matchParentSize()) {
+                        titleBar.WindowButtons(Modifier.fillMaxHeight())
                     }
-                },
-                actions = { PlaylistMenu(actions.onRename, actions.onExportBackup, actions.onDelete) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-            )
+                }
+            }
         },
     ) { padding ->
         val playlist = state.playlist ?: return@Scaffold
@@ -317,6 +360,7 @@ private fun PlaylistMenu(onRename: () -> Unit, onExportBackup: () -> Unit, onDel
             Icon(painterResource(Res.drawable.ic_more_vert), stringResource(Res.string.more_options))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            TitleBarOverlay()
             DropdownMenuItem(
                 text = { Text(stringResource(Res.string.playlist_rename)) },
                 leadingIcon = { Icon(painterResource(Res.drawable.ic_edit), null) },
@@ -363,6 +407,7 @@ private fun TrackInPlaylistMenu(
             )
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            TitleBarOverlay()
             if (canMoveUp) {
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.move_up)) },
@@ -411,6 +456,7 @@ private fun AddTracksSheet(
     onToggle: (LibraryTrack, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    TitleBarOverlay()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),

@@ -34,15 +34,20 @@
     <string name="loop_shift_forward">▶</string>
     <string name="loop_halve_description">Dimezza il loop</string>
     <string name="loop_double_description">Raddoppia il loop</string>
-    <string name="loop_shift_backward_description">Sposta il loop indietro</string>
-    <string name="loop_shift_forward_description">Sposta il loop avanti</string>
+    <string name="loop_shift_backward_description">Sposta il loop indietro di 1 s</string>
+    <string name="loop_shift_forward_description">Sposta il loop avanti di 1 s</string>
 
     <string name="mix_title">Bilanciamento L / R</string>
-    <string name="effects_subtitle">Valgono per tutti i brani.</string>
+    <string name="effects_subtitle">L'equalizzatore è salvato con questo brano; il mix vale per questa sessione.</string>
     <string name="mix_format">Sinistra %1$d / Destra %2$d</string>
     <string name="reset">Reset</string>
     <string name="eq_title">Equalizzatore</string>
     <string name="eq_preamp">Preamp</string>
+    <string name="eq_reset_tooltip">Riporta l'EQ a piatto</string>
+    <string name="mix_reset_tooltip">Centra il bilanciamento L / R</string>
+    <string name="eq_switch_on">Attivo</string>
+    <string name="eq_switch_off">Spento</string>
+    <string name="eq_switch_description">Equalizzatore attivo</string>
     <string name="decimal_separator">,</string>
     <string name="gain_format">%1$s dB</string>
     <string name="hz_format">%1$d Hz</string>
@@ -55,7 +60,7 @@
     <string name="quality_very_high">Max</string>
 
     <string name="export">Esporta</string>
-    <string name="export_running">Esporto in MP3… %1$d%%</string>
+    <string name="export_running">Esporto in MP3… %1$d%</string>
     <string name="export_ready_title">Export pronto</string>
     <string name="export_ready_text">"%1$s" è pronto. Velocità, pitch ed effetti sono applicati.</string>
     <string name="export_share">Condividi</string>
@@ -221,6 +226,13 @@
     <string name="menu_window">Finestra</string>
     <string name="menu_close_window">Chiudi finestra</string>
     <string name="menu_minimize">Contrai</string>
+    <!-- Windows: the window buttons at the header's right end, which replaces the title bar. -->
+    <string name="window_minimize">Riduci a icona</string>
+    <string name="window_maximize">Ingrandisci</string>
+    <string name="window_restore">Ripristina giù</string>
+    <string name="window_close">Chiudi</string>
+    <string name="menu_enter_fullscreen">Attiva modalità a tutto schermo</string>
+    <string name="menu_exit_fullscreen">Esci da modalità a tutto schermo</string>
     <string name="menu_help">Aiuto</string>
 
     <!-- Support prompt (desktop) -->
@@ -242,11 +254,173 @@
     <string name="update_later">Più tardi</string>
     <string name="update_cancel">Annulla</string>
     <string name="update_retry">Riprova</string>
-    <string name="update_downloading">Scaricamento… %1$d%%</string>
+    <string name="update_downloading">Scaricamento… %1$d%</string>
     <string name="update_preparing">Installazione…</string>
     <string name="update_restarting">Riavvio…</string>
     <string name="update_network_error">Il download non è finito. Controlla la connessione e riprova.</string>
     <string name="update_failed">L'aggiornamento non è riuscito. Puoi scaricarlo dal sito.</string>
     <string name="update_banner">È disponibile Downstep %1$s</string>
     <string name="update_banner_action">Aggiorna</string>
+
+    <!-- Downstep 2.0 player. Component groups: H header, chips, transport · W waveform · C cards · D drawer, title bar -->
+    <!-- Header (H) -->
+    <string name="library_open_description">Apri la libreria</string>
+    <string name="header_bpm">%1$s BPM</string>
+    <string name="header_bpm_unset">BPM —</string>
+    <string name="bpm_edit_description">Imposta il tempo di questo brano</string>
+    <string name="bpm_dialog_title">Tempo di questo brano</string>
+    <string name="bpm_dialog_message">Serve per il metronomo, il conteggio iniziale e la lunghezza dei nuovi loop (%1$d–%2$d BPM).</string>
+    <string name="bpm_label">BPM</string>
+    <string name="bpm_clear">Cancella</string>
+    <string name="error_bpm_range">Inserisci un tempo tra %1$d e %2$d BPM.</string>
+    <plurals name="loops_count">
+        <item quantity="one">%1$d loop</item>
+        <item quantity="other">%1$d loop</item>
+    </plurals>
+    <string name="loops_none">nessun loop</string>
+    <string name="analyze">Analizza</string>
+    <string name="analyze_running">Analisi…</string>
+    <string name="analyze_again">Rianalizza</string>
+    <string name="analyze_tooltip">Trova le sezioni e suggerisce dei loop</string>
+    <string name="analyze_unavailable">Il rilevamento delle sezioni non è ancora disponibile</string>
+    <string name="error_analyze">Analisi non riuscita: %1$s</string>
+    <string name="metronome">Metronomo</string>
+    <string name="metronome_unavailable">Il metronomo non è ancora disponibile</string>
+    <string name="count_in">Conteggio</string>
+    <string name="count_in_unavailable">Il conteggio iniziale non è ancora disponibile</string>
+    <string name="error_click_needs_bpm">Imposta prima il tempo del brano.</string>
+    <string name="fullscreen_enter">Schermo intero (F)</string>
+    <string name="fullscreen_exit">Esci da schermo intero (Esc)</string>
+    <string name="theme">Tema</string>
+    <string name="theme_mode">Modalità</string>
+    <string name="theme_mode_dark">Scuro</string>
+    <string name="theme_mode_light">Chiaro</string>
+    <string name="theme_palettes">Temi</string>
+    <string name="theme_downstep">Downstep</string>
+    <string name="theme_graphite">Grafite</string>
+    <string name="theme_midnight">Mezzanotte</string>
+    <string name="theme_forest">Foresta</string>
+    <string name="theme_rosewood">Palissandro</string>
+    <string name="theme_dusk">Crepuscolo</string>
+    <string name="theme_sandstone">Arenaria</string>
+    <string name="theme_high_contrast">Alto contrasto</string>
+    <string name="presets_none">Ancora nessun preset per questo brano</string>
+    <string name="external_meta">Aperto da un\'altra app</string>
+    <string name="loading_track">Apro “%1$s”…</string>
+    <!-- Loop chips (H) -->
+    <string name="new_loop">Nuovo loop</string>
+    <string name="key_new_loop">L</string>
+    <string name="loop_length_seconds">%1$d s</string>
+    <plurals name="loop_passes">
+        <item quantity="one">%1$d passaggio</item>
+        <item quantity="other">%1$d passaggi</item>
+    </plurals>
+    <string name="loop_rename">Rinomina il loop</string>
+    <string name="loop_delete">Elimina il loop</string>
+    <string name="error_loop_name">Il nome deve avere da 1 a %1$d caratteri.</string>
+    <string name="suggestion_accept">Tieni come loop</string>
+    <string name="suggestion_dismiss">Scarta</string>
+    <!-- Transport and loop tools (H) -->
+    <string name="loop_off">Loop spento</string>
+    <string name="loop_toggle_tooltip">Loop sì/no (Maiusc+L)</string>
+    <string name="to_start_description">Inizio</string>
+    <string name="next_loop_description">Loop successivo (])</string>
+    <string name="pause">Pausa</string>
+    <string name="pass_count">Passaggio %1$d</string>
+    <string name="pass_ramp">+%1$s tra %2$d</string>
+    <string name="pass_at_target">obiettivo raggiunto</string>
+    <string name="hint_set">imposta</string>
+    <string name="hint_loops">loop</string>
+    <string name="hint_fullscreen">schermo intero</string>
+    <!-- Waveform and zoom strip (W) -->
+    <string name="waveform_description">Forma d\'onda, durata %1$s</string>
+    <string name="zoom_title">ZOOM · %1$s · %2$s – %3$s</string>
+    <string name="zoom_beats">%1$s battiti · %2$s battute</string>
+    <string name="zoom_seconds">%1$s s</string>
+    <string name="marker_a">A %1$s</string>
+    <string name="marker_b">B %1$s</string>
+    <string name="marker_a_description">Inizio del loop (A): trascina per spostarlo</string>
+    <string name="marker_b_description">Fine del loop (B): trascina per spostarla</string>
+    <string name="waveform_empty">Apri un brano dalla libreria per vederne la forma d\'onda.</string>
+    <!-- Speed, pitch, isolate, progression, notes cards (C) -->
+    <string name="speed_down_description">Più lento del 5 per cento</string>
+    <string name="speed_up_description">Più veloce del 5 per cento</string>
+    <string name="pitch_down_description">Giù di un semitono</string>
+    <string name="pitch_up_description">Su di un semitono</string>
+    <string name="isolate">Isola</string>
+    <string name="isolate_full_mix">Mix completo</string>
+    <string name="isolate_only">Solo %1$s</string>
+    <string name="band_low">Bassi</string>
+    <string name="band_mid">Medi</string>
+    <string name="band_high">Alti</string>
+    <string name="progression">Progressione</string>
+    <string name="progression_toggle">Progressione sì/no</string>
+    <string name="progression_off">Spenta — la velocità resta quella che imposti</string>
+    <plurals name="progression_ramping">
+        <item quantity="one">Ora %2$s · prossimo +%3$s tra %1$d passaggio</item>
+        <item quantity="other">Ora %2$s · prossimo +%3$s tra %1$d passaggi</item>
+    </plurals>
+    <string name="progression_at_target">Obiettivo raggiunto — %1$s</string>
+    <string name="progression_from">Da</string>
+    <string name="progression_to">a</string>
+    <string name="progression_raise">, aumenta di</string>
+    <string name="progression_every">ogni</string>
+    <plurals name="progression_passes_word">
+        <item quantity="one">passaggio</item>
+        <item quantity="other">passaggi</item>
+    </plurals>
+    <string name="stepper_decrease">Diminuisci %1$s</string>
+    <string name="stepper_increase">Aumenta %1$s</string>
+    <string name="notes">Note</string>
+    <string name="notes_placeholder">Accordi, diteggiatura, cosa ascoltare…</string>
+    <!-- Library drawer, title bar (D) -->
+    <string name="close">Chiudi</string>
+    <string name="drawer_track_meta">%1$s · %2$s</string>
+    <string name="title_bar">Downstep %1$s</string>
+    <!-- Group H additions (component agents append here only) -->
+    <!-- Group W additions -->
+    <!-- Group C additions -->
+    <string name="progression_from_value">velocità di partenza</string>
+    <string name="progression_to_value">velocità obiettivo</string>
+    <string name="progression_step_value">incremento di velocità</string>
+    <string name="progression_every_value">passaggi per incremento</string>
+    <!-- Group D additions -->
+    <!-- loops: editable loops on the overview (top bar), inline chip rename -->
+    <string name="loop_move_description">Barra del loop: trascina per spostarlo, clicca per riprodurlo</string>
+    <!-- export: full track / loops / both, one batch, saving many files -->
+    <string name="export_options_title">Esporta in MP3</string>
+    <string name="export_options_text">Velocità, intonazione, mix ed EQ sono applicati. Metronomo, conteggio e Isola restano fuori.</string>
+    <string name="export_scope_full">Brano intero</string>
+    <string name="export_scope_loops">Loop, un file per ciascuno</string>
+    <string name="export_scope_both">Brano intero e loop</string>
+    <string name="export_scope_no_loops">Questo brano non ha ancora loop</string>
+    <plurals name="export_files_count">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d file</item>
+    </plurals>
+    <string name="export_running_many">Esporto %1$s in MP3… %2$d%</string>
+    <string name="export_ready_text_many">%1$s pronti. Velocità, intonazione ed effetti sono applicati.</string>
+    <string name="export_ready_more">…e altri %1$d</string>
+    <string name="export_save_folder">Salva in una cartella…</string>
+    <string name="export_saved_many">Salvati %1$s in %2$s.</string>
+    <string name="error_export_save_many">Impossibile salvare tutti i file in %1$s.</string>
+    <string name="error_export_no_loops">Questo brano non ha loop da esportare.</string>
+    <!-- eq: bell-curve EQ graph, saved per track -->
+    <string name="effects_subtitle_default">Nessun brano aperto: questo equalizzatore vale per i brani che non ne hanno uno proprio.</string>
+    <string name="eq_graph_hint">Trascina un punto: in orizzontale la frequenza, in verticale il guadagno. Rotellina, o trascina con Maiusc o Alt, per l'ampiezza. Doppio clic per 0 dB.</string>
+    <string name="eq_band_readout">%1$s · %2$s · Q %3$s</string>
+    <string name="eq_graph_description">Curva dell'equalizzatore</string>
+    <!-- click: metronome, count-in, tempo detection and tap tempo -->
+    <string name="header_bpm_detected">≈ %1$s BPM</string>
+    <string name="header_bpm_detecting">BPM …</string>
+    <string name="tempo_detecting">Sto cercando il tempo di questo brano…</string>
+    <string name="bpm_detected_description">Tempo trovato nell’audio: fai clic per cambiarlo</string>
+    <string name="bpm_detected">Trovato nell’audio: %1$s BPM.</string>
+    <string name="bpm_use_detected">Usa quello trovato</string>
+    <string name="bpm_tap">Batti</string>
+    <string name="click_settings">Impostazioni di metronomo e conteggio</string>
+    <string name="click_volume">Volume del clic</string>
+    <string name="count_in_length">Conteggio iniziale</string>
+    <string name="count_in_beats">%1$d battiti</string>
+    <string name="count_in_every_loop">Conta a ogni ripartenza del loop</string>
 </resources>

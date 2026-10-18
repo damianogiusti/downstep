@@ -1,11 +1,21 @@
 package com.damianogiusti.slowdowner.ui.common
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 
 /**
  * Whether the user is typing. Desktop keyboard shortcuts (Space, arrows) take over every other
@@ -23,6 +33,33 @@ class TextInputFocus {
 
 /** Null on Android: there are no window-level shortcuts to protect. */
 val LocalTextInputFocus = compositionLocalOf<TextInputFocus?> { null }
+
+/**
+ * Put on a screen's root: a press anywhere in it takes the focus away from a text field, as a click
+ * outside a browser's textarea does, so the shortcuts come back. Only buttons and chips take the focus
+ * themselves; the waveforms, sliders and the background do not. The press is not consumed. A text field
+ * takes the focus back only later in the gesture (on release for a tap; on press only for a mouse on a
+ * non-empty text), so a field that must survive a press inside it has to wait for the release.
+ */
+fun Modifier.clearsFocusOnPress(): Modifier = composed {
+    val focusManager = LocalFocusManager.current
+    pointerInput(focusManager) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            focusManager.clearFocus()
+        }
+    }
+}
+
+/** Put on a text field: Esc leaves it, and the next Esc reaches the window's shortcuts. */
+fun Modifier.leavesOnEscape(): Modifier = composed {
+    val focusManager = LocalFocusManager.current
+    onPreviewKeyEvent { event ->
+        if (event.key != Key.Escape || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        focusManager.clearFocus()
+        true
+    }
+}
 
 /** Put on every text field, so [TextInputFocus] knows when the user is typing. */
 fun Modifier.reportsTextInputFocus(): Modifier = composed {

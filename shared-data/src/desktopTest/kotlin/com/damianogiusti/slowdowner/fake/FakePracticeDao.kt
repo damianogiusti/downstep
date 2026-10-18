@@ -30,13 +30,40 @@ class FakePracticeDao(private val existingTrackIds: Set<String>) : PracticeDao {
         now: Long,
     ) {
         if (trackId !in existingTrackIds) return
+        // Like the query: every column but the settings survives the replace.
+        val previous = findState(trackId)
         val row = PracticeStateEntity(
             trackId,
             PracticeSettingsColumns(speedPercent, pitchSemitones, loopStart, loopEnd, isLoopOn),
             now,
+            activeLoopId = previous?.activeLoopId,
+            bpm = previous?.bpm,
+            eqCurve = previous?.eqCurve,
+            detectedBpm = previous?.detectedBpm,
+            beatOffsetSeconds = previous?.beatOffsetSeconds,
+            tempoAnalysisVersion = previous?.tempoAnalysisVersion ?: 0,
         )
         states.update { current -> current.filterNot { it.trackId == trackId } + row }
     }
+
+    override suspend fun trackEqCurve(trackId: String) = findState(trackId)?.eqCurve
+
+    override suspend fun insertDefaultStateIfAbsent(
+        trackId: String,
+        speedPercent: Float,
+        pitchSemitones: Float,
+        loopStart: Float,
+        loopEnd: Float,
+        isLoopOn: Boolean,
+        now: Long,
+    ) {
+        if (trackId !in existingTrackIds || findState(trackId) != null) return
+        val row = PracticeStateEntity(trackId, PracticeSettingsColumns(speedPercent, pitchSemitones, loopStart, loopEnd, isLoopOn), now)
+        states.update { it + row }
+    }
+
+    override suspend fun updateTrackEqCurve(trackId: String, json: String?) =
+        states.update { all -> all.map { if (it.trackId == trackId) it.copy(eqCurve = json) else it } }
 
     override fun observePresets(trackId: String): Flow<List<PracticePresetEntity>> =
         presets.map { all -> all.filter { it.trackId == trackId } }

@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.data.practice
 
+import com.damianogiusti.slowdowner.data.effects.EqCurveCodec
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.practice.PracticePreset
 import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
@@ -24,5 +25,6 @@ object PracticeSettingsMapper {
         trackId = entity.trackId,
         name = entity.name,
         settings = toDomain(entity.settings),
+        eq = EqCurveCodec.decode(entity.eqCurve),
     )
 }

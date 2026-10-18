@@ -36,15 +36,20 @@
     <string name="loop_shift_forward">▶</string>
     <string name="loop_halve_description">Halve the loop</string>
     <string name="loop_double_description">Double the loop</string>
-    <string name="loop_shift_backward_description">Move the loop back</string>
-    <string name="loop_shift_forward_description">Move the loop forward</string>
+    <string name="loop_shift_backward_description">Move the loop back 1 s</string>
+    <string name="loop_shift_forward_description">Move the loop forward 1 s</string>
 
     <string name="mix_title">L / R balance</string>
-    <string name="effects_subtitle">They apply to all tracks.</string>
+    <string name="effects_subtitle">The EQ is saved with this track; the mix is for this session.</string>
     <string name="mix_format">Left %1$d / Right %2$d</string>
     <string name="reset">Reset</string>
     <string name="eq_title">Equalizer</string>
     <string name="eq_preamp">Preamp</string>
+    <string name="eq_reset_tooltip">Reset the EQ to flat</string>
+    <string name="mix_reset_tooltip">Center the L / R balance</string>
+    <string name="eq_switch_on">On</string>
+    <string name="eq_switch_off">Off</string>
+    <string name="eq_switch_description">Equalizer on</string>
     <string name="decimal_separator">.</string>
     <string name="gain_format">%1$s dB</string>
     <string name="hz_format">%1$d Hz</string>
@@ -57,7 +62,7 @@
     <string name="quality_very_high">Max</string>
 
     <string name="export">Export</string>
-    <string name="export_running">Exporting to MP3… %1$d%%</string>
+    <string name="export_running">Exporting to MP3… %1$d%</string>
     <string name="export_ready_title">Export ready</string>
     <string name="export_ready_text">"%1$s" is ready. Speed, pitch and effects are applied.</string>
     <string name="export_share">Share</string>
@@ -223,6 +228,13 @@
     <string name="menu_window">Window</string>
     <string name="menu_close_window">Close Window</string>
     <string name="menu_minimize">Minimize</string>
+    <!-- Windows: the window buttons at the header's right end, which replaces the title bar. -->
+    <string name="window_minimize">Minimize</string>
+    <string name="window_maximize">Maximize</string>
+    <string name="window_restore">Restore Down</string>
+    <string name="window_close">Close</string>
+    <string name="menu_enter_fullscreen">Enter Full Screen</string>
+    <string name="menu_exit_fullscreen">Exit Full Screen</string>
     <string name="menu_help">Help</string>
 
     <!-- Support prompt (desktop) -->
@@ -244,11 +256,173 @@
     <string name="update_later">Later</string>
     <string name="update_cancel">Cancel</string>
     <string name="update_retry">Try again</string>
-    <string name="update_downloading">Downloading… %1$d%%</string>
+    <string name="update_downloading">Downloading… %1$d%</string>
     <string name="update_preparing">Installing…</string>
     <string name="update_restarting">Restarting…</string>
     <string name="update_network_error">The download did not finish. Check the connection and try again.</string>
     <string name="update_failed">The update did not work. You can download it from the website.</string>
     <string name="update_banner">Downstep %1$s is available</string>
     <string name="update_banner_action">Update</string>
+
+    <!-- Downstep 2.0 player. Component groups: H header, chips, transport · W waveform · C cards · D drawer, title bar -->
+    <!-- Header (H) -->
+    <string name="library_open_description">Open the library</string>
+    <string name="header_bpm">%1$s BPM</string>
+    <string name="header_bpm_unset">BPM —</string>
+    <string name="bpm_edit_description">Set the tempo of this track</string>
+    <string name="bpm_dialog_title">Tempo of this track</string>
+    <string name="bpm_dialog_message">Used for the metronome, the count-in and the length of new loops (%1$d–%2$d BPM).</string>
+    <string name="bpm_label">BPM</string>
+    <string name="bpm_clear">Clear</string>
+    <string name="error_bpm_range">Enter a tempo between %1$d and %2$d BPM.</string>
+    <plurals name="loops_count">
+        <item quantity="one">%1$d loop</item>
+        <item quantity="other">%1$d loops</item>
+    </plurals>
+    <string name="loops_none">no loops</string>
+    <string name="analyze">Analyze</string>
+    <string name="analyze_running">Analyzing…</string>
+    <string name="analyze_again">Re-analyze</string>
+    <string name="analyze_tooltip">Detect sections, suggest loops</string>
+    <string name="analyze_unavailable">Section detection isn’t available yet</string>
+    <string name="error_analyze">Analysis failed: %1$s</string>
+    <string name="metronome">Metronome</string>
+    <string name="metronome_unavailable">The metronome isn’t available yet</string>
+    <string name="count_in">Count-in</string>
+    <string name="count_in_unavailable">Count-in isn’t available yet</string>
+    <string name="error_click_needs_bpm">Set the tempo of the track first.</string>
+    <string name="fullscreen_enter">Fullscreen (F)</string>
+    <string name="fullscreen_exit">Exit fullscreen (Esc)</string>
+    <string name="theme">Theme</string>
+    <string name="theme_mode">Mode</string>
+    <string name="theme_mode_dark">Dark</string>
+    <string name="theme_mode_light">Light</string>
+    <string name="theme_palettes">Themes</string>
+    <string name="theme_downstep">Downstep</string>
+    <string name="theme_graphite">Graphite</string>
+    <string name="theme_midnight">Midnight</string>
+    <string name="theme_forest">Forest</string>
+    <string name="theme_rosewood">Rosewood</string>
+    <string name="theme_dusk">Dusk</string>
+    <string name="theme_sandstone">Sandstone</string>
+    <string name="theme_high_contrast">High contrast</string>
+    <string name="presets_none">No presets for this track yet</string>
+    <string name="external_meta">Opened from another app</string>
+    <string name="loading_track">Opening “%1$s”…</string>
+    <!-- Loop chips (H) -->
+    <string name="new_loop">New loop</string>
+    <string name="key_new_loop">L</string>
+    <string name="loop_length_seconds">%1$d s</string>
+    <plurals name="loop_passes">
+        <item quantity="one">%1$d pass</item>
+        <item quantity="other">%1$d passes</item>
+    </plurals>
+    <string name="loop_rename">Rename loop</string>
+    <string name="loop_delete">Delete loop</string>
+    <string name="error_loop_name">The name must be 1 to %1$d characters long.</string>
+    <string name="suggestion_accept">Keep as loop</string>
+    <string name="suggestion_dismiss">Dismiss</string>
+    <!-- Transport and loop tools (H) -->
+    <string name="loop_off">Loop off</string>
+    <string name="loop_toggle_tooltip">Loop on/off (Shift+L)</string>
+    <string name="to_start_description">Start</string>
+    <string name="next_loop_description">Next loop (])</string>
+    <string name="pause">Pause</string>
+    <string name="pass_count">Pass %1$d</string>
+    <string name="pass_ramp">+%1$s in %2$d</string>
+    <string name="pass_at_target">at target</string>
+    <string name="hint_set">set</string>
+    <string name="hint_loops">loops</string>
+    <string name="hint_fullscreen">fullscreen</string>
+    <!-- Waveform and zoom strip (W) -->
+    <string name="waveform_description">Waveform, %1$s long</string>
+    <string name="zoom_title">ZOOM · %1$s · %2$s – %3$s</string>
+    <string name="zoom_beats">%1$s beats · %2$s bars</string>
+    <string name="zoom_seconds">%1$s s</string>
+    <string name="marker_a">A %1$s</string>
+    <string name="marker_b">B %1$s</string>
+    <string name="marker_a_description">Loop start (A): drag to move</string>
+    <string name="marker_b_description">Loop end (B): drag to move</string>
+    <string name="waveform_empty">Open a track from the library to see its waveform.</string>
+    <!-- Speed, pitch, isolate, progression, notes cards (C) -->
+    <string name="speed_down_description">Slower by 5 percent</string>
+    <string name="speed_up_description">Faster by 5 percent</string>
+    <string name="pitch_down_description">Down a semitone</string>
+    <string name="pitch_up_description">Up a semitone</string>
+    <string name="isolate">Isolate</string>
+    <string name="isolate_full_mix">Full mix</string>
+    <string name="isolate_only">%1$s only</string>
+    <string name="band_low">Low</string>
+    <string name="band_mid">Mid</string>
+    <string name="band_high">High</string>
+    <string name="progression">Progression</string>
+    <string name="progression_toggle">Progression on/off</string>
+    <string name="progression_off">Off — speed stays where you set it</string>
+    <plurals name="progression_ramping">
+        <item quantity="one">Now %2$s · next +%3$s in %1$d pass</item>
+        <item quantity="other">Now %2$s · next +%3$s in %1$d passes</item>
+    </plurals>
+    <string name="progression_at_target">At target — %1$s</string>
+    <string name="progression_from">From</string>
+    <string name="progression_to">to</string>
+    <string name="progression_raise">, raise</string>
+    <string name="progression_every">every</string>
+    <plurals name="progression_passes_word">
+        <item quantity="one">pass</item>
+        <item quantity="other">passes</item>
+    </plurals>
+    <string name="stepper_decrease">Decrease %1$s</string>
+    <string name="stepper_increase">Increase %1$s</string>
+    <string name="notes">Notes</string>
+    <string name="notes_placeholder">Chords, fingering, what to listen for…</string>
+    <!-- Library drawer, title bar (D) -->
+    <string name="close">Close</string>
+    <string name="drawer_track_meta">%1$s · %2$s</string>
+    <string name="title_bar">Downstep %1$s</string>
+    <!-- Group H additions (component agents append here only) -->
+    <!-- Group W additions -->
+    <!-- Group C additions -->
+    <string name="progression_from_value">starting speed</string>
+    <string name="progression_to_value">target speed</string>
+    <string name="progression_step_value">speed step</string>
+    <string name="progression_every_value">passes per step</string>
+    <!-- Group D additions -->
+    <!-- loops: editable loops on the overview (top bar), inline chip rename -->
+    <string name="loop_move_description">Loop top bar: drag to move the loop, click to play it</string>
+    <!-- export: full track / loops / both, one batch, saving many files -->
+    <string name="export_options_title">Export to MP3</string>
+    <string name="export_options_text">Speed, pitch, mix and EQ are applied. The metronome, the count-in and Isolate are left out.</string>
+    <string name="export_scope_full">Full track</string>
+    <string name="export_scope_loops">Loops, one file each</string>
+    <string name="export_scope_both">Full track and loops</string>
+    <string name="export_scope_no_loops">This track has no loops yet</string>
+    <plurals name="export_files_count">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <string name="export_running_many">Exporting %1$s to MP3… %2$d%</string>
+    <string name="export_ready_text_many">%1$s are ready. Speed, pitch and effects are applied.</string>
+    <string name="export_ready_more">…and %1$d more</string>
+    <string name="export_save_folder">Save to folder…</string>
+    <string name="export_saved_many">Saved %1$s to %2$s.</string>
+    <string name="error_export_save_many">Cannot save every file to %1$s.</string>
+    <string name="error_export_no_loops">This track has no loops to export.</string>
+    <!-- eq: bell-curve EQ graph, saved per track -->
+    <string name="effects_subtitle_default">No track is open: this EQ is the default for tracks without their own.</string>
+    <string name="eq_graph_hint">Drag a point: sideways for the frequency, up and down for the gain. Scroll, or drag with Shift or Alt, for the width. Double-click for 0 dB.</string>
+    <string name="eq_band_readout">%1$s · %2$s · Q %3$s</string>
+    <string name="eq_graph_description">EQ curve</string>
+    <!-- click: metronome, count-in, tempo detection and tap tempo -->
+    <string name="header_bpm_detected">≈ %1$s BPM</string>
+    <string name="header_bpm_detecting">BPM …</string>
+    <string name="tempo_detecting">Finding the tempo of this track…</string>
+    <string name="bpm_detected_description">Tempo found in the audio: click to change it</string>
+    <string name="bpm_detected">Found in the audio: %1$s BPM.</string>
+    <string name="bpm_use_detected">Use detected</string>
+    <string name="bpm_tap">Tap</string>
+    <string name="click_settings">Metronome and count-in settings</string>
+    <string name="click_volume">Click volume</string>
+    <string name="count_in_length">Count-in</string>
+    <string name="count_in_beats">%1$d beats</string>
+    <string name="count_in_every_loop">Count in at every loop restart</string>
 </resources>

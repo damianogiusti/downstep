@@ -7,7 +7,10 @@ import com.damianogiusti.slowdowner.ui.resources.remove_confirm
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.compose.resources.getPluralString
 import org.jetbrains.compose.resources.getString
+import org.w3c.dom.Element
+import java.io.File
 import java.util.Locale
+import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -64,5 +67,16 @@ class StringResourcesTest {
     fun `an unsupported language falls back to English`() = runTest {
         Locale.setDefault(Locale.GERMAN)
         assertEquals("Restored 1 track", getPluralString(Res.plurals.backup_restored_tracks, 1, 1))
+    }
+
+    /** "string:name" and "plurals:name" of one strings.xml; tests run with the module as working directory. */
+    private fun resourceNames(folder: String): Set<String> {
+        val document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+            .parse(File("src/commonMain/composeResources/$folder/strings.xml"))
+        val elements = document.documentElement.childNodes
+        return (0 until elements.length).map { elements.item(it) }
+            .filterIsInstance<Element>()
+            .map { "${it.tagName}:${it.getAttribute("name")}" }
+            .toSet()
     }
 }

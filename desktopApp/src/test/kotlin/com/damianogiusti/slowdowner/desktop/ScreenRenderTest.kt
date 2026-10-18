@@ -30,7 +30,11 @@ import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import com.damianogiusti.slowdowner.domain.library.ImportDocumentUseCase
 import com.damianogiusti.slowdowner.domain.library.ImportResult
 import com.damianogiusti.slowdowner.domain.update.CheckForUpdateUseCase
+import com.damianogiusti.slowdowner.ui.player.ExportUiState
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
+import com.damianogiusti.slowdowner.domain.export.ExportScope
+import com.damianogiusti.slowdowner.domain.loops.LoopBounds
+import com.damianogiusti.slowdowner.domain.loops.LoopRepository
 import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.skia.EncodedImageFormat
@@ -46,6 +50,7 @@ import javax.swing.SwingUtilities
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.test.AfterTest
+import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -72,6 +77,7 @@ class ScreenRenderTest {
         modules(
             desktopModule(
                 directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(), supportPromptStore, updates = updates,
+                clickSettingsStore = InMemoryClickSettingsStore(),
             ),
             useCasesModule,
             uiModule,
@@ -118,8 +124,42 @@ class ScreenRenderTest {
         assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
     }
 
-    /** Renders the app at the given size; [setup] runs on the Swing thread once the ViewModels exist. */
-    private fun render(output: File, widthDp: Int, heightDp: Int, setup: (PlayerViewModel) -> Unit = {}): Int {
+    @Test
+    fun `the export options offer the full track, the loops or both`() {
+        val tone = File(Files.createTempDirectory("slowdowner-render-audio").toFile(), "Autumn Leaves.wav")
+        tone.writeBytes(toneWav())
+        val imported = runBlocking { koin.get<ImportDocumentUseCase>()(tone.path) }
+        assertIs<ImportResult.Success>(imported)
+        runBlocking {
+            koin.get<LoopRepository>().create(imported.track.id, "Head", LoopBounds(0.1f, 0.3f))
+            koin.get<LoopRepository>().create(imported.track.id, "Solo", LoopBounds(0.5f, 0.8f))
+        }
+        var options: ExportUiState? = null
+        val bytes = render(
+            File("build/screenshots/export-options.png"), widthDp = 1280, heightDp = 820,
+            setup = { player -> player.onTrackSelected(imported.track) },
+            // Once the track is open: the header's Export icon.
+            later = { player ->
+                player.onExportClicked()
+                player.onExportScopeChanged(ExportScope.BOTH)
+                options = player.export.value
+            },
+        )
+        assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+        assertEquals(ExportUiState.Choosing(ExportScope.BOTH, loopCount = 2), options)
+    }
+
+    /**
+     * Renders the app at the given size; [setup] runs on the Swing thread once the ViewModels exist,
+     * and [later] halfway through the frames, once what [setup] started has settled.
+     */
+    private fun render(
+        output: File,
+        widthDp: Int,
+        heightDp: Int,
+        setup: (PlayerViewModel) -> Unit = {},
+        later: (PlayerViewModel) -> Unit = {},
+    ): Int {
         output.parentFile.mkdirs()
         lateinit var scene: ImageComposeScene
         var player: PlayerViewModel? = null
@@ -134,7 +174,7 @@ class ScreenRenderTest {
             scene = ImageComposeScene(width = widthDp * 2, height = heightDp * 2, density = Density(2f)) {
                 CompositionLocalProvider(LocalLifecycleOwner provides lifecycle, LocalViewModelStoreOwner provides store) {
                     SlowDownerTheme {
-                        val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel())
+                        val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel(), koinViewModel())
                         player = viewModels.player
                         Column(modifier = Modifier.fillMaxSize()) {
                             UpdateBanner()
@@ -150,7 +190,10 @@ class ScreenRenderTest {
         }
         repeat(10) { frame ->
             Thread.sleep(150)
-            SwingUtilities.invokeAndWait { scene.render((frame + 1) * 150_000_000L) }
+            SwingUtilities.invokeAndWait {
+                if (frame == 5) player?.let(later)
+                scene.render((frame + 1) * 150_000_000L)
+            }
         }
         var bytes = 0
         SwingUtilities.invokeAndWait {

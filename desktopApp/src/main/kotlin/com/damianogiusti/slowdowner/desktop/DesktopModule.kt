@@ -2,11 +2,15 @@ package com.damianogiusti.slowdowner.desktop
 
 import com.damianogiusti.slowdowner.data.backup.BackupArchive
 import com.damianogiusti.slowdowner.data.backup.DefaultBackupRepository
+import com.damianogiusti.slowdowner.data.click.ClickSettingsStore
+import com.damianogiusti.slowdowner.data.click.DefaultClickSettingsRepository
+import com.damianogiusti.slowdowner.data.click.PreferencesClickSettingsStore
 import com.damianogiusti.slowdowner.data.database.DatabaseTransactionRunner
 import com.damianogiusti.slowdowner.data.database.RoomTransactionRunner
 import com.damianogiusti.slowdowner.data.database.SlowDownerDatabase
 import com.damianogiusti.slowdowner.data.database.desktopDatabase
 import com.damianogiusti.slowdowner.data.effects.DefaultEffectsSettingsRepository
+import com.damianogiusti.slowdowner.data.effects.DefaultTrackEqRepository
 import com.damianogiusti.slowdowner.data.effects.EffectsSettingsStore
 import com.damianogiusti.slowdowner.data.effects.PreferencesEffectsSettingsStore
 import com.damianogiusti.slowdowner.data.export.DefaultExportRepository
@@ -24,16 +28,21 @@ import com.damianogiusti.slowdowner.data.library.OkHttpFileDataSource
 import com.damianogiusti.slowdowner.data.library.PassthroughContainerDataSource
 import com.damianogiusti.slowdowner.data.library.RoomLibraryStore
 import com.damianogiusti.slowdowner.data.library.YouTubeStreamDataSource
+import com.damianogiusti.slowdowner.data.loops.DefaultLoopRepository
 import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
 import com.damianogiusti.slowdowner.data.playback.NativeOfflineRenderer
+import com.damianogiusti.slowdowner.data.playback.NativeTempoDetector
 import com.damianogiusti.slowdowner.data.playlists.DefaultPlaylistRepository
 import com.damianogiusti.slowdowner.data.practice.DefaultPracticeRepository
 import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
 import com.damianogiusti.slowdowner.data.support.DefaultSupportPromptRepository
 import com.damianogiusti.slowdowner.data.support.PreferencesSupportPromptStore
 import com.damianogiusti.slowdowner.data.support.SupportPromptStore
+import com.damianogiusti.slowdowner.data.theme.DefaultThemeRepository
+import com.damianogiusti.slowdowner.data.theme.PreferencesThemeStore
+import com.damianogiusti.slowdowner.data.theme.ThemeStore
 import com.damianogiusti.slowdowner.data.update.DefaultUpdateRepository
 import com.damianogiusti.slowdowner.data.update.GitHubReleaseDataSource
 import com.damianogiusti.slowdowner.data.update.ReleaseDataSource
@@ -41,10 +50,14 @@ import com.damianogiusti.slowdowner.data.update.UpdateInstaller
 import com.damianogiusti.slowdowner.desktop.update.DesktopUpdateInstaller
 import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
 import com.damianogiusti.slowdowner.domain.backup.BackupRepository
+import com.damianogiusti.slowdowner.domain.click.ClickSettingsRepository
+import com.damianogiusti.slowdowner.domain.click.ClickTrackEngine
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
 import com.damianogiusti.slowdowner.domain.effects.EffectsSettingsRepository
+import com.damianogiusti.slowdowner.domain.effects.TrackEqRepository
 import com.damianogiusti.slowdowner.domain.export.ExportRepository
 import com.damianogiusti.slowdowner.domain.library.LibraryRepository
+import com.damianogiusti.slowdowner.domain.loops.LoopRepository
 import com.damianogiusti.slowdowner.domain.playback.NowPlayingRepository
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.playlists.PlaylistRepository
@@ -56,6 +69,8 @@ import com.damianogiusti.slowdowner.domain.support.RecordAppLaunchUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportSupportPromptShownUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportWhyFreeOpenedUseCase
 import com.damianogiusti.slowdowner.domain.support.SupportPromptRepository
+import com.damianogiusti.slowdowner.domain.tempo.TempoDetector
+import com.damianogiusti.slowdowner.domain.theme.ThemeRepository
 import com.damianogiusti.slowdowner.domain.update.CheckForUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.InstallUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.ObserveAvailableUpdateUseCase
@@ -75,7 +90,6 @@ import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
-import org.schabi.newpipe.extractor.NewPipe
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -90,6 +104,8 @@ fun desktopModule(
     supportPromptStore: SupportPromptStore = PreferencesSupportPromptStore(),
     logger: Logger = ConsoleLogger(),
     updates: UpdateSettings = UpdateSettings(),
+    themeStore: ThemeStore = PreferencesThemeStore(),
+    clickSettingsStore: ClickSettingsStore = PreferencesClickSettingsStore(),
 ) = module {
     single { directories }
     single { logger }
@@ -97,14 +113,16 @@ fun desktopModule(
     single { OkHttpClient.Builder().readTimeout(30, TimeUnit.SECONDS).build() }
     single<SlowDownerDatabase> { desktopDatabase(directories.database) }
     single<DatabaseTransactionRunner> { RoomTransactionRunner(get()) }
-    // Must be initialised once before any YouTube import.
-    single(createdAtStart = true) { NewPipeDownloaderAdapter(get()).also(NewPipe::init) }
 
     // Playback: the C engine (Bungee) on the default output device.
     single { engine }
     single { DesktopPlaybackEngine(get(), get()) }
     single<PlaybackEngine> { get<DesktopPlaybackEngine>() }
     single<EffectsEngine> { get<DesktopPlaybackEngine>() }
+    // Metronome, count-in and tempo detection: the same engine.
+    single<ClickTrackEngine> { get<DesktopPlaybackEngine>() }
+    single<TempoDetector> { NativeTempoDetector(get()) }
+    single<ClickSettingsRepository> { DefaultClickSettingsRepository(clickSettingsStore, Dispatchers.IO) }
     single<AudioSourceRepository> { DesktopAudioSourceRepository(get(), logger) }
     singleOf(::InMemoryNowPlayingRepository) { bind<NowPlayingRepository>() }
 
@@ -113,7 +131,8 @@ fun desktopModule(
     single<LibraryStore> {
         RoomLibraryStore(get(), LegacyJsonLibraryIndex(directories.library, logger), directories.library, logger)
     }
-    singleOf(::NewPipeYouTubeStreamDataSource) { bind<YouTubeStreamDataSource>() }
+    // NewPipe is initialised by the first YouTube import, off the startup path.
+    single<YouTubeStreamDataSource> { NewPipeYouTubeStreamDataSource { NewPipeDownloaderAdapter(get()) } }
     singleOf(::OkHttpFileDataSource) { bind<HttpFileDataSource>() }
     single<DocumentDataSource> { FileDocumentDataSource() }
     single<MediaContainerDataSource> { PassthroughContainerDataSource() }
@@ -130,6 +149,9 @@ fun desktopModule(
     }
     single { get<SlowDownerDatabase>().practiceDao() }
     single<PracticeRepository> { DefaultPracticeRepository(get(), Dispatchers.IO) }
+    single<TrackEqRepository> { DefaultTrackEqRepository(get(), Dispatchers.IO) }
+    single<LoopRepository> { DefaultLoopRepository(get<SlowDownerDatabase>().loopDao(), Dispatchers.IO) }
+    single<ThemeRepository> { DefaultThemeRepository(themeStore, Dispatchers.IO) }
     single { get<SlowDownerDatabase>().playlistDao() }
     single<PlaylistRepository> { DefaultPlaylistRepository(get(), Dispatchers.IO) }
     single { get<SlowDownerDatabase>().backupDao() }
@@ -160,7 +182,7 @@ fun desktopModule(
     viewModelOf(::SupportPromptViewModel)
 
     // Updates from the public releases: desktop only, like the prompt above.
-    single<ReleaseDataSource> { GitHubReleaseDataSource(get(), updates.releasesUrl) }
+    single<ReleaseDataSource> { GitHubReleaseDataSource(get(), updates.releasesUrl, updates.releasesPageUrl) }
     single<UpdateInstaller> { DesktopUpdateInstaller(updates.installation, File(directories.cache, "updates/install"), logger) }
     single<UpdateRepository> {
         DefaultUpdateRepository(

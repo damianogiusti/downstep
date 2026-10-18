@@ -41,11 +41,17 @@ kotlin {
             implementation("io.insert-koin:koin-compose-viewmodel")
             implementation("sh.calvin.reorderable:reorderable:3.1.0")
         }
-        getByName("desktopTest").dependencies {
-            // Skiko's native part for this machine: resources read the system locale through it.
-            implementation(compose.desktop.currentOs)
-            implementation(kotlin("test"))
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+        getByName("desktopTest") {
+            // The domain fakes of :shared's tests (engine, repositories), for the ViewModel tests.
+            kotlin.srcDir("../shared/src/commonTest/kotlin/com/damianogiusti/slowdowner/fake")
+            dependencies {
+                // Skiko's native part for this machine: resources read the system locale through it.
+                implementation(compose.desktop.currentOs)
+                // runDesktopComposeUiTest: semantics and mouse input for the component tests.
+                implementation(compose.desktop.uiTestJUnit4)
+                implementation(kotlin("test"))
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+            }
         }
     }
 }

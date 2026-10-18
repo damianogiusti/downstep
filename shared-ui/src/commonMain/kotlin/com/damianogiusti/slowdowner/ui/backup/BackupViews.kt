@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.backup
 
+import com.damianogiusti.slowdowner.ui.common.TitleBarOverlay
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.damianogiusti.slowdowner.domain.backup.BackupFile
 import com.damianogiusti.slowdowner.domain.backup.PlaylistConflictChoice
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
+import com.damianogiusti.slowdowner.domain.theme.ThemeMode
 
 /** Progress of a running export or restore, above the mini player. Hidden otherwise. */
 @Composable
@@ -88,6 +90,7 @@ private data class BackupBannerProgress(val isExport: Boolean, val done: Int, va
 
 @Composable
 fun BackupReadyDialog(file: BackupFile, onShare: () -> Unit, onSave: () -> Unit, onDismiss: () -> Unit) {
+    TitleBarOverlay()
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(painterResource(Res.drawable.ic_archive), contentDescription = null) },
@@ -106,6 +109,7 @@ fun BackupReadyDialog(file: BackupFile, onShare: () -> Unit, onSave: () -> Unit,
 /** Stacked: three actions do not fit in a row on a phone, and a wrapped row leaves a gap. */
 @Composable
 fun PlaylistConflictDialog(names: List<String>, onChoice: (PlaylistConflictChoice) -> Unit, onDismiss: () -> Unit) {
+    TitleBarOverlay()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(pluralStringResource(Res.plurals.backup_playlist_conflict_title, names.size)) },
@@ -135,7 +139,7 @@ fun PlaylistConflictDialog(names: List<String>, onChoice: (PlaylistConflictChoic
 @Preview
 @Composable
 private fun PlaylistConflictDialogPreview() {
-    SlowDownerTheme(darkTheme = true) {
+    SlowDownerTheme(ThemeMode.Dark) {
         PlaylistConflictDialog(names = listOf("The Dunnos"), onChoice = {}, onDismiss = {})
     }
 }
@@ -143,7 +147,7 @@ private fun PlaylistConflictDialogPreview() {
 @Preview
 @Composable
 private fun BackupBannerPreview() {
-    SlowDownerTheme(darkTheme = true) {
+    SlowDownerTheme(ThemeMode.Dark) {
         BackupBanner(BackupUiState.Exporting(done = 3, total = 12), onCancelExport = {})
     }
 }

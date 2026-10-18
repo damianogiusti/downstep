@@ -31,12 +31,15 @@ class FormatsTest {
         assertEquals("3:05", formatClock(185f))
     }
 
-    /** Compose Resources fills only %N$s and %N$d (and %%): anything else would show up raw, as %1$.1f did. */
+    /**
+     * Compose Resources fills only %N$s and %N$d: anything else would show up raw, as %1$.1f did. It
+     * does not unescape %% either (the export banner read "40%%"), so a literal percent is a lone %.
+     */
     @Test
     fun `strings use only placeholders Compose Resources fills`() {
         for (folder in listOf("values", "values-it")) {
             val strings = File("src/commonMain/composeResources/$folder/strings.xml").readText()
-            val unsupported = Regex("""%(?!%|\d+\$[sd])""").findAll(strings.replace("%%", ""))
+            val unsupported = Regex("""%%|%(?!\d+\$[sd])(?=[\d.sdfx])""").findAll(strings)
                 .map { strings.substring(maxOf(0, it.range.first - 30), minOf(strings.length, it.range.last + 10)) }
                 .toList()
             assertTrue(unsupported.isEmpty(), "unsupported placeholders in $folder: $unsupported")

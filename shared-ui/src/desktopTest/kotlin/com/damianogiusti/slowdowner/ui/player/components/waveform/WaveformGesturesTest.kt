@@ -1,0 +1,214 @@
+package com.damianogiusti.slowdowner.ui.player.components.waveform
+
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.unit.Density
+import com.damianogiusti.slowdowner.domain.loops.LoopBounds
+import com.damianogiusti.slowdowner.ui.player.LoopRegionModel
+import com.damianogiusti.slowdowner.ui.player.OverviewWaveformState
+import com.damianogiusti.slowdowner.ui.player.Peaks
+import com.damianogiusti.slowdowner.ui.player.WaveformActions
+import com.damianogiusti.slowdowner.ui.player.components.OverviewWaveform
+import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+@OptIn(ExperimentalComposeUiApi::class)
+class WaveformGesturesTest {
+
+    // 1048 px wide: the axis is 24..1024, so x = 24 + fraction × 1000.
+    private val active = LoopRegionModel(id = 7, start = 0.2f, end = 0.4f, colorIndex = 2, isActive = true)
+    private val state = OverviewWaveformState(
+        isOpen = true,
+        durationSeconds = 100f,
+        peaks = Peaks(0f, 1f, FloatArray(64) { 0.5f }),
+        regions = listOf(active),
+        active = active,
+        isLoopOn = true,
+        enabled = true,
+    )
+
+    @Test
+    fun `a click seeks where it lands`() {
+        val seeks = mutableListOf<Float>()
+        scene(state, WaveformActions(onSeek = { seeks += it }, onLoopBoundsChanged = { _, _ -> })) {
+            click(Offset(724f, 100f))
+        }
+        assertEquals(1, seeks.size)
+        assertEquals(0.7f, seeks.single(), 1e-4f)
+    }
+
+    @Test
+    fun `dragging B commits once, on release`() {
+        val commits = mutableListOf<Pair<Long, LoopBounds>>()
+        val seeks = mutableListOf<Float>()
+        scene(state, WaveformActions(onSeek = { seeks += it }, onLoopBoundsChanged = { id, bounds -> commits += id to bounds })) {
+            press(Offset(426f, 100f))
+            move(Offset(480f, 100f))
+            move(Offset(524f, 100f))
+            assertTrue(commits.isEmpty(), "committed during the drag")
+            release(Offset(524f, 100f))
+        }
+        assertTrue(seeks.isEmpty(), "a drag is not a seek")
+        assertEquals(1, commits.size)
+        assertEquals(7L, commits.single().first)
+        assertEquals(0.2f, commits.single().second.start)
+        assertEquals(0.5f, commits.single().second.end, 1e-4f)
+    }
+
+    @Test
+    fun `A cannot be dragged past B`() {
+        val commits = mutableListOf<LoopBounds>()
+        scene(state, WaveformActions(onSeek = {}, onLoopBoundsChanged = { _, bounds -> commits += bounds })) {
+            press(Offset(224f, 100f))
+            move(Offset(900f, 100f))
+            release(Offset(900f, 100f))
+        }
+        val bounds = commits.single()
+        assertEquals(0.4f, bounds.end)
+        assertTrue(bounds.start < bounds.end)
+    }
+
+    @Test
+    fun `dragging the top bar moves the whole loop and commits once`() {
+        val commits = mutableListOf<Pair<Long, LoopBounds>>()
+        val events = mutableListOf<String>()
+        val actions = recording(events, onCommit = { id, bounds -> commits += id to bounds })
+        scene(state, actions) {
+            press(Offset(300f, 4f))
+            move(Offset(330f, 4f))
+            move(Offset(400f, 4f))
+            assertTrue(commits.isEmpty(), "committed during the drag")
+            release(Offset(400f, 4f))
+        }
+        assertEquals(listOf("commit 7"), events, "no seek, no bar click, no grab of the active loop")
+        assertEquals(0.3f, commits.single().second.start, 1e-4f)
+        assertEquals(0.5f, commits.single().second.end, 1e-4f)
+    }
+
+    @Test
+    fun `a top bar moved past the end of the file keeps its length`() {
+        val commits = mutableListOf<LoopBounds>()
+        scene(state, recording(mutableListOf(), onCommit = { _, bounds -> commits += bounds })) {
+            press(Offset(300f, 4f))
+            move(Offset(1040f, 4f))
+            release(Offset(1040f, 4f))
+        }
+        assertEquals(1f, commits.single().end)
+        assertEquals(0.2f, commits.single().length, 1e-4f)
+    }
+
+    @Test
+    fun `a click on a top bar is a bar click, also with a wobble under the threshold`() {
+        val events = mutableListOf<String>()
+        scene(withOther, recording(events)) {
+            press(Offset(724f, 4f))
+            move(Offset(727f, 5f))
+            release(Offset(727f, 5f))
+        }
+        assertEquals(listOf("bar 8 at 0.703"), events)
+    }
+
+    @Test
+    fun `dragging a loop that is not active grabs it before the commit`() {
+        val events = mutableListOf<String>()
+        val commits = mutableListOf<LoopBounds>()
+        scene(withOther, recording(events, onCommit = { _, bounds -> commits += bounds })) {
+            press(Offset(824f, 120f))
+            move(Offset(874f, 120f))
+            move(Offset(924f, 120f))
+            release(Offset(924f, 120f))
+        }
+        assertEquals(listOf("grab 8", "commit 8"), events)
+        assertEquals(LoopBounds(0.6f, 0.9f).start, commits.single().start)
+        assertEquals(0.9f, commits.single().end, 1e-4f)
+    }
+
+    @Test
+    fun `a drag is picked up while the pointer moves, not only on release`() {
+        val events = mutableListOf<String>()
+        scene(withOther, recording(events)) {
+            press(Offset(824f, 4f))
+            move(Offset(874f, 4f))
+            // The grab (and the live preview with it) happens on the first move past the threshold.
+            assertEquals(listOf("grab 8"), events, "nothing happened before the release")
+            release(Offset(874f, 4f))
+        }
+        assertEquals(listOf("grab 8", "commit 8"), events)
+    }
+
+    @Test
+    fun `a click in another loop below its top bar is a click on the waveform`() {
+        val events = mutableListOf<String>()
+        scene(withOther, recording(events)) {
+            click(Offset(724f, 100f))
+        }
+        assertEquals(listOf("click at 0.7"), events)
+    }
+
+    @Test
+    fun `nothing happens while disabled`() {
+        val seeks = mutableListOf<Float>()
+        scene(state.copy(enabled = false), WaveformActions(onSeek = { seeks += it }, onLoopBoundsChanged = { _, _ -> error("drag") })) {
+            click(Offset(724f, 100f))
+            press(Offset(426f, 100f))
+            move(Offset(524f, 100f))
+            release(Offset(524f, 100f))
+        }
+        assertTrue(seeks.isEmpty())
+    }
+
+    private val other = LoopRegionModel(id = 8, start = 0.6f, end = 0.8f, colorIndex = 3, isActive = false)
+    private val withOther = state.copy(regions = listOf(active, other))
+
+    /** Every action as a line, in order; positions rounded to 1e-3. */
+    private fun recording(events: MutableList<String>, onCommit: (Long, LoopBounds) -> Unit = { _, _ -> }) = WaveformActions(
+        onSeek = { events += "seek at ${it.r()}" },
+        onLoopBoundsChanged = { id, bounds ->
+            events += "commit $id"
+            onCommit(id, bounds)
+        },
+        onOverviewClick = { events += "click at ${it.r()}" },
+        onLoopBarClick = { id, position -> events += "bar $id at ${position.r()}" },
+        onLoopGrabbed = { events += "grab $it" },
+    )
+
+    private fun Float.r(): Float = kotlin.math.round(this * 1000f) / 1000f
+
+    private fun scene(state: OverviewWaveformState, actions: WaveformActions, block: ImageComposeScene.() -> Unit) {
+        val scene = ImageComposeScene(width = 1048, height = 200, density = Density(1f)) {
+            SlowDownerTheme { OverviewWaveform(state, { 0f }, actions) }
+        }
+        scene.render(0)
+        try {
+            scene.block()
+            scene.render(1_000_000_000L)
+        } finally {
+            scene.close()
+        }
+    }
+
+    private fun ImageComposeScene.press(at: Offset) {
+        sendPointerEvent(PointerEventType.Press, at, button = PointerButton.Primary)
+        render(0)
+    }
+
+    private fun ImageComposeScene.move(to: Offset) {
+        sendPointerEvent(PointerEventType.Move, to)
+        render(0)
+    }
+
+    private fun ImageComposeScene.release(at: Offset) {
+        sendPointerEvent(PointerEventType.Release, at, button = PointerButton.Primary)
+        render(0)
+    }
+
+    private fun ImageComposeScene.click(at: Offset) {
+        press(at)
+        release(at)
+    }
+}
