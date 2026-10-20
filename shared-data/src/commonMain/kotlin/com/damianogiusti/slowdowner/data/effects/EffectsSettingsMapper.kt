@@ -14,6 +14,7 @@ object EffectsSettingsMapper {
             ?.map { it.clampDb() }
             ?: defaults.bandGainsDb,
         quality = ProcessingQuality.entries.firstOrNull { it.name == dto.qualityName } ?: defaults.quality,
+        isVolumeNormalized = dto.isVolumeNormalized,
     )
 
     fun toDto(settings: EffectsSettings) = EffectsSettingsDto(
@@ -21,6 +22,7 @@ object EffectsSettingsMapper {
         preampDb = settings.preampDb,
         bandGainsDb = settings.bandGainsDb,
         qualityName = settings.quality.name,
+        isVolumeNormalized = settings.isVolumeNormalized,
     )
 
     private fun Float.clampDb() = coerceIn(EffectsSettings.MIN_GAIN_DB, EffectsSettings.MAX_GAIN_DB)

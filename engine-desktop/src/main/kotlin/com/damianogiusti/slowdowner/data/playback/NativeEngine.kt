@@ -39,6 +39,10 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
     val isPlaying: Boolean get() = api.isPlaying.call(handle) as Int != 0
     val position: Double get() = api.position.call(handle) as Double
     val sampleRate: Int get() = api.sampleRate.call(handle) as Int
+    /** Integrated loudness of the open file (LUFS), measured by [open]. -Infinity if silent or nothing is open. */
+    val loudnessLufs: Double get() = api.loudnessLufs.call(handle) as Double
+    /** The gain normalization gives the open file, dB, already clamped. */
+    val normalizationGainDb: Double get() = api.normalizationGainDb.call(handle) as Double
 
     /** Decodes the whole file. Blocking. */
     fun open(path: String): Boolean = Arena.ofConfined().use { arena ->
@@ -60,6 +64,8 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
     fun setEqBand(band: Int, gainDb: Double) = api.setEqBand.callVoid(handle, band, gainDb)
     fun setPreamp(gainDb: Double) = api.setPreamp.callVoid(handle, gainDb)
     fun setOutputGain(gain: Double) = api.setOutputGain.callVoid(handle, gain)
+    /** Playback only: an export keeps the original level. */
+    fun setNormalization(enabled: Boolean) = api.setNormalization.callVoid(handle, if (enabled) 1 else 0)
 
     /** Returns and clears the [EVENT_REACHED_END] bits raised since the previous call. */
     fun takeEvents(): Int = api.takeEvents.call(handle) as Int
@@ -165,6 +171,9 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         val setEqBand = function("sd_engine_set_eq_band", null, ADDRESS, JAVA_INT, JAVA_DOUBLE)
         val setPreamp = function("sd_engine_set_preamp", null, ADDRESS, JAVA_DOUBLE)
         val setOutputGain = function("sd_engine_set_output_gain", null, ADDRESS, JAVA_DOUBLE)
+        val setNormalization = function("sd_engine_set_normalization", null, ADDRESS, JAVA_INT)
+        val loudnessLufs = function("sd_engine_loudness_lufs", JAVA_DOUBLE, ADDRESS)
+        val normalizationGainDb = function("sd_engine_normalization_gain_db", JAVA_DOUBLE, ADDRESS)
         val takeEvents = function("sd_engine_take_events", JAVA_INT, ADDRESS)
         val sampleRate = function("sd_engine_sample_rate", JAVA_INT, ADDRESS)
         val render = function("sd_engine_render", JAVA_INT, ADDRESS, ADDRESS, JAVA_INT)

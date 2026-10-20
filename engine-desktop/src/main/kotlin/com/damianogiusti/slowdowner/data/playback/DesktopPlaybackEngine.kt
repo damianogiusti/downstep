@@ -75,6 +75,7 @@ class DesktopPlaybackEngine(
     @Volatile
     override var quality = ProcessingQuality.HIGH
         private set
+    override val canNormalizeVolume = true
 
     // A poll can be halfway through a native call on another thread when close() runs: freeing the
     // engine then would crash the process (it did, when the app quit). The lock makes them take turns.
@@ -183,6 +184,9 @@ class DesktopPlaybackEngine(
     override fun setPreampDb(gainDb: Float) = engine.setPreamp(gainDb.toDouble())
 
     override fun setBandGainDb(band: Int, gainDb: Float) = engine.setEqBand(band, gainDb.toDouble())
+
+    /** The engine measures each file when it opens; this only switches the gain and the limiter. */
+    override fun setVolumeNormalized(enabled: Boolean) = engine.setNormalization(enabled)
 
     /** Bungee has no quality levels (other hop sizes degrade it): the choice is kept, the sound is the same. */
     override fun setQuality(quality: ProcessingQuality) {

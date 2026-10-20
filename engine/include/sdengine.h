@@ -64,6 +64,17 @@ SD_API void sd_engine_set_preamp(SdEngine *engine, double gainDb);
 /** Linear output gain, 1 by default. 0 mutes a device engine (scripted checks). */
 SD_API void sd_engine_set_output_gain(SdEngine *engine, double gain);
 
+/**
+ * Loudness normalization, off by default. On: every file plays at -16 LUFS (ITU-R BS.1770-4 integrated
+ * loudness, measured by sd_engine_open), raised by at most 12 dB, with a peak limiter at -1 dBFS after
+ * the gain. Playback only: an export keeps the original level. Switching mid-play dips for about 25 ms.
+ */
+SD_API void sd_engine_set_normalization(SdEngine *engine, int enabled);
+/** Integrated loudness of the open file in LUFS. -INFINITY if it is silent or no file is open. */
+SD_API double sd_engine_loudness_lufs(const SdEngine *engine);
+/** The gain normalization gives the open file, in dB, clamped. 0 if it is silent or no file is open. */
+SD_API double sd_engine_normalization_gain_db(const SdEngine *engine);
+
 /** Returns and clears the SD_EVENT_* bits raised since the previous call. */
 SD_API unsigned sd_engine_take_events(SdEngine *engine);
 

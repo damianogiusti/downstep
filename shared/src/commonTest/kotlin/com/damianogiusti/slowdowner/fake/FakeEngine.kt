@@ -60,6 +60,8 @@ class FakeEngine : PlaybackEngine, EffectsEngine {
     override val quality get() = appliedQuality
     var qualityChanges = 0
     var appliedEqEnabled = false
+    var appliedVolumeNormalized = false
+    override var canNormalizeVolume = true
     var appliedPreampDb = 0f
     val bandGainsDb = MutableList(7) { 0f }
 
@@ -67,6 +69,7 @@ class FakeEngine : PlaybackEngine, EffectsEngine {
     override fun setEqEnabled(enabled: Boolean) { appliedEqEnabled = enabled }
     override fun setPreampDb(gainDb: Float) { appliedPreampDb = gainDb }
     override fun setBandGainDb(band: Int, gainDb: Float) { bandGainsDb[band] = gainDb }
+    override fun setVolumeNormalized(enabled: Boolean) { appliedVolumeNormalized = enabled }
     override fun setQuality(quality: ProcessingQuality) {
         appliedQuality = quality
         qualityChanges++

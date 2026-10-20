@@ -63,6 +63,7 @@ fun EffectsSheet(
                 state = it,
                 onMixChanged = viewModel::onMixChanged,
                 onMixReset = viewModel::onMixReset,
+                onVolumeNormalizationToggled = viewModel::onVolumeNormalizationToggled,
                 onEqToggled = viewModel::onEqToggled,
                 onEqReset = viewModel::onEqReset,
                 onPreampChanged = viewModel::onPreampChanged,
@@ -78,6 +79,7 @@ fun EffectsSheetContent(
     state: EffectsUiState,
     onMixChanged: (Int) -> Unit,
     onMixReset: () -> Unit,
+    onVolumeNormalizationToggled: (Boolean) -> Unit,
     onEqToggled: (Boolean) -> Unit,
     onEqReset: () -> Unit,
     onPreampChanged: (Float) -> Unit,
@@ -109,6 +111,14 @@ fun EffectsSheetContent(
             TextButton(onClick = onMixReset) { Text(stringResource(Res.string.reset)) }
         }
         ValueSlider(value = state.mixSlider, max = SLIDER_MAX, onValueChange = onMixChanged, modifier = Modifier.fillMaxWidth())
+
+        if (state.canNormalizeVolume) {
+            VolumeNormalizationRow(
+                isOn = settings.isVolumeNormalized,
+                onToggled = onVolumeNormalizationToggled,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        }
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -152,6 +162,21 @@ fun EffectsSheetContent(
                 .fillMaxWidth()
                 .padding(top = 8.dp),
         )
+    }
+}
+
+@Composable
+private fun VolumeNormalizationRow(isOn: Boolean, onToggled: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(stringResource(Res.string.normalize_volume_title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(Res.string.normalize_volume_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = isOn, onCheckedChange = onToggled)
     }
 }
 
@@ -245,12 +270,15 @@ private fun EffectsSheetContentPreview() {
                         eqEnabled = true,
                         preampDb = -2f,
                         bandGainsDb = listOf(3f, 1.5f, 0f, -2f, 0f, 4.5f, 6f),
+                        isVolumeNormalized = true,
                     ),
                     mixSlider = SLIDER_MAX / 2,
                     mixRightPercent = 50,
+                    canNormalizeVolume = true,
                 ),
                 onMixChanged = {},
                 onMixReset = {},
+                onVolumeNormalizationToggled = {},
                 onEqToggled = {},
                 onEqReset = {},
                 onPreampChanged = {},

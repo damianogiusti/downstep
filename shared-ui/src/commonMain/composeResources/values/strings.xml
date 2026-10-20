@@ -43,6 +43,8 @@
     <string name="effects_subtitle">They apply to all tracks.</string>
     <string name="mix_format">Left %1$d / Right %2$d</string>
     <string name="reset">Reset</string>
+    <string name="normalize_volume_title">Normalize volume</string>
+    <string name="normalize_volume_hint">Every track plays at the same volume: quiet ones are raised, loud ones lowered. Exports keep the original volume.</string>
     <string name="eq_title">Equalizer</string>
     <string name="eq_preamp">Preamp</string>
     <string name="decimal_separator">.</string>

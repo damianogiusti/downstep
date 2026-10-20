@@ -41,6 +41,8 @@
     <string name="effects_subtitle">Valgono per tutti i brani.</string>
     <string name="mix_format">Sinistra %1$d / Destra %2$d</string>
     <string name="reset">Reset</string>
+    <string name="normalize_volume_title">Normalizza il volume</string>
+    <string name="normalize_volume_hint">Tutti i brani suonano allo stesso volume: quelli bassi vengono alzati, quelli forti abbassati. Gli export restano al volume originale.</string>
     <string name="eq_title">Equalizzatore</string>
     <string name="eq_preamp">Preamp</string>
     <string name="decimal_separator">,</string>

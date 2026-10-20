@@ -91,6 +91,7 @@ endif()
 set(ENGINE_SOURCES
   src/CApi.cpp
   ${DECODER_SOURCE}
+  src/Loudness.cpp
   src/Mp3Export.cpp
   src/Player.cpp
   src/TimeStretcher.cpp

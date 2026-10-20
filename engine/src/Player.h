@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Equalizer.h"
+#include "Limiter.h"
 #include "Pcm.h"
 #include "TimeStretcher.h"
 
@@ -11,7 +12,8 @@
 #include <string>
 
 /**
- * Everything between the decoded file and the output: mix → time stretch → EQ → preamp → fades.
+ * Everything between the decoded file and the output: mix → time stretch → EQ → preamp → loudness
+ * normalization and limiter (when on) → fades.
  *
  * Controls are atomics written by the control thread. render() runs on the audio thread (or the
  * caller's thread in manual mode); it applies the controls at the start of each block and never
@@ -56,6 +58,12 @@ public:
     void setEqBand(int band, double gainDb);
     void setPreamp(double gainDb);
     void setOutputGain(double gain) { outputGain_.store(gain); }
+    /** Playback only: settings() leaves it out, so an export keeps the original level. */
+    void setNormalization(bool enabled) { normalizationOn_.store(enabled); }
+    /** Integrated loudness of the open file (LUFS), -infinity if silent or nothing is open. */
+    double loudnessLufs() const { return loudnessLufs_.load(); }
+    /** Gain normalization gives the open file, dB. */
+    double normalizationGainDb() const { return normalizationGainDb_.load(); }
 
     unsigned takeEvents() { return events_.exchange(0); }
     int outputRate() const { return outputRate_; }
@@ -70,6 +78,7 @@ private:
     /** Returns the seek that came with a new loop, or -1. */
     double applyControls();
     void applyFade(float *const *out, int frames, bool fadeIn);
+    static void scale(float *const *out, int frames, float gain);
 
     const int outputRate_;
     const int maxBlockFrames_;
@@ -107,6 +116,14 @@ private:
     std::atomic<unsigned> eqVersion_{1};
     unsigned appliedEqVersion_ = 0;
     float preampGain_ = 1.f;
+
+    // Loudness: measured by open() on the control thread, read by the audio thread at each block.
+    std::atomic<bool> normalizationOn_{false};
+    std::atomic<double> loudnessLufs_;
+    std::atomic<double> normalizationGainDb_{0.0};
+    std::atomic<float> normalizationGain_{1.f};
+    Limiter limiter_;
+    bool isNormalizing_ = false; // audio thread: the chain in use, switched only where output is silent
 
     // Audio-thread state.
     bool isRunning_ = false; // producing audio, including a fade-out block

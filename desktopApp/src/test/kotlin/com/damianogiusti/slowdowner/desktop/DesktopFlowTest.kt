@@ -93,7 +93,7 @@ class DesktopFlowTest {
 
     @Test
     fun `at start the saved effects reach the engine`() = runBlocking<Unit> {
-        effectsStore.write(EffectsSettingsDto(eqEnabled = true, preampDb = -3f, bandGainsDb = List(7) { 2f }, qualityName = "LOW"))
+        effectsStore.write(EffectsSettingsDto(eqEnabled = true, preampDb = -3f, bandGainsDb = List(7) { 2f }, qualityName = "LOW", isVolumeNormalized = false))
         val scope = CoroutineScope(Dispatchers.Default)
         startAppWork(koin, scope)
         waitUntil { koin.get<EffectsEngine>().quality == ProcessingQuality.LOW }

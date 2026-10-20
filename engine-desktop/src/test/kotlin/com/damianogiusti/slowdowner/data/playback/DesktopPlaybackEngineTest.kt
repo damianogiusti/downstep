@@ -21,7 +21,9 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.log10
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -133,6 +135,37 @@ class DesktopPlaybackEngineTest {
     }
 
     @Test
+    fun `when volume is normalized then the tone plays at the target loudness`() = runTest {
+        val engine = openEngine()
+        // 441 Hz at -6.2 dBFS on both channels: about -6.9 LUFS, so 9.1 dB down to -16.
+        assertEquals(-6.9, native.loudnessLufs, 0.1)
+        assertEquals(-16 - native.loudnessLufs, native.normalizationGainDb, 1e-9)
+        engine.togglePlayStop()
+        val original = rms(native.render(RATE))
+
+        engine.setVolumeNormalized(true)
+        playFor(0.1) // past the switch, which fades out and back in
+        val normalized = rms(native.render(RATE))
+
+        assertEquals(native.normalizationGainDb, 20 * log10(normalized / original), 0.2)
+    }
+
+    @Test
+    fun `when volume normalization is off then the level is the original`() = runTest {
+        val engine = openEngine()
+        engine.togglePlayStop()
+        playFor(0.1) // past the fade in
+        val original = rms(native.render(RATE))
+
+        engine.setVolumeNormalized(true)
+        playFor(0.5)
+        engine.setVolumeNormalized(false)
+        playFor(0.1)
+
+        assertEquals(original, rms(native.render(RATE)), 1e-3)
+    }
+
+    @Test
     fun `a missing file does not open and is a warning`() = runTest {
         val engine = DesktopPlaybackEngine(native, backgroundScope)
         val logged = mutableListOf<String>()
@@ -198,3 +231,8 @@ class DesktopPlaybackEngineTest {
 
 private fun assertEquals(expected: Float, actual: Float, tolerance: Float) =
     assertTrue(abs(expected - actual) <= tolerance, "expected $expected ± $tolerance, was $actual")
+
+private fun assertEquals(expected: Double, actual: Double, tolerance: Double) =
+    assertTrue(abs(expected - actual) <= tolerance, "expected $expected ± $tolerance, was $actual")
+
+private fun rms(samples: FloatArray): Double = sqrt(samples.sumOf { it.toDouble() * it } / samples.size)

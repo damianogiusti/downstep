@@ -5,4 +5,5 @@ data class EffectsSettingsDto(
     val preampDb: Float,
     val bandGainsDb: List<Float>,
     val qualityName: String,
+    val isVolumeNormalized: Boolean,
 )

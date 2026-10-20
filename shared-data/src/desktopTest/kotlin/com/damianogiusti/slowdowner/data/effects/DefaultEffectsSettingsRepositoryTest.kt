@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -37,6 +38,7 @@ class DefaultEffectsSettingsRepositoryTest {
             preampDb = 40f,
             bandGainsDb = listOf(1f, 2f),
             qualityName = "ULTRA",
+            isVolumeNormalized = false,
         )
 
         val settings = repository.current()
@@ -44,6 +46,15 @@ class DefaultEffectsSettingsRepositoryTest {
         assertEquals(EffectsSettings.MAX_GAIN_DB, settings.preampDb)
         assertEquals(EffectsSettings().bandGainsDb, settings.bandGainsDb)
         assertEquals(ProcessingQuality.HIGH, settings.quality)
+    }
+
+    @Test
+    fun `volume normalization is saved and read back`() = runTest {
+        repository.save(EffectsSettings(isVolumeNormalized = true))
+
+        assertEquals(true, store.stored?.isVolumeNormalized)
+        val reloaded = DefaultEffectsSettingsRepository(store, UnconfinedTestDispatcher())
+        assertTrue(reloaded.current().isVolumeNormalized)
     }
 
     private class FakeStore : EffectsSettingsStore {

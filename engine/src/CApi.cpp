@@ -114,6 +114,12 @@ void sd_engine_set_preamp(SdEngine *engine, double gainDb) { engine->player->set
 
 void sd_engine_set_output_gain(SdEngine *engine, double gain) { engine->player->setOutputGain(gain); }
 
+void sd_engine_set_normalization(SdEngine *engine, int enabled) { engine->player->setNormalization(enabled != 0); }
+
+double sd_engine_loudness_lufs(const SdEngine *engine) { return engine->player->loudnessLufs(); }
+
+double sd_engine_normalization_gain_db(const SdEngine *engine) { return engine->player->normalizationGainDb(); }
+
 unsigned sd_engine_take_events(SdEngine *engine) { return engine->player->takeEvents(); }
 
 int sd_engine_sample_rate(const SdEngine *engine) { return engine->player->outputRate(); }

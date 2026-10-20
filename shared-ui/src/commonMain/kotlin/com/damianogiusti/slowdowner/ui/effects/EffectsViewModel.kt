@@ -31,7 +31,12 @@ class EffectsViewModel(
 
     init {
         viewModelScope.launch {
-            _state.value = EffectsUiState(observeSettings().first(), 0, 0).withMix()
+            _state.value = EffectsUiState(
+                settings = observeSettings().first(),
+                mixSlider = 0,
+                mixRightPercent = 0,
+                canNormalizeVolume = engine.canNormalizeVolume,
+            ).withMix()
             // StateFlow conflates bursts of slider moves; each value is applied in order.
             _state.filterNotNull()
                 .map { it.settings }
@@ -49,6 +54,8 @@ class EffectsViewModel(
     fun onMixReset() = onMixChanged(SLIDER_MAX / 2)
 
     fun onEqToggled(enabled: Boolean) = edit { it.copy(eqEnabled = enabled) }
+
+    fun onVolumeNormalizationToggled(enabled: Boolean) = edit { it.copy(isVolumeNormalized = enabled) }
 
     fun onPreampChanged(gainDb: Float) = edit { it.copy(preampDb = gainDb) }
 

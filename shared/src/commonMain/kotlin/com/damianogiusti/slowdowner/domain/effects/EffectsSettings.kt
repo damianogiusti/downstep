@@ -9,6 +9,8 @@ data class EffectsSettings(
     val preampDb: Float = 0f,
     val bandGainsDb: List<Float> = List(BAND_FREQUENCIES_HZ.size) { 0f },
     val quality: ProcessingQuality = ProcessingQuality.HIGH,
+    /** Every track plays at the same perceived loudness. Off by default: the original levels. */
+    val isVolumeNormalized: Boolean = false,
 ) {
     companion object {
         val BAND_FREQUENCIES_HZ = listOf(60, 150, 400, 1_000, 2_400, 6_000, 15_000)

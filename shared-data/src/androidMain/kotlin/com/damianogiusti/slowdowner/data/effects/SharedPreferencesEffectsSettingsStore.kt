@@ -16,6 +16,8 @@ class SharedPreferencesEffectsSettingsStore(
                 ?.mapNotNull { it.toFloatOrNull() }
                 .orEmpty(),
             qualityName = preferences.getString(KEY_QUALITY, null).orEmpty(),
+            // Missing in settings saved before it existed: off, as it was.
+            isVolumeNormalized = preferences.getBoolean(KEY_VOLUME_NORMALIZED, false),
         )
     }
 
@@ -25,6 +27,7 @@ class SharedPreferencesEffectsSettingsStore(
             .putFloat(KEY_PREAMP, settings.preampDb)
             .putString(KEY_BANDS, settings.bandGainsDb.joinToString(SEPARATOR))
             .putString(KEY_QUALITY, settings.qualityName)
+            .putBoolean(KEY_VOLUME_NORMALIZED, settings.isVolumeNormalized)
             .apply()
     }
 
@@ -33,6 +36,7 @@ class SharedPreferencesEffectsSettingsStore(
         const val KEY_PREAMP = "eq_preamp_db"
         const val KEY_BANDS = "eq_bands_db"
         const val KEY_QUALITY = "quality"
+        const val KEY_VOLUME_NORMALIZED = "volume_normalized"
         const val SEPARATOR = ","
     }
 }
