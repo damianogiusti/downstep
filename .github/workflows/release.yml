@@ -15,7 +15,35 @@ permissions:
   contents: write
 
 jobs:
+  # First and fast: a tag without its section in desktopApp/CHANGELOG.txt stops here, not after the builds.
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Changes of this version
+        run: |
+          mkdir -p notes
+          # A run by hand checks the build only: no release, no notes.
+          [[ "$GITHUB_REF" == refs/tags/v* ]] || exit 0
+          version="${GITHUB_REF_NAME#v}"
+          awk -v heading="## $version" '$0 == heading { found = 1; next } /^## / { if (found) exit } found' \
+            desktopApp/CHANGELOG.txt > notes/changes.md
+          if ! grep -q '[^[:space:]]' notes/changes.md; then
+            echo "error: desktopApp/CHANGELOG.txt has no section for $version" >&2
+            exit 1
+          fi
+          cat notes/changes.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notes
+          path: notes/
+          if-no-files-found: ignore
+          retention-days: 7
+
   mac:
+    needs: notes
     runs-on: macos-14
     timeout-minutes: 60
     steps:
@@ -56,6 +84,7 @@ jobs:
           retention-days: 7
 
   windows:
+    needs: notes
     runs-on: windows-latest
     timeout-minutes: 60
     env:
@@ -116,7 +145,7 @@ jobs:
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [mac, windows]
+    needs: [notes, mac, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -128,7 +157,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat > notes.md <<'EOF'
+          # The changes first, then a line "---": the app can show only what comes before it.
+          { cat dist/changes.md; printf '\n---\n\n'; } > notes.md
+          cat >> notes.md <<'EOF'
           For Mac with Apple silicon (macOS 11 or later) and for Windows 10 and 11 (64 bit).
 
           The Mac app is not notarized: the first time, macOS blocks it. Open System Settings, Privacy & Security, and choose Open Anyway.
