@@ -54,12 +54,14 @@ import com.damianogiusti.slowdowner.ui.update.UpdateBanner
 import com.damianogiusti.slowdowner.ui.update.UpdateHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
 import org.koin.mp.KoinPlatform
 import java.awt.Dimension
 import java.nio.file.Path
+import javax.swing.SwingUtilities
 import kotlin.system.exitProcess
 
 fun main() {
@@ -78,11 +80,14 @@ fun main() {
             "java" to System.getProperty("java.version").orEmpty(),
         ),
     )
+    // Main (Swing) thread, as on Android: engine settings are applied from the UI thread.
+    val appScope = MainScope()
     if (engine != null) {
         val koin = startKoin { modules(desktopModule(directories, engine, logger = logger, updates = updates), useCasesModule, uiModule) }.koin
-        // Main (Swing) thread, as on Android: engine settings are applied from the UI thread.
-        startAppWork(koin, MainScope())
+        startAppWork(koin, appScope)
     }
+    // One store for the window, as the activity is on Android: pickers report into these ViewModels.
+    val viewModelOwner = object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
     // Set once the ViewModels exist; read by the window's key handler.
     var shortcuts: PracticeShortcuts? = null
     application(exitProcessOnExit = false) {
@@ -120,7 +125,7 @@ fun main() {
                         if (engine == null) {
                             EngineUnavailable()
                         } else {
-                            DesktopApp(window, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking) {
+                            DesktopApp(window, viewModelOwner, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking) {
                                 shortcuts = it
                             }
                         }
@@ -129,8 +134,14 @@ fun main() {
             }
         }
     }
-    // Only now no UI can call the engine any more: stop polling and free the native side.
-    if (engine != null) KoinPlatform.getKoin().get<DesktopPlaybackEngine>().close()
+    // The window is gone, but its ViewModels and the app work still run on the Swing thread: a track
+    // left playing kept reading the position and hit the freed engine. Stopping them there, then
+    // freeing the engine there, means none of them is halfway through a call.
+    SwingUtilities.invokeAndWait {
+        viewModelOwner.viewModelStore.clear()
+        appScope.cancel()
+        if (engine != null) KoinPlatform.getKoin().get<DesktopPlaybackEngine>().close()
+    }
     CrashReporting.stop()
     exitProcess(0)
 }
@@ -176,13 +187,12 @@ private fun NoAudioOutputBanner() {
 @Composable
 private fun DesktopApp(
     window: java.awt.Frame,
+    owner: ViewModelStoreOwner,
     logger: Logger,
     onRestart: () -> Unit,
     installWithoutAsking: Boolean,
     onShortcutsReady: (PracticeShortcuts) -> Unit,
 ) {
-    // One store for the window, as the activity is on Android: pickers report into these ViewModels.
-    val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
     val textInput = remember { TextInputFocus() }
     CompositionLocalProvider(LocalViewModelStoreOwner provides owner, LocalTextInputFocus provides textInput) {
         val viewModels = ActivityViewModels(
