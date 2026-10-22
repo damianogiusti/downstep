@@ -31,6 +31,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
+import com.damianogiusti.slowdowner.data.support.PreferencesSupportPromptStore
 import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
 import com.damianogiusti.slowdowner.di.uiModule
 import com.damianogiusti.slowdowner.di.useCasesModule
@@ -84,6 +85,8 @@ fun main() {
     instanceProblems.forEach { (message, error) -> logger.w(message, error) }
     val (engine, hasAudioOutput) = startEngine(logger)
     val updates = UpdateSettings.current(appVersion)
+    // Read before this run counts itself (RecordAppLaunchUseCase, in startAppWork).
+    val hasLaunchHistory = runCatching { PreferencesSupportPromptStore().read() != null }.getOrDefault(false)
     // One line per run: how many people use which OS, and whether the engine started there.
     logger.i(
         "App started",
@@ -91,7 +94,7 @@ fun main() {
             "engine" to if (engine != null) "ok" else "unavailable",
             "audioOutput" to hasAudioOutput.toString(),
             "java" to System.getProperty("java.version").orEmpty(),
-        ),
+        ) + launchProperties(CrashReporting.isNewInstallation, hasLaunchHistory),
     )
     // Main (Swing) thread, as on Android: engine settings are applied from the UI thread.
     val appScope = MainScope()

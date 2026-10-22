@@ -29,6 +29,10 @@ object CrashReporting {
 
     private var nativeCrashes: NativeCrashes? = null
 
+    /** True if this run created the installation id: a first start, or a data folder deleted since. Null without a DSN. */
+    var isNewInstallation: Boolean? = null
+        private set
+
     fun start(version: String, directories: AppDirectories) {
         // Never fail the start for crash reporting: the app works without it. A broken logs folder
         // only loses the native crash report, not the rest.
@@ -38,6 +42,7 @@ object CrashReporting {
         }.onFailure { System.err.println("Cannot check the previous run: $it") }.getOrNull()
         previous?.let { System.err.println("The previous run crashed in native code: see native-crash.log") }
 
+        isNewInstallation = null
         val dsn = System.getProperty(DSN_PROPERTY)?.takeIf { it.isNotBlank() } ?: return
         // Without the id, users are not counted but crashes still arrive.
         val installation = runCatching { installationId(directories) }
@@ -100,7 +105,11 @@ object CrashReporting {
     /** Random, not derived from the computer or the person. */
     private fun installationId(directories: AppDirectories): String {
         val file = File(directories.root, "installation-id")
-        file.takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        file.takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            isNewInstallation = false
+            return it
+        }
+        isNewInstallation = true
         return UUID.randomUUID().toString().also { id ->
             directories.root.mkdirs()
             file.writeText(id)
