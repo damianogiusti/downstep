@@ -1,0 +1,10 @@
+# Changelog
+
+What changes for people who use Downstep. The release takes the section of its version from here,
+and the app shows it before an update: keep it short, plain English, no technical details.
+
+## 1.2.0
+
+- Normalize volume: every song plays at a similar level. Quiet songs are raised, loud ones lowered. Exports keep the original volume.
+- If you open Downstep while it is already running, the open window comes to the front.
+- Bug fixes and small improvements.
