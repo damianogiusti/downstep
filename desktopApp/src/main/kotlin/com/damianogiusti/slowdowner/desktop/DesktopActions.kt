@@ -19,7 +19,7 @@ class DesktopActions(
 ) {
 
     fun toActivityActions() = ActivityActions(
-        onPickFile = { pickFile(AUDIO_EXTENSIONS)?.let { viewModels.imports.onDocumentPicked(it.path) } },
+        onPickFile = { pickFile(AudioFiles.EXTENSIONS)?.let(::importPicked) },
         onOpenSpotify = null,
         onPlayStop = viewModels.player::onPlayStopClicked,
         // No foreground service on desktop: the process plays while the window is open.
@@ -32,9 +32,20 @@ class DesktopActions(
         onDonate = { openDonation(DonateSource.LIBRARY_MENU, logger) },
     )
 
+    private fun importPicked(file: File) {
+        if (AudioFiles.isImportable(file)) {
+            viewModels.imports.onDocumentPicked(file.path)
+        } else {
+            logger.i("Import rejected", mapOf("extension" to AudioFiles.logExtension(file)))
+            viewModels.imports.onUnsupportedFilePicked()
+        }
+    }
+
     private fun pickFile(extensions: Set<String>): File? {
         val dialog = FileDialog(window, null, FileDialog.LOAD).apply {
+            // macOS honours the filter; Windows ignores it and filters by the starting name pattern.
             setFilenameFilter { _, name -> name.substringAfterLast('.', "").lowercase() in extensions }
+            if (!isMacOs) file = AudioFiles.windowsPattern(extensions)
             isVisible = true
         }
         return dialog.selectedFile()
@@ -63,7 +74,6 @@ class DesktopActions(
     }
 
     private companion object {
-        val AUDIO_EXTENSIONS = setOf("m4a", "mp3", "wav", "aac", "flac", "aif", "aiff", "caf", "mp4")
         const val BACKUP_EXTENSION = "sldbackup"
     }
 }

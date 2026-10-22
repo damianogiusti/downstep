@@ -53,6 +53,11 @@ class ImportViewModel(
         runImport { importDocument(contentUri) }
     }
 
+    /** Desktop only: a file dialog that cannot filter (Windows) lets any file through. */
+    fun onUnsupportedFilePicked() {
+        _messages.trySend(UiMessage(Res.string.error_unsupported_file))
+    }
+
     private fun runImport(block: suspend () -> ImportResult) {
         if (importJob?.isActive == true) {
             _messages.trySend(UiMessage(Res.string.error_import_running))

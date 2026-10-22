@@ -24,6 +24,7 @@
     <string name="error_unsupported_link">Link non supportato. Condividi un link YouTube.</string>
     <string name="error_unsupported_link_desktop">Link non supportato. Incolla un link YouTube.</string>
     <string name="error_import_running">Un import è già in corso.</string>
+    <string name="error_unsupported_file">Downstep non apre questo tipo di file. Scegli un file audio: MP3, M4A, WAV, FLAC, AAC, AIFF o MP4.</string>
     <string name="error_unavailable">Contenuto non disponibile o senza audio scaricabile.</string>
     <string name="error_network">Errore di rete. Riprova.</string>
     <string name="error_generic">Import fallito: %1$s</string>
