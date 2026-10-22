@@ -11,6 +11,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.lifecycle.ViewModelStore
@@ -60,15 +62,23 @@ import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
 import org.koin.mp.KoinPlatform
 import java.awt.Dimension
+import java.io.IOException
 import java.nio.file.Path
 import javax.swing.SwingUtilities
 import kotlin.system.exitProcess
 
 fun main() {
     val directories = AppDirectories()
+    // First of all: a second copy must not rotate the first one's log or touch its crash marker.
+    var listenError: IOException? = null
+    val instance = SingleInstance.acquire(directories.root) { listenError = it } ?: run {
+        println("Downstep is already running: asked it to come to the front")
+        exitProcess(0)
+    }
     AppLog.start(directories.logs, appVersion)
     CrashReporting.start(appVersion, directories)
     val logger = CrashReporting.logger()
+    listenError?.let { logger.w("Cannot listen for a second launch", it) }
     val (engine, hasAudioOutput) = startEngine(logger)
     val updates = UpdateSettings.current(appVersion)
     // One line per run: how many people use which OS, and whether the engine started there.
@@ -103,6 +113,14 @@ fun main() {
             LaunchedEffect(Unit) {
                 window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT)
                 window.useTransparentTitleBar()
+            }
+            DisposableEffect(Unit) {
+                instance.onAnotherLaunch = {
+                    // Tells how often people start the app again while it runs.
+                    logger.i("Second launch")
+                    SwingUtilities.invokeLater { bringToFront(window, windowState) }
+                }
+                onDispose { instance.onAnotherLaunch = null }
             }
             // macOS only: there the menus sit in the screen's menu bar. On Windows they would be a bar
             // inside the window, and Alt+F4 already closes it. One window: closing it quits.
@@ -143,7 +161,18 @@ fun main() {
         if (engine != null) KoinPlatform.getKoin().get<DesktopPlaybackEngine>().close()
     }
     CrashReporting.stop()
+    instance.close()
     exitProcess(0)
+}
+
+// Windows lets a process in the background only flash its taskbar button: staying on top for a
+// moment brings the window up for real.
+private fun bringToFront(window: java.awt.Window, state: WindowState) {
+    state.isMinimized = false
+    window.isAlwaysOnTop = true
+    window.toFront()
+    window.isAlwaysOnTop = false
+    window.requestFocus()
 }
 
 /** Set by Gradle (-PappVersion, see desktopApp/build.gradle.kts). */
