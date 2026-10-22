@@ -11,6 +11,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.lifecycle.ViewModelStore
@@ -54,19 +56,32 @@ import com.damianogiusti.slowdowner.ui.update.UpdateBanner
 import com.damianogiusti.slowdowner.ui.update.UpdateHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
 import org.koin.mp.KoinPlatform
 import java.awt.Dimension
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import java.nio.file.Path
+import javax.swing.SwingUtilities
 import kotlin.system.exitProcess
 
 fun main() {
     val directories = AppDirectories()
+    // First of all: a second copy must not rotate the first one's log or touch its crash marker.
+    val instanceProblems = mutableListOf<Pair<String, Throwable?>>()
+    val instance = SingleInstance.acquire(directories.root) { message, error ->
+        instanceProblems += message to error
+    } ?: run {
+        println("Downstep is already running: asked it to come to the front")
+        exitProcess(0)
+    }
     AppLog.start(directories.logs, appVersion)
     CrashReporting.start(appVersion, directories)
     val logger = CrashReporting.logger()
+    instanceProblems.forEach { (message, error) -> logger.w(message, error) }
     val (engine, hasAudioOutput) = startEngine(logger)
     val updates = UpdateSettings.current(appVersion)
     // One line per run: how many people use which OS, and whether the engine started there.
@@ -78,11 +93,14 @@ fun main() {
             "java" to System.getProperty("java.version").orEmpty(),
         ),
     )
+    // Main (Swing) thread, as on Android: engine settings are applied from the UI thread.
+    val appScope = MainScope()
     if (engine != null) {
         val koin = startKoin { modules(desktopModule(directories, engine, logger = logger, updates = updates), useCasesModule, uiModule) }.koin
-        // Main (Swing) thread, as on Android: engine settings are applied from the UI thread.
-        startAppWork(koin, MainScope())
+        startAppWork(koin, appScope)
     }
+    // One store for the window, as the activity is on Android: pickers report into these ViewModels.
+    val viewModelOwner = object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
     // Set once the ViewModels exist; read by the window's key handler.
     var shortcuts: PracticeShortcuts? = null
     application(exitProcessOnExit = false) {
@@ -98,6 +116,22 @@ fun main() {
             LaunchedEffect(Unit) {
                 window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT)
                 window.useTransparentTitleBar()
+            }
+            DisposableEffect(Unit) {
+                instance.onAnotherLaunch = {
+                    val shown = CompletableFuture<Unit>()
+                    SwingUtilities.invokeLater {
+                        bringToFront(window, windowState)
+                        shown.complete(Unit)
+                    }
+                    // A frozen window cannot come forward: then the new launch must not quit.
+                    runCatching { shown.get(1, TimeUnit.SECONDS) }.isSuccess.also { cameForward ->
+                        // Tells how often people start the app again while it runs.
+                        if (cameForward) logger.i("Second launch")
+                    }
+                }
+                // The window goes only when the app quits: from now on a new launch waits for this copy to exit.
+                onDispose { instance.quitting() }
             }
             // macOS only: there the menus sit in the screen's menu bar. On Windows they would be a bar
             // inside the window, and Alt+F4 already closes it. One window: closing it quits.
@@ -120,7 +154,7 @@ fun main() {
                         if (engine == null) {
                             EngineUnavailable()
                         } else {
-                            DesktopApp(window, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking) {
+                            DesktopApp(window, viewModelOwner, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking) {
                                 shortcuts = it
                             }
                         }
@@ -129,10 +163,27 @@ fun main() {
             }
         }
     }
-    // Only now no UI can call the engine any more: stop polling and free the native side.
-    if (engine != null) KoinPlatform.getKoin().get<DesktopPlaybackEngine>().close()
+    // The window is gone, but its ViewModels and the app work still run on the Swing thread: a track
+    // left playing kept reading the position and hit the freed engine. Stopping them there, then
+    // freeing the engine there, means none of them is halfway through a call.
+    SwingUtilities.invokeAndWait {
+        viewModelOwner.viewModelStore.clear()
+        appScope.cancel()
+        if (engine != null) KoinPlatform.getKoin().get<DesktopPlaybackEngine>().close()
+    }
     CrashReporting.stop()
+    instance.close()
     exitProcess(0)
+}
+
+// Windows lets a process in the background only flash its taskbar button: staying on top for a
+// moment brings the window up for real.
+private fun bringToFront(window: java.awt.Window, state: WindowState) {
+    state.isMinimized = false
+    window.isAlwaysOnTop = true
+    window.toFront()
+    window.isAlwaysOnTop = false
+    window.requestFocus()
 }
 
 /** Set by Gradle (-PappVersion, see desktopApp/build.gradle.kts). */
@@ -176,13 +227,12 @@ private fun NoAudioOutputBanner() {
 @Composable
 private fun DesktopApp(
     window: java.awt.Frame,
+    owner: ViewModelStoreOwner,
     logger: Logger,
     onRestart: () -> Unit,
     installWithoutAsking: Boolean,
     onShortcutsReady: (PracticeShortcuts) -> Unit,
 ) {
-    // One store for the window, as the activity is on Android: pickers report into these ViewModels.
-    val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
     val textInput = remember { TextInputFocus() }
     CompositionLocalProvider(LocalViewModelStoreOwner provides owner, LocalTextInputFocus provides textInput) {
         val viewModels = ActivityViewModels(
