@@ -64,6 +64,22 @@ class CrashReportingTest {
     }
 
     @Test
+    fun `the first start is a new installation and a restart is not`() {
+        val directories = AppDirectories(folder.newFolder("data"))
+        System.setProperty("slowdowner.sentryDsn", "http://public@127.0.0.1:${server.address.port}/1")
+
+        CrashReporting.start("1.0.2", directories)
+        val first = CrashReporting.isNewInstallation
+        CrashReporting.stop()
+        CrashReporting.start("1.0.2", directories)
+        val second = CrashReporting.isNewInstallation
+        CrashReporting.stop()
+
+        assertEquals(true, first)
+        assertEquals(false, second)
+    }
+
+    @Test
     fun `reports and logs carry the import link but not the home folder or the computer name`() {
         val directories = AppDirectories(folder.newFolder("data"))
         // A native crash in the previous run, as NativeCrashes finds it.
