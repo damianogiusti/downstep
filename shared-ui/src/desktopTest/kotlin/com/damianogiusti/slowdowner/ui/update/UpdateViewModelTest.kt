@@ -8,6 +8,7 @@ import com.damianogiusti.slowdowner.domain.update.AppVersion
 import com.damianogiusti.slowdowner.domain.update.InstallUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.ObserveAvailableUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.ReportUpdatePromptShownUseCase
+import com.damianogiusti.slowdowner.domain.update.RestartIntoUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.UpdateCheckResult
 import com.damianogiusti.slowdowner.domain.update.UpdateInstallResult
 import com.damianogiusti.slowdowner.domain.update.UpdateRepository
@@ -116,7 +117,7 @@ class UpdateViewModelTest {
     }
 
     @Test
-    fun `when install is clicked then progress shows and the app restarts when ready`() = runTest {
+    fun `when install is clicked then progress shows and the dialog waits for restart when ready`() = runTest {
         updates.latest.value = release("1.0.4")
         val viewModel = viewModel()
         subscribe(viewModel)
@@ -127,7 +128,98 @@ class UpdateViewModelTest {
 
         updates.installDone.complete(UpdateInstallResult.ReadyToRestart)
         runCurrent()
+        assertEquals(UpdateInstallState.ReadyToRestart, available(viewModel).install)
+        // Nothing swaps before the user has read that the app reopens by itself.
+        assertEquals(0, updates.swapsStarted)
+    }
+
+    @Test
+    fun `when restart is clicked then the swap starts and only then the app restarts`() = runTest {
+        val viewModel = readyToRestart()
+
+        viewModel.onRestartClicked()
+        runCurrent()
+
+        assertEquals(1, updates.swapsStarted)
         assertEquals(UpdateInstallState.Restarting, available(viewModel).install)
+    }
+
+    @Test
+    fun `when the swap cannot start then the app does not quit and the dialog says so`() = runTest {
+        updates.canStartSwap = false
+        val viewModel = readyToRestart()
+
+        viewModel.onRestartClicked()
+        runCurrent()
+
+        assertEquals(UpdateInstallState.Failed, available(viewModel).install)
+    }
+
+    @Test
+    fun `when restart is clicked twice then one swap starts`() = runTest {
+        val viewModel = readyToRestart()
+
+        viewModel.onRestartClicked()
+        viewModel.onRestartClicked()
+        runCurrent()
+
+        assertEquals(1, updates.swapsStarted)
+    }
+
+    @Test
+    fun `when later is clicked while the swap starts then the dialog stays and the app restarts`() = runTest {
+        val viewModel = readyToRestart()
+        val swap = CompletableDeferred<Boolean>().also { updates.swapDone = it }
+
+        viewModel.onRestartClicked()
+        runCurrent()
+        viewModel.onLaterClicked()
+        swap.complete(true)
+        runCurrent()
+
+        assertEquals(true, available(viewModel).isDialogOpen)
+        assertEquals(UpdateInstallState.Restarting, available(viewModel).install)
+    }
+
+    @Test
+    fun `when a newer release appears then the ready update is not offered any more`() = runTest {
+        val viewModel = readyToRestart()
+
+        updates.latest.value = release("1.0.5")
+        runCurrent()
+
+        assertEquals("1.0.5", available(viewModel).version)
+        assertEquals(UpdateInstallState.Idle, available(viewModel).install)
+    }
+
+    @Test
+    fun `when the download reports progress after cancel then the dialog stays idle`() = runTest {
+        updates.latest.value = release("1.0.4")
+        val viewModel = viewModel()
+        subscribe(viewModel)
+        viewModel.onInstallClicked()
+        runCurrent()
+
+        viewModel.onCancelClicked()
+        // A read already in flight on the IO thread finishes after the cancel.
+        updates.lastProgress?.invoke(1f)
+        runCurrent()
+
+        assertEquals(UpdateInstallState.Idle, available(viewModel).install)
+    }
+
+    @Test
+    fun `when later is clicked on a ready update then it stays ready for the banner`() = runTest {
+        val viewModel = readyToRestart()
+
+        viewModel.onLaterClicked()
+        runCurrent()
+        assertEquals(false, available(viewModel).isDialogOpen)
+
+        viewModel.onBannerClicked()
+        runCurrent()
+        assertEquals(true, available(viewModel).isDialogOpen)
+        assertEquals(UpdateInstallState.ReadyToRestart, available(viewModel).install)
     }
 
     @Test
@@ -186,10 +278,22 @@ class UpdateViewModelTest {
 
     private fun available(viewModel: UpdateViewModel) = assertIs<UpdateUiState.Available>(viewModel.state.value)
 
+    private fun TestScope.readyToRestart(): UpdateViewModel {
+        updates.latest.value = release("1.0.4")
+        val viewModel = viewModel()
+        subscribe(viewModel)
+        viewModel.onInstallClicked()
+        updates.installDone.complete(UpdateInstallResult.ReadyToRestart)
+        runCurrent()
+        assertEquals(UpdateInstallState.ReadyToRestart, available(viewModel).install)
+        return viewModel
+    }
+
     private fun viewModel() = UpdateViewModel(
         ObserveAvailableUpdateUseCase(updates),
         ObserveSupportPromptUseCase(support, clock),
         InstallUpdateUseCase(updates, logger),
+        RestartIntoUpdateUseCase(updates),
         ReportUpdatePromptShownUseCase(logger),
     )
 
@@ -203,11 +307,16 @@ class UpdateViewModelTest {
         val latest = MutableStateFlow<AppRelease?>(null)
         val installDone = CompletableDeferred<UpdateInstallResult>()
         var wasInstallCancelled = false
+        var canStartSwap = true
+        var swapsStarted = 0
+        var swapDone: CompletableDeferred<Boolean>? = null
+        var lastProgress: ((Float) -> Unit)? = null
 
         override fun installedVersion() = AppVersion.parse("1.0.3")
         override fun observeLatestRelease() = latest
         override suspend fun refresh() = UpdateCheckResult.Done
         override suspend fun install(release: AppRelease, onProgress: (Float) -> Unit): UpdateInstallResult {
+            lastProgress = onProgress
             onProgress(0.4f)
             try {
                 return installDone.await()
@@ -215,6 +324,11 @@ class UpdateViewModelTest {
                 wasInstallCancelled = true
                 throw e
             }
+        }
+
+        override suspend fun startSwap(): Boolean {
+            if (canStartSwap) swapsStarted++
+            return swapDone?.await() ?: canStartSwap
         }
     }
 

@@ -39,6 +39,8 @@ import com.damianogiusti.slowdowner.ui.resources.update_message_install
 import com.damianogiusti.slowdowner.ui.resources.update_message_manual
 import com.damianogiusti.slowdowner.ui.resources.update_network_error
 import com.damianogiusti.slowdowner.ui.resources.update_preparing
+import com.damianogiusti.slowdowner.ui.resources.update_ready
+import com.damianogiusti.slowdowner.ui.resources.update_restart_now
 import com.damianogiusti.slowdowner.ui.resources.update_restarting
 import com.damianogiusti.slowdowner.ui.resources.update_retry
 import com.damianogiusti.slowdowner.ui.resources.update_title
@@ -59,12 +61,16 @@ fun UpdateHost(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val available = state as? UpdateUiState.Available ?: return
     if (installWithoutAsking && available.canInstall) LaunchedEffect(Unit) { viewModel.onInstallClicked() }
+    if (installWithoutAsking && available.install == UpdateInstallState.ReadyToRestart) {
+        LaunchedEffect(Unit) { viewModel.onRestartClicked() }
+    }
     if (available.install == UpdateInstallState.Restarting) LaunchedEffect(Unit) { onRestart() }
     if (!available.isDialogOpen) return
     val uriHandler = LocalUriHandler.current
     UpdateDialog(
         state = available,
         onInstall = viewModel::onInstallClicked,
+        onRestart = viewModel::onRestartClicked,
         onOpenPage = {
             uriHandler.openUri(available.pageUrl)
             viewModel.onDownloadPageOpened()
@@ -108,6 +114,7 @@ internal fun UpdateBannerContent(version: String, onClick: () -> Unit) {
 internal fun UpdateDialog(
     state: UpdateUiState.Available,
     onInstall: () -> Unit,
+    onRestart: () -> Unit,
     onOpenPage: () -> Unit,
     onCancel: () -> Unit,
     onLater: () -> Unit,
@@ -138,7 +145,7 @@ internal fun UpdateDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    DialogButtons(state, onInstall, onOpenPage, onCancel, onLater)
+                    DialogButtons(state, onInstall, onRestart, onOpenPage, onCancel, onLater)
                 }
             }
         }
@@ -152,6 +159,7 @@ private fun InstallProgress(install: UpdateInstallState) {
             if (install.percent >= 100) stringResource(Res.string.update_preparing)
             else stringResource(Res.string.update_downloading, install.percent)
         UpdateInstallState.Restarting -> stringResource(Res.string.update_restarting)
+        UpdateInstallState.ReadyToRestart -> stringResource(Res.string.update_ready)
         UpdateInstallState.NetworkError -> stringResource(Res.string.update_network_error)
         UpdateInstallState.Failed -> stringResource(Res.string.update_failed)
         UpdateInstallState.Idle -> return
@@ -168,7 +176,7 @@ private fun InstallProgress(install: UpdateInstallState) {
                 progress = { install.percent / 100f },
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
-        } else if (!isError) {
+        } else if (!isError && install != UpdateInstallState.ReadyToRestart) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         }
     }
@@ -178,6 +186,7 @@ private fun InstallProgress(install: UpdateInstallState) {
 private fun DialogButtons(
     state: UpdateUiState.Available,
     onInstall: () -> Unit,
+    onRestart: () -> Unit,
     onOpenPage: () -> Unit,
     onCancel: () -> Unit,
     onLater: () -> Unit,
@@ -187,6 +196,10 @@ private fun DialogButtons(
         is UpdateInstallState.Downloading ->
             if (install.percent < 100) TextButton(onClick = onCancel) { Text(stringResource(Res.string.update_cancel)) }
         UpdateInstallState.Restarting -> Unit
+        UpdateInstallState.ReadyToRestart -> {
+            TextButton(onClick = onLater) { Text(stringResource(Res.string.update_later)) }
+            Button(onClick = onRestart) { Text(stringResource(Res.string.update_restart_now)) }
+        }
         UpdateInstallState.Failed -> {
             TextButton(onClick = onLater) { Text(stringResource(Res.string.update_later)) }
             Button(onClick = onOpenPage) { Text(stringResource(Res.string.update_download)) }

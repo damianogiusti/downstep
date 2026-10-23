@@ -16,6 +16,8 @@ class FakeUpdateRepository(var installed: AppVersion?) : UpdateRepository {
     var checkResult: UpdateCheckResult = UpdateCheckResult.Done
     var installResult: UpdateInstallResult = UpdateInstallResult.ReadyToRestart
     val installRequests = mutableListOf<AppRelease>()
+    var canStartSwap = true
+    var swapsStarted = 0
 
     override fun installedVersion() = installed
 
@@ -30,5 +32,10 @@ class FakeUpdateRepository(var installed: AppVersion?) : UpdateRepository {
         installRequests += release
         onProgress(1f)
         return installResult
+    }
+
+    override suspend fun startSwap(): Boolean {
+        if (canStartSwap) swapsStarted++
+        return canStartSwap
     }
 }

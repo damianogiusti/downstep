@@ -248,6 +248,8 @@
     <string name="update_downloading">Scaricamento… %1$d%%</string>
     <string name="update_preparing">Installazione…</string>
     <string name="update_restarting">Riavvio…</string>
+    <string name="update_ready">L'aggiornamento è pronto. Quando riavvii, Downstep si chiude e si riapre da solo tra pochi secondi: nel frattempo non aprirlo tu.</string>
+    <string name="update_restart_now">Riavvia ora</string>
     <string name="update_network_error">Il download non è finito. Controlla la connessione e riprova.</string>
     <string name="update_failed">L'aggiornamento non è riuscito. Puoi scaricarlo dal sito.</string>
     <string name="update_banner">È disponibile Downstep %1$s</string>

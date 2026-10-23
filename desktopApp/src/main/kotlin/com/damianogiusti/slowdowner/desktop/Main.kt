@@ -32,7 +32,10 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
 import com.damianogiusti.slowdowner.data.support.PreferencesSupportPromptStore
+import com.damianogiusti.slowdowner.desktop.update.DesktopUpdateInstaller
 import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
+import com.damianogiusti.slowdowner.desktop.update.UpdateSwapFiles
+import com.damianogiusti.slowdowner.desktop.update.UpdatingNotice
 import com.damianogiusti.slowdowner.di.uiModule
 import com.damianogiusti.slowdowner.di.useCasesModule
 import com.damianogiusti.slowdowner.logging.Logger
@@ -67,10 +70,22 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.nio.file.Path
 import javax.swing.SwingUtilities
+import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
 fun main() {
     val directories = AppDirectories()
+    // An update is putting the new version in place, and this copy would lock its files: it opens again
+    // by itself. Before anything else, so that this process ends as soon as it can.
+    if (UpdateSwapFiles.isSwapRunning(directories.updateWork)) {
+        // However the notice behaves, this process must not outlive it by much: it locks the app's files.
+        thread(isDaemon = true) {
+            Thread.sleep(NOTICE_DEADLINE_MS)
+            Runtime.getRuntime().halt(0)
+        }
+        UpdatingNotice.show()
+        exitProcess(0)
+    }
     // First of all: a second copy must not rotate the first one's log or touch its crash marker.
     val instanceProblems = mutableListOf<Pair<String, Throwable?>>()
     val instance = SingleInstance.acquire(directories.root) { message, error ->
@@ -83,8 +98,11 @@ fun main() {
     CrashReporting.start(appVersion, directories)
     val logger = CrashReporting.logger()
     instanceProblems.forEach { (message, error) -> logger.w(message, error) }
+    // How the last update went on this computer: the script itself cannot report.
+    UpdateSwapFiles.takeResult(directories.updateWork)?.let { logger.i("Update swap result", mapOf("outcome" to it)) }
     val (engine, hasAudioOutput) = startEngine(logger)
     val updates = UpdateSettings.current(appVersion)
+    thread(isDaemon = true, name = "discard-update") { DesktopUpdateInstaller.discardAbandoned(updates.installation, directories.updateWork) }
     // Read before this run counts itself (RecordAppLaunchUseCase, in startAppWork).
     val hasLaunchHistory = runCatching { PreferencesSupportPromptStore().read() != null }.getOrDefault(false)
     // One line per run: how many people use which OS, and whether the engine started there.
@@ -191,6 +209,9 @@ private fun bringToFront(window: java.awt.Window, state: WindowState) {
 
 /** Set by Gradle (-PappVersion, see desktopApp/build.gradle.kts). */
 private val appVersion: String = System.getProperty("slowdowner.version") ?: "dev"
+
+// The notice of a copy opened during an update shows for 3 s; past this the process ends anyway.
+private const val NOTICE_DEADLINE_MS = 10_000L
 
 // In points, like Compose's dp on macOS. Narrower than this the two panes get cramped.
 private const val MIN_WIDTH = 900

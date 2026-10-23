@@ -8,8 +8,15 @@ interface UpdateInstaller {
     val assetName: String?
 
     /**
-     * Blocking. Unpacks [download], checks that it is the app at [version], and starts what swaps the
-     * apps as soon as this process ends. Throws if anything is off: the installed app stays as it is.
+     * Blocking. Unpacks [download] and checks that it is the app at [version]: nothing changes yet.
+     * Throws if anything is off: the installed app stays as it is.
      */
     fun prepare(download: File, version: String)
+
+    /**
+     * Starts what swaps the apps as soon as this process ends, for the last [prepare]. Separate from it:
+     * the swap waits a limited time for the app to quit, and the user may read the dialog first.
+     * Throws if nothing is prepared or it cannot start.
+     */
+    fun startSwap()
 }
