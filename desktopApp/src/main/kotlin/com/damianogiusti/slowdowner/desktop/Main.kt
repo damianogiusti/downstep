@@ -13,7 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
@@ -44,6 +47,7 @@ import com.damianogiusti.slowdowner.ui.navigation.ActivityViewModels
 import com.damianogiusti.slowdowner.ui.navigation.SlowDownerApp
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 import com.damianogiusti.slowdowner.ui.resources.Res
+import com.damianogiusti.slowdowner.ui.resources.contact_menu_mac
 import com.damianogiusti.slowdowner.ui.resources.error_engine_unavailable
 import com.damianogiusti.slowdowner.ui.resources.error_no_audio_output
 import com.damianogiusti.slowdowner.ui.resources.menu_close_window
@@ -52,6 +56,7 @@ import com.damianogiusti.slowdowner.ui.resources.menu_help
 import com.damianogiusti.slowdowner.ui.resources.menu_minimize
 import com.damianogiusti.slowdowner.ui.resources.menu_window
 import com.damianogiusti.slowdowner.ui.resources.support_donate
+import com.damianogiusti.slowdowner.ui.support.ContactDialog
 import com.damianogiusti.slowdowner.ui.support.SupportPromptHost
 import com.damianogiusti.slowdowner.ui.update.UpdateBanner
 import com.damianogiusti.slowdowner.ui.update.UpdateHost
@@ -136,6 +141,12 @@ fun main() {
                 // The window goes only when the app quits: from now on a new launch waits for this copy to exit.
                 onDispose { instance.quitting() }
             }
+            var contactSource by remember { mutableStateOf<ContactSource?>(null) }
+            val contact = remember { ContactActions(logger, appVersion) }
+            fun openContact(source: ContactSource) {
+                contact.opened(source)
+                contactSource = source
+            }
             // macOS only: there the menus sit in the screen's menu bar. On Windows they would be a bar
             // inside the window, and Alt+F4 already closes it. One window: closing it quits.
             if (isMacOs) MenuBar {
@@ -148,6 +159,7 @@ fun main() {
                 // Where Mac users look for things about the app itself. Windows has the library menu only.
                 Menu(stringResource(Res.string.menu_help)) {
                     Item(stringResource(Res.string.support_donate)) { openDonation(DonateSource.MAC_MENU, logger) }
+                    Item(stringResource(Res.string.contact_menu_mac)) { openContact(ContactSource.MAC_MENU) }
                 }
             }
             SlowDownerTheme {
@@ -157,11 +169,16 @@ fun main() {
                         if (engine == null) {
                             EngineUnavailable()
                         } else {
-                            DesktopApp(window, viewModelOwner, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking) {
-                                shortcuts = it
-                            }
+                            DesktopApp(
+                                window, viewModelOwner, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking,
+                                onContact = { openContact(ContactSource.LIBRARY_MENU) },
+                                onShortcutsReady = { shortcuts = it },
+                            )
                         }
                     }
+                }
+                if (contactSource != null) {
+                    ContactDialog(CONTACT_ADDRESS, contact::copyAddress, contact::writeMail) { contactSource = null }
                 }
             }
         }
@@ -234,6 +251,7 @@ private fun DesktopApp(
     logger: Logger,
     onRestart: () -> Unit,
     installWithoutAsking: Boolean,
+    onContact: () -> Unit,
     onShortcutsReady: (PracticeShortcuts) -> Unit,
 ) {
     val textInput = remember { TextInputFocus() }
@@ -243,7 +261,7 @@ private fun DesktopApp(
             imports = koinViewModel<ImportViewModel>(),
             backup = koinViewModel<BackupViewModel>(),
         )
-        val actions = remember(viewModels) { DesktopActions(window, viewModels, logger).toActivityActions() }
+        val actions = remember(viewModels) { DesktopActions(window, viewModels, logger, onContact).toActivityActions() }
         LaunchedEffect(viewModels.player) { onShortcutsReady(PracticeShortcuts(viewModels.player, textInput)) }
         Column(modifier = Modifier.fillMaxSize()) {
             UpdateBanner()

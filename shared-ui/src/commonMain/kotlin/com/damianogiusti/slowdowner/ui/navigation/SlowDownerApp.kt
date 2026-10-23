@@ -76,6 +76,8 @@ class ActivityActions(
     val onSaveBackup: (BackupFile) -> Unit,
     /** Null where the app is not published (Android): the Donate menu item is then hidden. */
     val onDonate: (() -> Unit)? = null,
+    /** Null hides the Contact menu item (Android has no contact entry). */
+    val onContact: (() -> Unit)? = null,
 )
 
 /** ViewModels scoped to the activity: results of activity pickers and intents land in them. */
@@ -175,6 +177,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                                 onExportTrackBackup = backupViewModel::onExportTrack,
                                 onExportLibraryBackup = backupViewModel::onExportLibrary,
                                 onDonate = activity.onDonate,
+                                onContact = activity.onContact,
                             ),
                             snackbarHostState = snackbarHostState,
                         )

@@ -233,6 +233,14 @@
     <string name="support_message">There are no ads and no subscriptions, and there won't be. On the website I explain why I chose to give it away.</string>
     <string name="support_why_free">Why is it free?</string>
     <string name="support_donate">Donate</string>
+    <string name="contact_menu">Contact</string>
+    <string name="contact_menu_mac">Contact Downstep…</string>
+    <string name="contact_title">Contact</string>
+    <string name="contact_message">For questions, problems or ideas, write to me at:</string>
+    <string name="contact_copy">Copy address</string>
+    <string name="contact_copied">Copied</string>
+    <string name="contact_write">Write an email</string>
+    <string name="contact_no_mail_app">No mail app opened. Copy the address and write from your email.</string>
     <string name="support_close">Close</string>
     <string name="support_close_countdown">Close (%1$d)</string>
     <string name="support_why_free_url">https://downstep.app/why-free/</string>
