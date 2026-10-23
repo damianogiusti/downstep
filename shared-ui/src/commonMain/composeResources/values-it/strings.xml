@@ -239,6 +239,7 @@
     <string name="update_title">È disponibile una nuova versione</string>
     <string name="update_message">Downstep %1$s è pronta. Tu hai la %2$s.</string>
     <string name="update_message_install">Downstep la scarica, si chiude e si riapre. La tua libreria resta com'è.</string>
+    <string name="update_whats_new">Novità</string>
     <string name="update_message_manual">Scaricala dal sito e mettila al posto dell'app che hai. La tua libreria resta com'è.</string>
     <string name="update_install">Aggiorna e riavvia</string>
     <string name="update_download">Scarica</string>

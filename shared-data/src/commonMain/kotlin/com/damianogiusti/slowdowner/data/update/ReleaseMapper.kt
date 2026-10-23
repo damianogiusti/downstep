@@ -12,6 +12,7 @@ object ReleaseMapper {
             version = version,
             pageUrl = dto.htmlUrl,
             canInstall = assetFor(dto, assetName) != null,
+            notes = ReleaseNotes.changes(dto.body),
         )
     }
 

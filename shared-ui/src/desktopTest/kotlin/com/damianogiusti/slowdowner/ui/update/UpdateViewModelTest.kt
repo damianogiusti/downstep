@@ -76,12 +76,22 @@ class UpdateViewModelTest {
                 installedVersion = "1.0.3",
                 pageUrl = PAGE,
                 canInstall = true,
+                notes = emptyList(),
                 isDialogOpen = true,
                 install = UpdateInstallState.Idle,
             ),
             viewModel.state.value,
         )
         assertEquals(listOf("Update prompt shown"), logger.infos)
+    }
+
+    @Test
+    fun `when the release lists its changes then the dialog shows them`() = runTest {
+        updates.latest.value = release("1.0.4").copy(notes = listOf("Normalize volume."))
+        val viewModel = viewModel()
+        subscribe(viewModel)
+
+        assertEquals(listOf("Normalize volume."), available(viewModel).notes)
     }
 
     @Test

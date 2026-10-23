@@ -50,6 +50,7 @@ class UpdateViewModel(
             installedVersion = update.installed.toString(),
             pageUrl = release.pageUrl,
             canInstall = release.canInstall,
+            notes = release.notes,
             isDialogOpen = isDialogOpen,
             install = install,
         )

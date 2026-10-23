@@ -241,6 +241,7 @@
     <string name="update_title">A new version is available</string>
     <string name="update_message">Downstep %1$s is ready. You have %2$s.</string>
     <string name="update_message_install">Downstep downloads it, closes and opens again. Your library stays as it is.</string>
+    <string name="update_whats_new">What's new</string>
     <string name="update_message_manual">Download it from the website and put it in place of the app you have. Your library stays as it is.</string>
     <string name="update_install">Update and restart</string>
     <string name="update_download">Download</string>
