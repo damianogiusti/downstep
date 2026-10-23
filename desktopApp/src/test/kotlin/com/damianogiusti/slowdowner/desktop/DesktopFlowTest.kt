@@ -30,8 +30,9 @@ import com.damianogiusti.slowdowner.domain.effects.ProcessingQuality
 import com.damianogiusti.slowdowner.domain.practice.ObservePracticeStatesUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.job
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -97,7 +98,8 @@ class DesktopFlowTest {
         val scope = CoroutineScope(Dispatchers.Default)
         startAppWork(koin, scope)
         waitUntil { koin.get<EffectsEngine>().quality == ProcessingQuality.LOW }
-        scope.cancel()
+        // Waits for the start work to end: freeing the engine while it applies the effects crashes the JVM.
+        scope.coroutineContext.job.cancelAndJoin()
     }
 
     @Test
@@ -105,7 +107,8 @@ class DesktopFlowTest {
         val scope = CoroutineScope(Dispatchers.Default)
         startAppWork(koin, scope)
         waitUntil { supportPromptStore.stored?.launchCount == 1 }
-        scope.cancel()
+        // Waits for the start work to end: freeing the engine while it applies the effects crashes the JVM.
+        scope.coroutineContext.job.cancelAndJoin()
     }
 
     @Test
@@ -122,7 +125,8 @@ class DesktopFlowTest {
             koin.get<ObservePracticeStatesUseCase>()().first { it[imported.track.id] != null }
         }
         assertEquals(75f, saved.getValue(imported.track.id).speedPercent)
-        scope.cancel()
+        // Waits for the start work to end: freeing the engine while it applies the effects crashes the JVM.
+        scope.coroutineContext.job.cancelAndJoin()
     }
 
     @Test
