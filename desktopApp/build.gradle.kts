@@ -59,8 +59,13 @@ val syncEngineLibrary = tasks.register<Sync>("syncEngineLibrary") {
         from(engineBuildDir.file("sdengine.dll"), engineBuildDir.file("mp3lame.dll"))
         into(appResources.map { it.dir("windows-x64") })
     } else {
+        val arch = when (System.getProperty("os.arch")) {
+            "aarch64", "arm64" -> "arm64"
+            "x86_64", "amd64" -> "x64"
+            else -> throw GradleException("Unsupported macOS architecture: ${System.getProperty("os.arch")}")
+        }
         from(engineBuildDir.file("libsdengine.dylib"))
-        into(appResources.map { it.dir("macos-arm64") })
+        into(appResources.map { it.dir("macos-$arch") })
     }
 }
 // The licenses travel inside the app on every OS (Compose's "common" resources): the DMG has no
