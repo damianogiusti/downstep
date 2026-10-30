@@ -25,10 +25,11 @@ import kotlin.time.TimeSource
  * quitting one freed the engine under the other's feet. On Windows people start the app again while
  * the first copy is still opening. The later copy asks the first one to come forward, then quits.
  *
- * The rule: a launch gives up only when another copy answers that its window came forward. A copy
+ * The rule: a launch gives up only when another copy answers OPEN (its window came forward). A copy
  * that is still starting, frozen, quitting, silent or that cannot be checked never keeps the app
  * closed: the launch keeps asking and trying the lock for a while, then starts anyway. At worst two
- * copies run, as before this check.
+ * copies run, as before this check. The other answers (STARTING, QUITTING, FROZEN) only tell why: the
+ * launch remembers the last one and reports it when it starts anyway.
  *
  * The lock is the operating system's: it goes away with the process, even after a crash. The call
  * goes through a Unix domain socket next to it, which, unlike a TCP port, raises no firewall prompt.
@@ -71,10 +72,15 @@ class SingleInstance private constructor(
                 continue
             }
             client.use {
-                val cameForward = !isQuitting && runCatching { onAnotherLaunch?.invoke() == true }.getOrDefault(false)
-                runCatching { it.write(ByteBuffer.wrap(byteArrayOf(if (cameForward) OPEN else BUSY))) }
+                runCatching { it.write(ByteBuffer.wrap(byteArrayOf(answer()))) }
             }
         }
+    }
+
+    private fun answer(): Byte {
+        if (isQuitting) return QUITTING
+        val comeForward = onAnotherLaunch ?: return STARTING
+        return if (runCatching { comeForward() }.getOrDefault(false)) OPEN else FROZEN
     }
 
     override fun close() {
@@ -86,41 +92,52 @@ class SingleInstance private constructor(
 
     companion object {
         private const val OPEN: Byte = 1
-        private const val BUSY: Byte = 2
+        private const val STARTING: Byte = 2
+        private const val QUITTING: Byte = 3
+        private const val FROZEN: Byte = 4
+
+        // Not on the wire: no socket to talk to, or a socket that did not reply in time.
+        private const val NO_SOCKET: Byte = 0
+        private const val SILENT: Byte = -1
         private val RETRY = 300.milliseconds
         private val ACCEPT_RETRY = 100.milliseconds
 
         /**
          * Null only when another copy answered that its window came forward: this launch should quit.
-         * Otherwise the app may start; [report] tells why it runs without the lock or the socket.
+         * Otherwise the app may start; [report] tells why it runs without the lock or the socket. For
+         * "Started next to a copy that does not answer" its properties carry the last answer
+         * ("answer": starting, quitting, frozen, silent or none).
          * [wait] is how long another copy gets to open its window or to let go of the lock.
          */
         fun acquire(
             root: File,
             wait: Duration = 20.seconds,
             answerTimeout: Duration = 2.seconds,
-            report: (message: String, error: Throwable?) -> Unit = { _, _ -> },
+            report: (message: String, error: Throwable?, properties: Map<String, String>) -> Unit = { _, _, _ -> },
         ): SingleInstance? {
             val socket = File(root, "instance.sock")
             var channel: FileChannel? = null
+            var lastAnswer = NO_SOCKET
             try {
                 root.mkdirs()
                 val opened = FileChannel.open(File(root, "instance.lock").toPath(), CREATE, WRITE).also { channel = it }
                 val deadline = TimeSource.Monotonic.markNow() + wait
                 while (true) {
                     opened.tryLockOrNull()?.let { return owner(opened, it, socket, report) }
-                    if (askFirstCopy(socket, answerTimeout) == OPEN) {
+                    val answer = askFirstCopy(socket, answerTimeout)
+                    if (answer == OPEN) {
                         opened.close()
                         return null
                     }
+                    lastAnswer = answer
                     // Starting, frozen, quitting or deaf: ask again, until it is time to start anyway.
                     if (deadline.hasPassedNow()) break
                     Thread.sleep(RETRY.inWholeMilliseconds)
                 }
-                report("Started next to a copy that does not answer", null)
+                report("Started next to a copy that does not answer", null, mapOf("answer" to answerName(lastAnswer)))
             } catch (e: Exception) {
                 // A folder on a network share, odd permissions, a full disk: run without the check.
-                report("Cannot lock the data folder", e)
+                report("Cannot lock the data folder", e, emptyMap())
             }
             runCatching { channel?.close() }
             return SingleInstance(channel = null, lock = null, server = null, socket = socket)
@@ -130,7 +147,7 @@ class SingleInstance private constructor(
             channel: FileChannel,
             lock: FileLock,
             socket: File,
-            report: (String, Throwable?) -> Unit,
+            report: (String, Throwable?, Map<String, String>) -> Unit,
         ): SingleInstance {
             val server = try {
                 // A socket file left by a crash would make the bind fail. Only the lock holder deletes it.
@@ -138,7 +155,7 @@ class SingleInstance private constructor(
                 ServerSocketChannel.open(StandardProtocolFamily.UNIX).bind(UnixDomainSocketAddress.of(socket.toPath()))
             } catch (e: Exception) {
                 // The app runs; a second launch then waits for the lock and starts next to it.
-                report("Cannot listen for a second launch", e)
+                report("Cannot listen for a second launch", e, emptyMap())
                 null
             }
             return SingleInstance(channel, lock, server, socket)
@@ -151,11 +168,19 @@ class SingleInstance private constructor(
             null
         }
 
-        /** The first copy's answer, or null if it cannot be reached or stays silent. */
-        private fun askFirstCopy(socket: File, timeout: Duration): Byte? {
+        private fun answerName(answer: Byte) = when (answer) {
+            STARTING -> "starting"
+            QUITTING -> "quitting"
+            FROZEN -> "frozen"
+            SILENT -> "silent"
+            else -> "none"
+        }
+
+        /** The first copy's answer, [NO_SOCKET] if it cannot be reached or [SILENT] if it stays silent. */
+        private fun askFirstCopy(socket: File, timeout: Duration): Byte {
             // No socket yet (the first copy binds right after it locks) or none at all: ask again later.
             val client = runCatching { SocketChannel.open(UnixDomainSocketAddress.of(socket.toPath())) }.getOrNull()
-                ?: return null
+                ?: return NO_SOCKET
             return client.use {
                 runCatching {
                     // The first copy may be frozen: never wait for it without a limit.
@@ -163,11 +188,11 @@ class SingleInstance private constructor(
                     Selector.open().use { selector ->
                         it.register(selector, SelectionKey.OP_READ)
                         // select(0) would wait forever.
-                        if (selector.select(timeout.inWholeMilliseconds.coerceAtLeast(1)) == 0) return null
+                        if (selector.select(timeout.inWholeMilliseconds.coerceAtLeast(1)) == 0) return SILENT
                         val answer = ByteBuffer.allocate(1)
-                        if (it.read(answer) == 1) answer.get(0) else null
+                        if (it.read(answer) == 1) answer.get(0) else SILENT
                     }
-                }.getOrNull()
+                }.getOrDefault(SILENT)
             }
         }
     }

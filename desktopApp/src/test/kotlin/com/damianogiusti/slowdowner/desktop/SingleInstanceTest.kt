@@ -34,13 +34,14 @@ class SingleInstanceTest {
     private val root by lazy { folder.newFolder("data") }
     private val toClose = mutableListOf<AutoCloseable>()
     private val problems = mutableListOf<String>()
+    private val answers = mutableListOf<Map<String, String>>()
 
     @AfterTest
     fun closeAll() = toClose.forEach { runCatching { it.close() } }
 
     private fun acquire(dir: File = root, wait: Duration = 10.seconds): SingleInstance? =
-        SingleInstance.acquire(dir, wait, answerTimeout = 500.milliseconds) { message, _ ->
-            synchronized(problems) { problems += message }
+        SingleInstance.acquire(dir, wait, answerTimeout = 500.milliseconds) { message, _, properties ->
+            synchronized(problems) { problems += message; answers += properties }
         }?.also { toClose += it }
 
     @Test
@@ -79,6 +80,43 @@ class SingleInstanceTest {
         assertNotNull(acquire(wait = 300.milliseconds))
 
         assertEquals(listOf("Started next to a copy that does not answer"), problems)
+    }
+
+    @Test
+    fun `when the first copy has no window yet then the launch reports starting`() {
+        assertNotNull(acquire())
+
+        assertNotNull(acquire(wait = 300.milliseconds))
+
+        assertEquals(listOf(mapOf("answer" to "starting")), answers)
+    }
+
+    @Test
+    fun `when the first copy is quitting then the launch reports quitting`() {
+        assertNotNull(acquire()).quitting()
+
+        assertNotNull(acquire(wait = 300.milliseconds))
+
+        assertEquals(listOf(mapOf("answer" to "quitting")), answers)
+    }
+
+    @Test
+    fun `when the first window does not come forward then the launch reports frozen`() {
+        assertNotNull(acquire()).onAnotherLaunch = { false }
+
+        assertNotNull(acquire(wait = 300.milliseconds))
+
+        assertEquals(listOf(mapOf("answer" to "frozen")), answers)
+    }
+
+    @Test
+    fun `when nobody listens then the launch reports none`() {
+        val channel = FileChannel.open(File(root, "instance.lock").toPath(), CREATE, WRITE).also { toClose += it }
+        channel.lock()
+
+        assertNotNull(acquire(wait = 300.milliseconds))
+
+        assertEquals(listOf(mapOf("answer" to "none")), answers)
     }
 
     @Test
@@ -179,6 +217,7 @@ class SingleInstanceTest {
         assertNotNull(acquire(wait = 300.milliseconds))
 
         assertEquals(listOf("Started next to a copy that does not answer"), problems)
+        assertEquals(listOf(mapOf("answer" to "silent")), answers)
     }
 
     @Test

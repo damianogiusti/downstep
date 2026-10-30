@@ -78,6 +78,10 @@ import java.awt.Dimension
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.nio.file.Path
+import java.time.Duration
+import java.time.Instant
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 import javax.swing.SwingUtilities
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
@@ -96,9 +100,9 @@ fun main() {
         exitProcess(0)
     }
     // First of all: a second copy must not rotate the first one's log or touch its crash marker.
-    val instanceProblems = mutableListOf<Pair<String, Throwable?>>()
-    val instance = SingleInstance.acquire(directories.root) { message, error ->
-        instanceProblems += message to error
+    val instanceProblems = mutableListOf<Triple<String, Throwable?, Map<String, String>>>()
+    val instance = SingleInstance.acquire(directories.root) { message, error, properties ->
+        instanceProblems += Triple(message, error, properties)
     } ?: run {
         println("Downstep is already running: asked it to come to the front")
         exitProcess(0)
@@ -106,7 +110,7 @@ fun main() {
     AppLog.start(directories.logs, appVersion)
     CrashReporting.start(appVersion, directories)
     val logger = CrashReporting.logger()
-    instanceProblems.forEach { (message, error) -> logger.w(message, error) }
+    instanceProblems.forEach { (message, error, properties) -> logger.w(message, error, properties) }
     // How the last update went on this computer: the script itself cannot report.
     UpdateSwapFiles.takeResult(directories.updateWork)?.let { logger.i("Update swap result", mapOf("outcome" to it)) }
     val (engine, hasAudioOutput) = startEngine(logger)
@@ -148,8 +152,8 @@ fun main() {
             LaunchedEffect(Unit) {
                 window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT)
                 window.useTransparentTitleBar()
-                // The cold start as the user sees it: what class-data sharing and a lazy start shorten.
-                sinceLaunchMillis()?.let { println("Window composed $it ms after launch") }
+                // Once per run: tells how slow a cold start is where people see the warning about a second copy.
+                logger.i("Window shown", mapOf("startup" to startupBucket(secondsSinceProcessStart())))
             }
             DisposableEffect(Unit) {
                 instance.onAnotherLaunch = {
@@ -219,14 +223,58 @@ fun main() {
     // The window is gone, but its ViewModels and the app work still run on the Swing thread: a track
     // left playing kept reading the position and hit the freed engine. Stopping them there, then
     // freeing the engine there, means none of them is halfway through a call.
+    val quitStarted = TimeSource.Monotonic.markNow()
+    QuitWatchdog.start(logger)
+    QuitWatchdog.step = "ui"
     SwingUtilities.invokeAndWait {
         viewModelOwner.viewModelStore.clear()
         appScope.cancel()
+        QuitWatchdog.step = "engine"
         if (engine != null) KoinPlatform.getKoin().get<DesktopPlaybackEngine>().close()
     }
+    // Before stop(): it flushes, so the line leaves with the rest. Over 10 s the watchdog halts instead.
+    if (quitStarted.elapsedNow() > SLOW_QUIT) logger.i("Slow quit", mapOf("seconds" to "3-10"))
+    QuitWatchdog.step = "crash-reporting"
     CrashReporting.stop()
+    QuitWatchdog.step = "instance"
     instance.close()
     exitProcess(0)
+}
+
+private val SLOW_QUIT = 3.seconds
+
+/**
+ * A copy whose window is gone but whose process stays keeps the instance lock, and every new launch
+ * waits for it. If the quit does not finish in time, halt: it skips shutdown hooks on purpose, as a
+ * stuck hook is one of the things that can hold the process.
+ */
+private object QuitWatchdog {
+    @Volatile
+    var step = "ui"
+
+    fun start(logger: Logger, timeout: kotlin.time.Duration = 10.seconds) {
+        thread(isDaemon = true, name = "quit-watchdog") {
+            Thread.sleep(timeout.inWholeMilliseconds)
+            runCatching {
+                logger.w("Quit is stuck", properties = mapOf("step" to step))
+                CrashReporting.flush(2.seconds)
+            }
+            Runtime.getRuntime().halt(0)
+        }
+    }
+}
+
+private fun secondsSinceProcessStart(): Long {
+    val start = ProcessHandle.current().info().startInstant().orElse(null) ?: return 0
+    return Duration.between(start, Instant.now()).seconds.coerceAtLeast(0)
+}
+
+/** Few values on purpose: they become a property in Sentry. */
+internal fun startupBucket(seconds: Long): String = when {
+    seconds < 3 -> "<3s"
+    seconds < 10 -> "3-10s"
+    seconds <= 20 -> "10-20s"
+    else -> ">20s"
 }
 
 // Windows lets a process in the background only flash its taskbar button: staying on top for a
@@ -238,11 +286,6 @@ private fun bringToFront(window: java.awt.Window, state: WindowState) {
     window.isAlwaysOnTop = false
     window.requestFocus()
 }
-
-/** Null where the OS does not tell when the process started. */
-private fun sinceLaunchMillis(): Long? = ProcessHandle.current().info().startInstant().map {
-    java.time.Duration.between(it, java.time.Instant.now()).toMillis()
-}.orElse(null)
 
 /** Set by Gradle (-PappVersion, see desktopApp/build.gradle.kts). */
 private val appVersion: String = System.getProperty("slowdowner.version") ?: "dev"
