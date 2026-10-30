@@ -1,7 +1,38 @@
 # Agent guide
 
-Rules for coding agents that work on Downstep. Each rule is meant to be checked against the diff.
-[CONTRIBUTING.md](CONTRIBUTING.md) explains the reasons; read it when a rule is unclear.
+Single guide for coding agents that work on Downstep (`CLAUDE.md` points here). Each rule is meant
+to be checked against the diff. [CONTRIBUTING.md](CONTRIBUTING.md) explains the reasons; read it
+when a rule is unclear.
+
+Downstep slows a song down, changes its key and loops a part. Kotlin, Compose Multiplatform with
+Material3 (no XML layouts), Room, Koin 4. A C++ audio engine sits under the desktop app.
+
+## Modules
+
+```
+shared/          domain models and use cases, common Kotlin only (JVM + iOS targets)
+shared-data/     Room database, repositories, YouTube import (NewPipe), backups
+shared-ui/       Compose Multiplatform: screens, ViewModels, theme, strings in composeResources
+engine/          C++ audio engine (CMake, Bungee time-stretch, miniaudio, LAME)
+engine-desktop/  Kotlin binding of the engine through FFM (java.lang.foreign)
+desktopApp/      Compose Desktop app for macOS and Windows
+website/         the site (python3 website/build.py)
+```
+
+The shared modules also have an Android target, so Gradle needs the Android SDK to configure.
+
+## Commands
+
+```sh
+./gradlew :desktopApp:run                 # start the app (uses the real data folder, see Desktop)
+./gradlew :shared:jvmTest :shared-data:desktopTest :shared-ui:desktopTest
+./gradlew :shared:jvmTest --tests "com.damianogiusti.slowdowner.domain.library.*"
+./gradlew :shared:iosSimulatorArm64Test   # same domain tests on Kotlin/Native
+./gradlew :engine-desktop:test            # builds engine/ with CMake, tests through FFM
+./gradlew :desktopApp:test                # DI graph, import and play flow, off-screen render
+./gradlew :desktopApp:createDistributable # app folder in desktopApp/build/compose/binaries/main/app
+./gradlew :desktopApp:packageDmg          # unsigned DMG (macOS)
+```
 
 ## Scope of a change
 
@@ -11,17 +42,15 @@ Rules for coding agents that work on Downstep. Each rule is meant to be checked 
   maintainer agreed to.
 - Do not refactor existing code that works, even if it breaks a rule below. New code follows the
   rules.
-- This repository is a mirror: pull requests are not merged on GitHub. The maintainer applies
-  accepted changes by hand, with a `Co-authored-by` trailer.
 
-## Code used outside this repository
+## Changes that need care
 
-The shared modules have other consumers outside this repository. Without prior agreement, do not:
+Without prior agreement, do not:
 
 - change or remove a public class, function or constructor in `shared`, `shared-data`, `shared-ui`;
 - change an interface (repositories, stores, data sources);
 - change `useCasesModule`, `uiModule` or existing Koin bindings (adding a new binding is fine);
-- change the database schema.
+- change the database schema or the backup file format.
 
 A database change, once agreed, needs a Room migration, the exported schema in
 `shared-data/schemas/` and a migration test.
@@ -43,8 +72,12 @@ A database change, once agreed, needs a Room migration, the exported schema in
 - No interface without a real implementation. No abstraction for a future need.
 - Names: `...UseCase`, `...Repository`, `Default...Repository`, `...DataSource`, `...Store`,
   `...Mapper`, `...Dto`, `...Adapter`. Never `Manager`, `Handler`, `Helper`, `Util`, `Service`.
-- Logging: inject `Logger`. Log only rare, meaningful events. Property values come from a small
-  set. Never log titles, file names, paths or other personal data.
+- Layers: `ui` calls `domain` use cases, `domain` defines the repository interfaces, `data`
+  implements them. `domain` never imports `data` or `ui`.
+- Logging: inject `Logger` (package `logging` in `shared`). Log only rare, meaningful events.
+  Property values come from a small set. Never log titles, file names, paths or other personal
+  data. On desktop, a dev run prints to stdout; a release with a Sentry DSN sends info and above to
+  Sentry Logs, and `e` with a throwable becomes an issue (`desktopApp/.../SentryLogger.kt`).
 
 ## Presentation
 
@@ -93,7 +126,34 @@ A database change, once agreed, needs a Room migration, the exported schema in
 
 - Visible name: `Downstep`. Internal names stay `SlowDowner`: package
   `com.damianogiusti.slowdowner`, classes, icon files, log tags, `slowdowner.log`, data folder.
-- Windows builds only with MinGW-w64, in CI. Do not add MSVC-specific code or build steps.
+- Data is in `~/Library/Application Support/SlowDowner` (macOS) or `%APPDATA%\SlowDowner`
+  (Windows); the log is `logs/slowdowner.log` there. On a developer's Mac that folder can hold a
+  real library: tests use temporary directories, and `desktopApp:run` touches the real data.
+- Texts that differ on desktop ("computer" instead of "phone", no share sheet) use
+  `ui/common/isDesktop` (expect/actual in `shared-ui`). Window, menus and title bar live in
+  `desktopApp`.
+- The version comes from `-PappVersion` (CI: `1.0.<run number>`) and shows in the window title
+  and the log.
+- Updates: at launch the packaged app asks GitHub for the latest public release. If it is newer, a
+  dialog and a banner offer it. The app downloads the DMG or zip itself, so there is no quarantine
+  or Mark of the Web, and `desktopApp/.../update/` swaps the app with a script after it quits.
+  `-Dslowdowner.updates.url` points to a fake release server.
+- **Install and swap checks run only in CI** (`.github/workflows/macos.yml` and `windows.yml`,
+  `-PupdateSwapTests=true`), never on a developer's computer: they replace an app in
+  `/Applications` or its Windows equivalent. In tests: no links to real folders, no recursive
+  delete that follows links.
+- Windows is built and tested only in CI, with MinGW-w64 (Bungee does not build with MSVC). Do not
+  add MSVC-specific code or build steps. Read a failure with `gh run view <id> --log-failed`.
+
+## Releases and site
+
+- This repository is where development happens. Merging to `main` publishes nothing by itself.
+- A `v*` tag runs `release.yml`, which builds the DMG and the zip into a draft release. The notes
+  come from the section of the version in `desktopApp/CHANGELOG.txt`.
+- A `website-v*` tag runs `site.yml`, which moves the branch `site` to that commit. statichost.eu
+  builds the site from `site`.
+- `leak-check.yml` rejects text from a private list of terms kept in a secret. Run
+  `scripts/leak-check.sh` before you push. Never add that list to the repository.
 
 ## Dependencies
 

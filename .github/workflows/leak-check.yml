@@ -1,0 +1,49 @@
+# Stops a push or a pull request that carries a denied term in a changed file or in a commit
+# message. The terms are in the secret DENYLIST (one per line): they are not in this repository.
+# The log names the file or the commit, never the term. Pull requests from forks cannot read the
+# secret: the job passes with a notice and the maintainer reviews the change by hand.
+# Same check, locally: scripts/leak-check.sh
+name: Leak check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: leak-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Look for denied terms
+        env:
+          DENYLIST: ${{ secrets.DENYLIST }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -z "$DENYLIST" ]; then
+            echo "::notice::No DENYLIST secret here (fork pull request, or not set): review this change by hand."
+            exit 0
+          fi
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            base="$PR_BASE"; git checkout -q "$PR_HEAD"
+          elif [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != 0000000000000000000000000000000000000000 ] \
+            && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+            base="$PUSH_BEFORE"
+          else
+            base="$(git rev-parse HEAD~1)"
+          fi
+          terms="$RUNNER_TEMP/terms.txt"
+          printf '%s\n' "$DENYLIST" > "$terms"
+          scripts/leak-check.sh "$terms" "$base"
