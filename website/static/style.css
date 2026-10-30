@@ -288,6 +288,7 @@ section.block { padding: 88px 0 8px; }
 .callout b { font-family: var(--display); }
 .get { padding: 28px; margin: 22px 0; display: flex; flex-wrap: wrap; gap: 18px; align-items: center; justify-content: space-between; }
 .get .req { color: var(--muted); margin: 4px 0 0; }
+.get-buttons { display: flex; flex-wrap: wrap; gap: 12px; }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 28px 0; }
 details.terminal { margin: 6px 0 0; padding: 0 12px; }
 details.terminal summary { cursor: pointer; color: var(--muted); font-weight: 600; }

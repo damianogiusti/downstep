@@ -63,6 +63,22 @@ class DefaultUpdateRepositoryTest {
     }
 
     @Test
+    fun `when an old release has no Intel DMG then it is a link only and nothing is installed`() = runTest {
+        // The release has Downstep-mac.dmg (Apple silicon) but not the Intel file this Mac would need.
+        dataSource.latest = release("v1.0.4")
+        dataSource.files[DOWNLOAD] = dmg
+        val intel = FakeUpdateInstaller(assetName = "Downstep-mac-intel.dmg")
+        val repository = repository(intel)
+        repository.refresh()
+
+        val release = requireNotNull(repository.observeLatestRelease().first())
+
+        assertEquals(false, release.canInstall)
+        assertEquals(UpdateInstallResult.Failure, repository.install(release) {})
+        assertTrue(intel.prepared.isEmpty())
+    }
+
+    @Test
     fun `when this computer installs by hand then the release cannot be installed`() = runTest {
         dataSource.latest = release("v1.0.4")
         val repository = repository(FakeUpdateInstaller(assetName = null))

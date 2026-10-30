@@ -29,7 +29,10 @@
       <p class="req">{{ page.short_req }}</p>
       <p class="req">{{ download.source }}</p>
     </div>
-    <a class="btn btn-primary" href="{{ @file }}">{{ @icon:arrow_downward }}{{ page.button }}</a>
+    <div class="get-buttons">
+      <a class="btn btn-primary" href="{{ @file }}">{{ @icon:arrow_downward }}{{ page.button }}</a>
+      {{ page.second_button }}
+    </div>
   </div>
 </main>
 

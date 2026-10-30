@@ -126,6 +126,7 @@ fun main() {
             "engine" to if (engine != null) "ok" else "unavailable",
             "audioOutput" to hasAudioOutput.toString(),
             "java" to System.getProperty("java.version").orEmpty(),
+            "arch" to cpuArchitecture(),
         ) + launchProperties(CrashReporting.isNewInstallation, hasLaunchHistory),
     )
     // Main (Swing) thread, as on Android: engine settings are applied from the UI thread.
@@ -391,4 +392,11 @@ private fun engineLibrary(): Path? {
     System.getProperty(NativeEngine.LIBRARY_PROPERTY)?.let { return Path.of(it) }
     val resources = System.getProperty("compose.application.resources.dir") ?: return null
     return Path.of(resources, System.mapLibraryName("sdengine")).takeIf { it.toFile().exists() }
+}
+
+/** Few values on purpose: they are log properties. */
+private fun cpuArchitecture(): String = when (System.getProperty("os.arch").orEmpty().lowercase()) {
+    "aarch64", "arm64" -> "arm64"
+    "x86_64", "amd64" -> "x64"
+    else -> "other"
 }
