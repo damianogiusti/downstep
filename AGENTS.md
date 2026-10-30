@@ -150,6 +150,10 @@ A database change, once agreed, needs a Room migration, the exported schema in
 - This repository is where development happens. Merging to `main` publishes nothing by itself.
 - A `v*` tag runs `release.yml`, which builds the DMG and the zip into a draft release. The notes
   come from the section of the version in `desktopApp/CHANGELOG.txt`.
+- A release ships two Mac DMGs: `Downstep-mac.dmg` (Apple silicon, the name old installs look for) and
+  `Downstep-mac-intel.dmg`, built by the `mac-intel` job on `macos-15-intel`. The updater picks the file by
+  CPU architecture; a release without it is offered as a link. CI also tests on Intel (`intel` job in
+  `macos.yml`).
 - statichost.eu builds the site from the branch `site`. To publish, fast-forward it to `main`:
   `git push origin main:site`. Never commit to `site` directly.
 - `leak-check.yml` rejects text from a private list of terms kept in a secret. Run
