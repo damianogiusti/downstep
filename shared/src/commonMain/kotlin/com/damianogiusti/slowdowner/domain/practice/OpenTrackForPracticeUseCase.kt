@@ -16,8 +16,9 @@ class OpenTrackForPracticeUseCase(
 ) {
     suspend operator fun invoke(track: LibraryTrack): Boolean {
         savePracticeState()
-        // Load before opening, so open and apply run back to back on the main thread:
-        // a debounced auto-save cannot slip in and store the old values on the new track.
+        // Load before opening, so marking the track as playing and applying its settings run back to
+        // back on the caller's (main) thread, with no suspension between them: a debounced auto-save
+        // cannot slip in and store the old values on the new track. Only the decode runs elsewhere.
         val settings = repository.lastState(track.id) ?: PracticeSettings()
         val opened = openTrack(track)
         if (opened) engine.applyPracticeSettings(settings)

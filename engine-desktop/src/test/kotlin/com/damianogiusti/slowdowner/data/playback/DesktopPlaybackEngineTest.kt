@@ -237,6 +237,23 @@ class DesktopPlaybackEngineTest {
         assertEquals(listOf("E Cannot open track {extension=mp3, reason=decoder}"), logged)
     }
 
+    @Test
+    fun `the decode runs on the decode dispatcher, not on the caller's thread`() = runTest {
+        val engine = DesktopPlaybackEngine(native, backgroundScope)
+        val decodeThreads = mutableListOf<Thread>()
+        val decode = object : kotlinx.coroutines.CoroutineDispatcher() {
+            override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
+                Thread { decodeThreads += Thread.currentThread(); block.run() }.start()
+            }
+        }
+
+        val opened = DesktopAudioSourceRepository(engine, ConsoleLogger(), decode).open(AudioSource.LocalFile(file.path))
+
+        assertTrue(opened)
+        assertEquals(1, decodeThreads.size)
+        assertTrue(decodeThreads.single() !== Thread.currentThread())
+    }
+
     /** One string per line: level, message and properties. */
     private class LineLogger(private val lines: MutableList<String>) : Logger {
         override fun d(message: String, properties: Map<String, String>) { lines += "D $message $properties" }
@@ -245,7 +262,7 @@ class DesktopPlaybackEngineTest {
         override fun e(message: String, throwable: Throwable?, properties: Map<String, String>) { lines += "E $message $properties" }
     }
 
-    private fun TestScope.openEngine(): DesktopPlaybackEngine {
+    private suspend fun TestScope.openEngine(): DesktopPlaybackEngine {
         val engine = DesktopPlaybackEngine(native, backgroundScope)
         assertTrue(DesktopAudioSourceRepository(engine, ConsoleLogger()).open(AudioSource.LocalFile(file.path)))
         assertEquals(10f, engine.durationSeconds, 0.01f)

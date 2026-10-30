@@ -4,27 +4,32 @@ import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.domain.source.AudioSource
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
 import com.damianogiusti.slowdowner.logging.Logger
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Local files only: Spotify playback is out of use on every platform. [open] decodes the whole file
- * and blocks, like the Android repository: callers run it on an IO dispatcher.
+ * Local files only: Spotify playback is out of use on every platform. [open] decodes the whole file,
+ * which takes seconds for a long song: it runs on [decodeDispatcher] so the caller's (main) thread stays free.
  */
 class DesktopAudioSourceRepository(
     private val engine: DesktopPlaybackEngine,
     private val logger: Logger,
+    private val decodeDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : AudioSourceRepository {
 
     private var current: AudioSource? = null
 
-    override fun open(source: AudioSource): Boolean {
+    override suspend fun open(source: AudioSource): Boolean = withContext(decodeDispatcher) {
         close()
         val opened = when (source) {
             is AudioSource.LocalFile -> openLocal(File(source.path))
             is AudioSource.SpotifyTrack -> false
         }
         current = if (opened) source else null
-        return opened
+        opened
     }
 
     override fun current(): AudioSource? = current
