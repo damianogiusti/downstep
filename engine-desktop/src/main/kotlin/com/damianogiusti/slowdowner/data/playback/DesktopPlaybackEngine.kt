@@ -18,6 +18,9 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
@@ -29,7 +32,9 @@ import kotlin.time.Duration.Companion.milliseconds
  * or a backup means the same thing on every platform.
  *
  * Settings are mirrored here because the C side only receives them. Position and end of file are
- * polled in [scope]: the C engine never calls back into the JVM.
+ * polled in [scope]: the C engine never calls back into the JVM. The poll reads the position alone
+ * and publishes it in [positionFlow], not as an event: an event per tick made every listener re-read
+ * all the controls 20 times a second.
  */
 class DesktopPlaybackEngine(
     private val engine: NativeEngine,
@@ -42,6 +47,9 @@ class DesktopPlaybackEngine(
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
     override val events: Flow<PlaybackEvent> = _events
+
+    private val _position = MutableStateFlow(0f)
+    override val positionFlow: StateFlow<Float> = _position.asStateFlow()
 
     override val isOpen get() = engine.isOpen
     override val isPlaying get() = engine.isPlaying
@@ -106,6 +114,7 @@ class DesktopPlaybackEngine(
         val opened = engine.open(path)
         if (opened) {
             applyLoop(LoopRegion.WHOLE_FILE)
+            publishPosition()
             _events.tryEmit(PlaybackEvent.ControlsChanged)
         }
         return opened
@@ -113,6 +122,7 @@ class DesktopPlaybackEngine(
 
     fun closeFile() {
         engine.closeFile()
+        publishPosition()
         _events.tryEmit(PlaybackEvent.PlayStateChanged)
     }
 
@@ -128,7 +138,8 @@ class DesktopPlaybackEngine(
 
     override fun seekTo(position: Float) {
         engine.seek(position.coerceIn(0f, 1f).toDouble())
-        // Reported at once: while paused the poller stays quiet.
+        // Reported at once, not at the next poll: a click on the waveform moves the playhead now.
+        publishPosition()
         _events.tryEmit(PlaybackEvent.PositionChanged)
     }
 
@@ -137,15 +148,21 @@ class DesktopPlaybackEngine(
     override fun setPitchFromSlider(position: Int) =
         setPitchSemitones(SliderCurves.pitchSemitones(position, snapToSemitones = true, currentSemitones = pitchSemitones))
 
+    // A slider drag repeats the same value often (pitch snaps to semitones): only a real change
+    // reaches the audio thread and the listeners.
     override fun setSpeedPercent(percent: Float) {
-        speedPercent = percent.coerceIn(MIN_SPEED_PERCENT, MAX_SPEED_PERCENT)
-        engine.setSpeed(speedPercent / 100.0)
+        val speed = percent.coerceIn(MIN_SPEED_PERCENT, MAX_SPEED_PERCENT)
+        if (speed == speedPercent) return
+        speedPercent = speed
+        engine.setSpeed(speed / 100.0)
         onPracticeSettingsChanged()
     }
 
     override fun setPitchSemitones(semitones: Float) {
-        pitchSemitones = semitones.coerceIn(MIN_PITCH_SEMITONES, MAX_PITCH_SEMITONES)
-        engine.setPitch(pitchSemitones.toDouble())
+        val pitch = semitones.coerceIn(MIN_PITCH_SEMITONES, MAX_PITCH_SEMITONES)
+        if (pitch == pitchSemitones) return
+        pitchSemitones = pitch
+        engine.setPitch(pitch.toDouble())
         onPracticeSettingsChanged()
     }
 
@@ -198,8 +215,16 @@ class DesktopPlaybackEngine(
         loopStart = region.start
         loopEnd = region.end
         isLoopOn = region.isOn
-        if (seekTo == null) engine.setLoop(loopStart.toDouble(), loopEnd.toDouble(), isLoopOn)
-        else engine.setLoopAndSeek(loopStart.toDouble(), loopEnd.toDouble(), isLoopOn, seekTo.toDouble())
+        if (seekTo == null) {
+            engine.setLoop(loopStart.toDouble(), loopEnd.toDouble(), isLoopOn)
+        } else {
+            engine.setLoopAndSeek(loopStart.toDouble(), loopEnd.toDouble(), isLoopOn, seekTo.toDouble())
+            publishPosition()
+        }
+    }
+
+    private fun publishPosition() {
+        _position.value = engine.position.toFloat()
     }
 
     private inline fun editLoop(edit: (LoopState) -> LoopState?) {
@@ -218,11 +243,14 @@ class DesktopPlaybackEngine(
         _events.tryEmit(PlaybackEvent.PracticeSettingsChanged)
     }
 
+    // Two native calls per tick, both lock-free reads. The StateFlow drops repeats: while paused
+    // nobody is woken up.
     private fun poll() {
-        if (engine.takeEvents() and NativeEngine.EVENT_REACHED_END != 0) {
+        val reachedEnd = engine.takeEvents() and NativeEngine.EVENT_REACHED_END != 0
+        publishPosition()
+        if (reachedEnd) {
             _events.tryEmit(PlaybackEvent.PlayStateChanged)
             _events.tryEmit(PlaybackEvent.ReachedEnd)
         }
-        if (engine.isPlaying) _events.tryEmit(PlaybackEvent.PositionChanged)
     }
 }
