@@ -214,6 +214,9 @@ fun main() {
             }
         }
     }
+    val quitStarted = TimeSource.Monotonic.markNow()
+    QuitWatchdog.start(logger)
+    QuitWatchdog.step = "save"
     // The last EQ edit may still wait for its pause: the process exits before that ends, and clearing
     // the ViewModels below does not wait for the save it starts.
     flushOnQuit?.let { flush ->
@@ -223,8 +226,6 @@ fun main() {
     // The window is gone, but its ViewModels and the app work still run on the Swing thread: a track
     // left playing kept reading the position and hit the freed engine. Stopping them there, then
     // freeing the engine there, means none of them is halfway through a call.
-    val quitStarted = TimeSource.Monotonic.markNow()
-    QuitWatchdog.start(logger)
     QuitWatchdog.step = "ui"
     SwingUtilities.invokeAndWait {
         viewModelOwner.viewModelStore.clear()
@@ -250,7 +251,7 @@ private val SLOW_QUIT = 3.seconds
  */
 private object QuitWatchdog {
     @Volatile
-    var step = "ui"
+    var step = "save"
 
     fun start(logger: Logger, timeout: kotlin.time.Duration = 10.seconds) {
         thread(isDaemon = true, name = "quit-watchdog") {
