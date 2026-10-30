@@ -6,17 +6,13 @@ it has the same rules as a short checklist.
 
 ## How contributions work
 
-This repository is a mirror. I develop Downstep in a private repository, and a workflow publishes
-the public modules here. The public history is rebuilt from the private one and pushed without
-force. So I can't merge a pull request on GitHub: the next publish would fail.
+Downstep is developed in this repository. Pull requests are reviewed and merged here, on GitHub.
 
-This is what happens instead:
+This is the flow:
 
-1. You open a pull request here, as usual.
-2. We discuss it here, in the comments.
-3. When we agree, I apply the change in the private repository. Each commit gets a
-   `Co-authored-by` trailer with your name and email, so the credit stays with you.
-4. The change appears here with the next publish, and I close the pull request.
+1. You open a pull request.
+2. We discuss it in the comments. CI runs the tests on macOS and Windows.
+3. When we agree, I merge it. Your commits stay as they are, so the credit stays with you.
 
 Some practical points:
 
@@ -29,22 +25,19 @@ Some practical points:
 - **License.** Downstep is GPL-3.0. In each pull request, write that you release your
   contribution under GPL-3.0.
 
-## Code used outside this repository
+## Changes that need care
 
-The shared modules have other consumers outside this repository. You can't see that code, and a
-change that compiles here can still break it. So please discuss it first, in an issue or in the
-pull request, before you change:
+Please discuss these first, in an issue or in the pull request:
 
 - a public API: a public class, function or constructor in `shared`, `shared-data` or `shared-ui`;
 - an interface (a repository, a store, a data source);
 - the Koin modules (`useCasesModule`, `uiModule`) or their bindings;
-- the database schema.
+- the database schema and the backup file format.
 
-New classes and new use cases are usually fine. Changing an existing signature usually is not.
+New classes and new use cases are usually fine. Changing an existing signature needs a reason.
 
 A database change needs three things: a Room migration, the new exported schema in
-`shared-data/schemas/` (committed), and a test of the migration. Say it clearly in the pull
-request: I have to register the migration in other places too.
+`shared-data/schemas/` (committed), and a test of the migration.
 
 ## Modules
 
