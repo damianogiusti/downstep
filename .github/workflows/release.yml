@@ -83,6 +83,48 @@ jobs:
           path: dist/Downstep-mac.dmg
           retention-days: 7
 
+  # Same build on an Intel runner: the engine is compiled for the host, so each DMG matches its Mac.
+  mac-intel:
+    needs: notes
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '23'
+
+      # The shared modules also have an Android target, so Gradle needs the SDK to configure.
+      - uses: android-actions/setup-android@v3
+        with:
+          # The default list of some v3 versions still has "tools", which new SDKs no longer have.
+          packages: platform-tools
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Version
+        run: echo "APP_VERSION=$(echo "${GITHUB_REF_NAME#v}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || echo 1.0.0)" >> "$GITHUB_ENV"
+
+      - name: Tests
+        run: ./gradlew :engine-desktop:test :desktopApp:test -PappVersion=$APP_VERSION --stacktrace
+
+      - name: DMG
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          ./gradlew :desktopApp:packageDmg -PappVersion=$APP_VERSION --stacktrace
+          mkdir -p dist
+          mv desktopApp/build/compose/binaries/main/dmg/Downstep-*.dmg dist/Downstep-mac-intel.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-intel
+          path: dist/Downstep-mac-intel.dmg
+          retention-days: 7
+
   windows:
     needs: notes
     runs-on: windows-latest
@@ -145,7 +187,7 @@ jobs:
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [notes, mac, windows]
+    needs: [notes, mac, mac-intel, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -160,10 +202,10 @@ jobs:
           # The changes first, then a line "---": the app can show only what comes before it.
           { cat dist/changes.md; printf '\n---\n\n'; } > notes.md
           cat >> notes.md <<'EOF'
-          For Mac with Apple silicon (macOS 11 or later) and for Windows 10 and 11 (64 bit).
+          For Mac (Apple silicon or Intel, macOS 11 or later) and for Windows 10 and 11 (64 bit).
 
           The Mac app is not notarized: the first time, macOS blocks it. Open System Settings, Privacy & Security, and choose Open Anyway.
           On Windows, unzip the folder and start Downstep.exe. If SmartScreen appears, choose More info and Run anyway.
           EOF
-          gh release create "$GITHUB_REF_NAME" dist/Downstep-mac.dmg dist/Downstep-windows-x64.zip \
+          gh release create "$GITHUB_REF_NAME" dist/Downstep-mac.dmg dist/Downstep-mac-intel.dmg dist/Downstep-windows-x64.zip \
             --repo "$GITHUB_REPOSITORY" --title "Downstep ${GITHUB_REF_NAME#v}" --notes-file notes.md --draft
