@@ -156,7 +156,7 @@ catalog = '''
       </section>'''
 
 download_title = 'Download'
-mac_req = 'A Mac with Apple silicon (M1 or later) and macOS 11 or later.'
+mac_req = 'A Mac with Apple silicon or Intel, and macOS 11 or later.'
 win_req = 'Windows 10 or 11, 64-bit.'
 
 note_title = 'Why I made it'
@@ -173,7 +173,7 @@ faq = '''
       <details><summary>Why does macOS block it?{{ @icon:expand_more }}</summary>
         <p>Because it isn't distributed through the App Store. You only need to allow it once, the <a href="{{ @url:mac }}">download page</a> explains how. In the future it will come to the App Store too, and this step won't be needed anymore.</p></details>
       <details><summary>Does it work on an Intel Mac?{{ @icon:expand_more }}</summary>
-        <p>Not for now, only on Apple silicon (M1 and later).</p></details>
+        <p>Yes. The <a href="{{ @url:mac }}">download page</a> has a separate file for Macs with Intel. You need macOS 11 or later.</p></details>
       <details><summary>Is there an iPhone or Android version?{{ @icon:expand_more }}</summary>
         <p>Not for now. I'd like to make an iPhone version, but there is no date yet.</p></details>
       <details><summary>Can I import from YouTube?{{ @icon:expand_more }}</summary>
@@ -191,16 +191,17 @@ donate_button = 'Donate with PayPal'
 source = '<a href="https://github.com/damianogiusti/downstep">Source code and licenses</a>'
 
 [mac]
-short_req = 'Apple silicon, macOS 11 or later'
+short_req = 'Apple silicon (M1 or later), macOS 11 or later'
 title = 'Download Downstep for Mac'
-description = 'Download Downstep for Mac and install it in a few steps. For Macs with Apple silicon and macOS 11 or later.'
+description = 'Download Downstep for Mac and install it in a few steps. For Macs with Apple silicon or Intel, and macOS 11 or later.'
 nav = ''
 cta = ''
 icon = '{{> icon-apple }}'
 label = 'Mac'
 h1 = 'Downstep for Mac'
 file_name = 'Downstep-mac.dmg'
-req = 'A Mac with Apple silicon (M1 or later) and macOS 11 or later. Intel Macs are not supported for now.'
+req = 'A Mac with Apple silicon (M1 or later) or Intel, and macOS 11 or later. The main button is for Apple silicon: if your Mac has an Intel chip, use the Intel link.'
+also = '<p class="req"><a href="{{ @file:mac-intel }}">Mac with Intel</a> (Downstep-mac-intel.dmg)</p>'
 button = 'Download'
 steps = '''
 <li class="row"><span class="tile">1</span><div><b>Open the .dmg</b><p>and drag Downstep into Applications.</p></div></li>
@@ -224,6 +225,7 @@ icon = '{{> icon-windows }}'
 label = 'Windows beta'
 h1 = 'Downstep for Windows'
 file_name = 'Downstep-windows-x64.zip'
+also = ''
 req = 'Windows 10 or 11, 64-bit.'
 button = 'Download'
 steps = '''

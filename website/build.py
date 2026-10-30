@@ -8,6 +8,7 @@ Templates in templates/ hold the markup; texts live in i18n/<lang>.toml. A templ
     {{> header }}        templates/_header.html
     {{ @icon:tune }}     inline SVG from templates/icons/ (the app's own Material icons)
     {{ @file }}          download URL of the page's target (FILES below)
+    {{ @file:mac-intel }} download URL of another entry of FILES
     {{ @root }}          relative path to the site root ("", "../", ...)
     {{ @lang }}          language code
     {{ @url:why }}       relative link to another page, in the same language
@@ -46,7 +47,11 @@ PAGES = {
 GUIDES = ["slow", "key", "loop"]
 
 RELEASES = "https://github.com/damianogiusti/downstep/releases/latest/download/"
-FILES = {"mac": RELEASES + "Downstep-mac.dmg", "windows": RELEASES + "Downstep-windows-x64.zip"}
+FILES = {
+    "mac": RELEASES + "Downstep-mac.dmg",
+    "mac-intel": RELEASES + "Downstep-mac-intel.dmg",
+    "windows": RELEASES + "Downstep-windows-x64.zip",
+}
 
 # Canonical and hreflang links are absolute, and sitemap.xml is written. With the trailing slash:
 # page paths have none at the start.
@@ -129,6 +134,8 @@ def render(text, lang, page, texts, other):
             return (HERE / "templates" / "icons" / f"{name[6:]}.svg").read_text()
         if name == "@file":
             return FILES[page]
+        if name.startswith("@file:"):
+            return FILES[name[6:]]
         if name == "@root":
             return "../" * here.count("/")
         if name == "@lang":

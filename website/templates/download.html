@@ -27,6 +27,7 @@
     <div>
       <b>{{ page.file_name }}</b>
       <p class="req">{{ page.short_req }}</p>
+      {{ page.also }}
       <p class="req">{{ download.source }}</p>
     </div>
     <a class="btn btn-primary" href="{{ @file }}">{{ @icon:arrow_downward }}{{ page.button }}</a>
