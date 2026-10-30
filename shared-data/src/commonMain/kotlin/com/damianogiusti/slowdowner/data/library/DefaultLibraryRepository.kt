@@ -107,10 +107,10 @@ class DefaultLibraryRepository(
         throw e
     } catch (e: StreamUnavailableException) {
         // Many of these at once usually mean YouTube changed and the extractor needs an update.
-        logger.w("Import unavailable", e, mapOf("source" to source))
+        logger.w("Import unavailable", e, mapOf("source" to source) + link(url))
         ImportResult.Unavailable
     } catch (e: HttpStatusException) {
-        val properties = mapOf("source" to source, "status" to e.status.toString())
+        val properties = mapOf("source" to source, "status" to e.status.toString()) + link(url)
         if (e.status < HTTP_SERVER_ERROR) {
             // The stream was refused (403, 404): usually YouTube changed and the extractor needs an
             // update. Retrying does not help, so it is not a network error for the user.
@@ -122,14 +122,18 @@ class DefaultLibraryRepository(
         }
     } catch (e: IOException) {
         // Timeouts, dropped connections, a full disk: the user's side.
-        logger.w("Import I/O error", e, mapOf("source" to source))
+        logger.w("Import I/O error", e, mapOf("source" to source) + link(url))
         onIoError
     } catch (e: Exception) {
-        // The link is public and tells which video breaks the extractor; a local path never goes out.
-        val link = url?.let { mapOf("url" to videoLink(it)) }.orEmpty()
-        logger.failure("Import failed", e, mapOf("source" to source) + link)
+        logger.failure("Import failed", e, mapOf("source" to source) + link(url))
         ImportResult.Failure(e)
     }
+
+    /**
+     * Every failed link import says which video it was, so it can be tried again here. The link is
+     * public; a local path never goes out (file imports have no url).
+     */
+    private fun link(url: String?): Map<String, String> = url?.let { mapOf("url" to videoLink(it)) }.orEmpty()
 
     /**
      * A pasted link can carry more than the video: a playlist (`list=`), a share token (`si=`). Only
