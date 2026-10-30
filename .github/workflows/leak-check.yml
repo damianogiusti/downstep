@@ -29,21 +29,27 @@ jobs:
         env:
           DENYLIST: ${{ secrets.DENYLIST }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
         run: |
           if [ -z "$DENYLIST" ]; then
             echo "::notice::No DENYLIST secret here (fork pull request, or not set): review this change by hand."
             exit 0
           fi
+          # The script comes from the base, never from the change under check: a pull request could
+          # edit it, or start from a main that does not have it yet.
+          script="$RUNNER_TEMP/leak-check.sh"
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            base="$PR_BASE"; git checkout -q "$PR_HEAD"
+            # HEAD is GitHub's merge of the pull request into the current base: diffing against the
+            # base shows only what the pull request changes, even when it starts from an older main.
+            base="$PR_BASE"
+            git show "$PR_BASE:scripts/leak-check.sh" > "$script"
           elif [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != 0000000000000000000000000000000000000000 ] \
             && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
             base="$PUSH_BEFORE"
           else
             base="$(git rev-parse HEAD~1)"
           fi
+          [ -s "$script" ] || git show "$base:scripts/leak-check.sh" > "$script"
           terms="$RUNNER_TEMP/terms.txt"
           printf '%s\n' "$DENYLIST" > "$terms"
-          scripts/leak-check.sh "$terms" "$base"
+          bash "$script" "$terms" "$base"
