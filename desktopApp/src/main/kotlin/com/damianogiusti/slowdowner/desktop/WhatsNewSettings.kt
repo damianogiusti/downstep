@@ -13,4 +13,10 @@ data class WhatsNewSettings(
     val store: WhatsNewStore = PreferencesWhatsNewStore(),
     /** Where CHANGELOG.txt is (see syncChangelog in build.gradle.kts). Null outside the packaged app and Gradle runs. */
     val changelogDir: File? = System.getProperty("compose.application.resources.dir")?.let(::File),
-)
+) {
+    companion object {
+        /** Only the packaged app shows the popup and records a version: a Gradle run shows nothing and records nothing. */
+        fun current(appVersion: String, hasLaunchHistory: Boolean, isPackaged: Boolean = isPackagedApp()) =
+            WhatsNewSettings(appVersion = appVersion.takeIf { isPackaged }, hasLaunchHistory = hasLaunchHistory)
+    }
+}

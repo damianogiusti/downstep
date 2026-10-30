@@ -134,7 +134,7 @@ fun main() {
         val koin = startKoin { modules(
             desktopModule(
                 directories, engine, logger = logger, updates = updates,
-                whatsNew = WhatsNewSettings(appVersion = appVersion, hasLaunchHistory = hasLaunchHistory),
+                whatsNew = WhatsNewSettings.current(appVersion, hasLaunchHistory),
             ),
             useCasesModule,
             uiModule,

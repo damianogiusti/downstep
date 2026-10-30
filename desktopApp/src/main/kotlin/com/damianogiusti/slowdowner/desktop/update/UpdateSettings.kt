@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.desktop.update
 
 import com.damianogiusti.slowdowner.data.update.GitHubReleaseDataSource
+import com.damianogiusti.slowdowner.desktop.isPackagedApp
 
 /** How this run looks for updates. The defaults look for none: tests and Gradle runs. */
 data class UpdateSettings(
@@ -19,7 +20,7 @@ data class UpdateSettings(
          */
         fun current(appVersion: String): UpdateSettings {
             val releasesUrl = System.getProperty(URL_PROPERTY)?.takeIf { it.isNotBlank() }
-            val isPackaged = System.getProperty("jpackage.app-path") != null
+            val isPackaged = isPackagedApp()
             if (!isPackaged && releasesUrl == null) return UpdateSettings()
             return UpdateSettings(
                 installedVersion = appVersion,
