@@ -211,5 +211,8 @@ Run the tests of the modules you changed before you open a pull request.
 - Pull request description: factual. What changed, why, how you tested it, any risk. Add the
   GPL-3.0 statement, and list any rule of this guide you broke on purpose, with the reason.
 - No secrets, local paths or personal data in code, commits or logs.
+- A CI check (`leak-check.yml`) rejects text that the maintainer keeps on a private list. To run the
+  same check before you push, put one term per line in `~/.config/downstep/denylist.txt` and run
+  `scripts/leak-check.sh` (also usable as a `pre-push` hook). Fork pull requests are reviewed by hand.
 
 Thank you for reading this far. If something here is unclear, open an issue and ask.
