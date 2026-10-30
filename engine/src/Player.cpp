@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 namespace {
 
@@ -23,44 +24,50 @@ Player::Player(int outputRate, int maxBlockFrames)
 
 bool Player::open(const std::string &path) {
     // Decode outside the lock: it can take a second, and playback of the old file can go on meanwhile.
-    PcmBuffer decoded;
+    auto decoded = std::make_shared<PcmBuffer>();
     std::string error;
-    if (!decodeFile(path, decoded, error)) return false;
-    if (decoded.channels == 1) {
-        decoded.data.push_back(decoded.data[0]);
-        decoded.channels = 2;
-    }
+    if (!decodeFile(path, *decoded, error)) return false;
+    return open(std::move(decoded), path);
+}
+
+bool Player::open(std::shared_ptr<const PcmBuffer> decoded, const std::string &path) {
+    if (!decoded || decoded->frames <= 0 || decoded->channels < 1) return false;
     // Measured on what plays: a mono file counts on both speakers, like a stereo one. On the caller's
-    // thread, after the decode: about 75 ms for 5 minutes (M1 Pro), so it is not worth storing.
-    const double lufs = loudness::integratedLoudness(decoded);
+    // thread, outside the lock: about 75 ms for 5 minutes (M1 Pro), so it is not worth storing per file.
+    const double lufs = loudness::integratedLoudness(*decoded);
     const double gainDb = loudness::normalizationGainDb(lufs);
 
-    std::lock_guard<std::mutex> guard(lock_);
-    wantsPlaying_.store(false);
-    isRunning_ = false;
-    source_ = std::move(decoded);
-    path_ = path;
-    sourceSampleRate_.store(source_.sampleRate);
-    stretcher_.prepare(source_, outputRate_, maxBlockFrames_);
-    equalizer_.reset();
-    sourceFrames_.store(source_.frames);
-    durationSeconds_.store(source_.seconds());
-    positionFrames_.store(0.0);
-    seekTo_.store(-1.0);
-    setLoop(0.0, 1.0, false);
-    loudnessLufs_.store(lufs);
-    normalizationGainDb_.store(gainDb);
-    normalizationGain_.store(float(std::pow(10.0, gainDb / 20.0)));
-    isOpen_.store(true);
+    std::shared_ptr<const PcmBuffer> previous;
+    {
+        std::lock_guard<std::mutex> guard(lock_);
+        wantsPlaying_.store(false);
+        isRunning_ = false;
+        previous = std::exchange(source_, std::move(decoded));
+        path_ = path;
+        sourceSampleRate_.store(source_->sampleRate);
+        stretcher_.prepare(*source_, outputRate_, maxBlockFrames_);
+        equalizer_.reset();
+        sourceFrames_.store(source_->frames);
+        durationSeconds_.store(source_->seconds());
+        positionFrames_.store(0.0);
+        seekTo_.store(-1.0);
+        setLoop(0.0, 1.0, false);
+        loudnessLufs_.store(lufs);
+        normalizationGainDb_.store(gainDb);
+        normalizationGain_.store(float(std::pow(10.0, gainDb / 20.0)));
+        isOpen_.store(true);
+    }
+    // `previous` (maybe the last owner of a 100 MB buffer) is freed here, outside the lock.
     return true;
 }
 
 void Player::close() {
+    std::shared_ptr<const PcmBuffer> previous; // declared before the guard: freed after unlocking
     std::lock_guard<std::mutex> guard(lock_);
     wantsPlaying_.store(false);
     isRunning_ = false;
     isOpen_.store(false);
-    source_ = PcmBuffer{};
+    previous = std::move(source_);
     path_.clear();
     sourceFrames_.store(0);
     durationSeconds_.store(0.0);
@@ -134,7 +141,7 @@ void Player::setPreamp(double gainDb) {
 }
 
 double Player::applyControls() {
-    const double frames = double(source_.frames);
+    const double frames = double(source_->frames);
     stretcher_.setSpeed(speed_.load());
     stretcher_.setPitch(pitch_.load());
     stretcher_.setMix(mix_.load());
@@ -179,7 +186,7 @@ int Player::render(float *const *out, int frames) {
     const double seek = loopSeek >= 0 ? loopSeek : plainSeek;
     const bool wantsPlaying = wantsPlaying_.load();
     if (seek >= 0) {
-        stretcher_.seek(seek * double(source_.frames));
+        stretcher_.seek(seek * double(source_->frames));
         equalizer_.reset();
         limiter_.reset();
         needsFadeIn_ = true;
@@ -238,7 +245,7 @@ int Player::render(float *const *out, int frames) {
         // block. Accepted: files end in silence or a fade almost always.
         isRunning_ = false;
         wantsPlaying_.store(false);
-        positionFrames_.store(double(source_.frames));
+        positionFrames_.store(double(source_->frames));
         events_.fetch_or(SD_EVENT_REACHED_END);
     } else if (!wantsPlaying) {
         applyFade(out, frames, false);
