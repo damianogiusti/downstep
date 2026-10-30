@@ -10,12 +10,14 @@ import com.damianogiusti.slowdowner.domain.update.ObserveAvailableUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.ReportUpdatePromptShownUseCase
 import com.damianogiusti.slowdowner.domain.update.RestartIntoUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.UpdateInstallResult
+import com.damianogiusti.slowdowner.domain.whatsnew.IsWhatsNewDueUseCase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -31,10 +33,12 @@ class UpdateViewModel(
     private val installUpdate: InstallUpdateUseCase,
     private val restartIntoUpdate: RestartIntoUpdateUseCase,
     private val reportUpdatePromptShown: ReportUpdatePromptShownUseCase,
+    isWhatsNewDue: IsWhatsNewDueUseCase,
 ) : ViewModel() {
 
-    // Open at the start: the first update found shows itself.
-    private val isDialogRequested = MutableStateFlow(true)
+    // Null until someone decides: then the first update found shows itself, unless What's new is due
+    // (one popup per launch). The banner and "Later" decide for good.
+    private val isDialogRequested = MutableStateFlow<Boolean?>(null)
     private val install = MutableStateFlow<UpdateInstallState>(UpdateInstallState.Idle)
     private var installJob: Job? = null
     private var restartJob: Job? = null
@@ -53,10 +57,11 @@ class UpdateViewModel(
         observeSupportPrompt(),
         isDialogRequested,
         install,
-    ) { update, supportPrompt, isDialogRequested, install ->
+        flow { emit(isWhatsNewDue()) },
+    ) { update, supportPrompt, isDialogRequested, install, isWhatsNewDue ->
         if (update == null) return@combine UpdateUiState.None
         val release = update.release
-        val isDialogOpen = isDialogRequested && supportPrompt == null
+        val isDialogOpen = (isDialogRequested ?: !isWhatsNewDue) && supportPrompt == null
         if (isDialogOpen) reportShownOnce(release)
         UpdateUiState.Available(
             version = release.version.toString(),

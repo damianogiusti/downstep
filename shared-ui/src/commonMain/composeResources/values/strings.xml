@@ -265,4 +265,9 @@
     <string name="update_failed">The update did not work. You can download it from the website.</string>
     <string name="update_banner">Downstep %1$s is available</string>
     <string name="update_banner_action">Update</string>
+
+    <!-- What's new after an update (desktop) -->
+    <string name="whats_new_title">What's new</string>
+    <string name="whats_new_version">Version %1$s</string>
+    <string name="whats_new_ok">OK</string>
 </resources>

@@ -13,6 +13,7 @@ import com.damianogiusti.slowdowner.domain.update.UpdateCheckResult
 import com.damianogiusti.slowdowner.domain.update.UpdateInstallResult
 import com.damianogiusti.slowdowner.domain.update.UpdateRepository
 import com.damianogiusti.slowdowner.logging.Logger
+import com.damianogiusti.slowdowner.ui.fake.whatsNewGate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -93,6 +94,29 @@ class UpdateViewModelTest {
         subscribe(viewModel)
 
         assertEquals(listOf("Normalize volume."), available(viewModel).notes)
+    }
+
+    @Test
+    fun `when What's new is due then the dialog stays closed, the banner stays, and nothing is logged`() = runTest {
+        updates.latest.value = release("1.0.4")
+        val viewModel = viewModel(isWhatsNewDue = true)
+        subscribe(viewModel)
+
+        assertEquals(false, available(viewModel).isDialogOpen)
+        assertEquals(emptyList(), logger.infos)
+    }
+
+    @Test
+    fun `when What's new is due and the banner is clicked then the dialog opens`() = runTest {
+        updates.latest.value = release("1.0.4")
+        val viewModel = viewModel(isWhatsNewDue = true)
+        subscribe(viewModel)
+
+        viewModel.onBannerClicked()
+        runCurrent()
+
+        assertEquals(true, available(viewModel).isDialogOpen)
+        assertEquals(listOf("Update prompt shown"), logger.infos)
     }
 
     @Test
@@ -299,12 +323,13 @@ class UpdateViewModelTest {
         return viewModel
     }
 
-    private fun viewModel() = UpdateViewModel(
+    private fun viewModel(isWhatsNewDue: Boolean = false) = UpdateViewModel(
         ObserveAvailableUpdateUseCase(updates),
         ObserveSupportPromptUseCase(support, clock),
         InstallUpdateUseCase(updates, logger),
         RestartIntoUpdateUseCase(updates),
         ReportUpdatePromptShownUseCase(logger),
+        whatsNewGate(isWhatsNewDue),
     )
 
     private fun TestScope.subscribe(viewModel: UpdateViewModel): Job =

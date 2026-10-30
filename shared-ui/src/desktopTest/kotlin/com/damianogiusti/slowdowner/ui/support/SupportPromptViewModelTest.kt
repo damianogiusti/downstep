@@ -7,6 +7,7 @@ import com.damianogiusti.slowdowner.domain.support.ReportWhyFreeOpenedUseCase
 import com.damianogiusti.slowdowner.domain.support.SupportPromptHistory
 import com.damianogiusti.slowdowner.domain.support.SupportPromptRepository
 import com.damianogiusti.slowdowner.logging.Logger
+import com.damianogiusti.slowdowner.ui.fake.whatsNewGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -51,6 +52,16 @@ class SupportPromptViewModelTest {
     fun `when prompt is not due then state is Hidden and nothing is logged`() = runTest {
         repository.history.value = SupportPromptHistory(launchCount = 2)
         val viewModel = viewModel()
+        subscribe(viewModel)
+
+        assertEquals(SupportPromptUiState.Hidden, viewModel.state.value)
+        assertEquals(emptyList(), logger.infos)
+    }
+
+    @Test
+    fun `when What's new is due then the prompt stays hidden and is not logged`() = runTest {
+        repository.history.value = SupportPromptHistory(launchCount = 3)
+        val viewModel = viewModel(isWhatsNewDue = true)
         subscribe(viewModel)
 
         assertEquals(SupportPromptUiState.Hidden, viewModel.state.value)
@@ -149,11 +160,12 @@ class SupportPromptViewModelTest {
         )
     }
 
-    private fun viewModel() = SupportPromptViewModel(
+    private fun viewModel(isWhatsNewDue: Boolean = false) = SupportPromptViewModel(
         ObserveSupportPromptUseCase(repository, clock),
         ReportSupportPromptShownUseCase(logger),
         ReportWhyFreeOpenedUseCase(repository, logger),
         DismissSupportPromptUseCase(repository, logger, clock),
+        whatsNewGate(isWhatsNewDue),
     )
 
     private fun TestScope.subscribe(viewModel: SupportPromptViewModel): Job =

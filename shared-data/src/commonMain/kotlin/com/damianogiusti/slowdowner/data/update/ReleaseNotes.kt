@@ -11,7 +11,7 @@ internal object ReleaseNotes {
     private const val MAX_LINES = 8
     private const val MAX_LINE_LENGTH = 200
 
-    private val BULLET = Regex("""^[-*]\s+""")
+    internal val BULLET = Regex("""^[-*]\s+""")
     private val LINK = Regex("""\[([^\]]*)]\([^)]*\)""")
     // Bold and code only: a single * or _ can be part of the text.
     private val EMPHASIS = Regex("""\*\*|`""")
@@ -27,6 +27,6 @@ internal object ReleaseNotes {
     }
 
     // Plain text only: the dialog shows no links, and a stray marker should not show either.
-    private fun plain(line: String): String =
+    internal fun plain(line: String): String =
         line.replace(LINK, "$1").replace(EMPHASIS, "").trim().take(MAX_LINE_LENGTH)
 }

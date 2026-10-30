@@ -64,6 +64,7 @@ import com.damianogiusti.slowdowner.ui.support.ContactDialog
 import com.damianogiusti.slowdowner.ui.support.SupportPromptHost
 import com.damianogiusti.slowdowner.ui.update.UpdateBanner
 import com.damianogiusti.slowdowner.ui.update.UpdateHost
+import com.damianogiusti.slowdowner.ui.whatsnew.WhatsNewHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -130,7 +131,14 @@ fun main() {
     // Main (Swing) thread, as on Android: engine settings are applied from the UI thread.
     val appScope = MainScope()
     if (engine != null) {
-        val koin = startKoin { modules(desktopModule(directories, engine, logger = logger, updates = updates), useCasesModule, uiModule) }.koin
+        val koin = startKoin { modules(
+            desktopModule(
+                directories, engine, logger = logger, updates = updates,
+                whatsNew = WhatsNewSettings.current(appVersion, hasLaunchHistory),
+            ),
+            useCasesModule,
+            uiModule,
+        ) }.koin
         startAppWork(koin, appScope)
     }
     // One store for the window, as the activity is on Android: pickers report into these ViewModels.
@@ -358,6 +366,8 @@ private fun DesktopApp(
             UpdateBanner()
             Box(modifier = Modifier.weight(1f)) { SlowDownerApp(viewModels = viewModels, activity = actions) }
         }
+        // One popup per launch: while this one is due, the support prompt and the update dialog stay closed.
+        WhatsNewHost()
         SupportPromptHost()
         // After the support prompt: its dialog waits until that one is closed.
         UpdateHost(onRestart = onRestart, installWithoutAsking = installWithoutAsking)

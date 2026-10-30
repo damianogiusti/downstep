@@ -263,4 +263,9 @@
     <string name="update_failed">L'aggiornamento non è riuscito. Puoi scaricarlo dal sito.</string>
     <string name="update_banner">È disponibile Downstep %1$s</string>
     <string name="update_banner_action">Aggiorna</string>
+
+    <!-- What's new after an update (desktop) -->
+    <string name="whats_new_title">Novità</string>
+    <string name="whats_new_version">Versione %1$s</string>
+    <string name="whats_new_ok">Ok</string>
 </resources>
