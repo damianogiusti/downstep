@@ -55,7 +55,7 @@ website/         the site, a static page generator (python3 website/build.py, no
 
 Downstep is developed here. Issues and pull requests are welcome: pull requests are reviewed and
 merged on GitHub. See [CONTRIBUTING.md](CONTRIBUTING.md). Releases are drafted from `v*` tags and
-the site is published from `website-v*` tags.
+the site is published from the `site` branch.
 
 ## License
 

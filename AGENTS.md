@@ -150,8 +150,8 @@ A database change, once agreed, needs a Room migration, the exported schema in
 - This repository is where development happens. Merging to `main` publishes nothing by itself.
 - A `v*` tag runs `release.yml`, which builds the DMG and the zip into a draft release. The notes
   come from the section of the version in `desktopApp/CHANGELOG.txt`.
-- A `website-v*` tag runs `site.yml`, which moves the branch `site` to that commit. statichost.eu
-  builds the site from `site`.
+- statichost.eu builds the site from the branch `site`. To publish, fast-forward it to `main`:
+  `git push origin main:site`. Never commit to `site` directly.
 - `leak-check.yml` rejects text from a private list of terms kept in a secret. Run
   `scripts/leak-check.sh` before you push. Never add that list to the repository.
 
