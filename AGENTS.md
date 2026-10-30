@@ -156,8 +156,9 @@ A database change, once agreed, needs a Room migration, the exported schema in
   `macos.yml`). Never rename `Downstep-mac.dmg` or put another build under that name: installed apps
   match it exactly.
 - The Windows file is `Downstep-windows-x64.zip`, under the same rule.
-- statichost.eu builds the site from the branch `site`. To publish, fast-forward it to `main`:
-  `git push origin main:site`. Never commit to `site` directly.
+- statichost.eu builds the site from the branch `site`. To publish, fast-forward it to `main`
+  (`git push origin main:site`), then start the build in the statichost.eu panel: no webhook does it.
+  Never commit to `site` directly.
 - `leak-check.yml` rejects text from a private list of terms kept in a secret. Run
   `scripts/leak-check.sh` before you push. Never add that list to the repository.
 
