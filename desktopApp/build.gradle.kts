@@ -77,7 +77,13 @@ val syncLicenses = tasks.register<Sync>("syncLicenses") {
     from(layout.projectDirectory.dir("licenses"), rootProject.layout.projectDirectory.file("shared-ui/FONTS-OFL.txt"))
     into(appResources.map { it.dir("common/licenses") })
 }
-tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(syncEngineLibrary, syncLicenses) }
+// The changelog travels inside the app too: the What's new popup shows it after an update. The same
+// file the release notes come from, so there is one text to keep.
+val syncChangelog = tasks.register<Copy>("syncChangelog") {
+    from(layout.projectDirectory.file("CHANGELOG.txt"))
+    into(appResources.map { it.dir("common") })
+}
+tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(syncEngineLibrary, syncLicenses, syncChangelog) }
 
 // CI passes -PappVersion=1.0.<run number>: the band reports it from the window title or the log.
 val appVersion = providers.gradleProperty("appVersion").getOrElse("1.0.0")

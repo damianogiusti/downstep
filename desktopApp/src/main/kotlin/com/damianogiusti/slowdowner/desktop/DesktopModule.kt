@@ -38,6 +38,10 @@ import com.damianogiusti.slowdowner.data.update.DefaultUpdateRepository
 import com.damianogiusti.slowdowner.data.update.GitHubReleaseDataSource
 import com.damianogiusti.slowdowner.data.update.ReleaseDataSource
 import com.damianogiusti.slowdowner.data.update.UpdateInstaller
+import com.damianogiusti.slowdowner.data.whatsnew.ChangelogDataSource
+import com.damianogiusti.slowdowner.data.whatsnew.DefaultWhatsNewRepository
+import com.damianogiusti.slowdowner.data.whatsnew.ResourceChangelogDataSource
+import com.damianogiusti.slowdowner.data.whatsnew.WhatsNewStore
 import com.damianogiusti.slowdowner.desktop.update.DesktopUpdateInstaller
 import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
 import com.damianogiusti.slowdowner.domain.backup.BackupRepository
@@ -56,16 +60,22 @@ import com.damianogiusti.slowdowner.domain.support.RecordAppLaunchUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportSupportPromptShownUseCase
 import com.damianogiusti.slowdowner.domain.support.ReportWhyFreeOpenedUseCase
 import com.damianogiusti.slowdowner.domain.support.SupportPromptRepository
+import com.damianogiusti.slowdowner.domain.update.AppVersion
 import com.damianogiusti.slowdowner.domain.update.CheckForUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.InstallUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.ObserveAvailableUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.ReportUpdatePromptShownUseCase
 import com.damianogiusti.slowdowner.domain.update.RestartIntoUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.UpdateRepository
+import com.damianogiusti.slowdowner.domain.whatsnew.GetWhatsNewUseCase
+import com.damianogiusti.slowdowner.domain.whatsnew.IsWhatsNewDueUseCase
+import com.damianogiusti.slowdowner.domain.whatsnew.RecordWhatsNewShownUseCase
+import com.damianogiusti.slowdowner.domain.whatsnew.WhatsNewRepository
 import com.damianogiusti.slowdowner.logging.ConsoleLogger
 import com.damianogiusti.slowdowner.logging.Logger
 import com.damianogiusti.slowdowner.ui.support.SupportPromptViewModel
 import com.damianogiusti.slowdowner.ui.update.UpdateViewModel
+import com.damianogiusti.slowdowner.ui.whatsnew.WhatsNewViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -90,6 +100,7 @@ fun desktopModule(
     supportPromptStore: SupportPromptStore = PreferencesSupportPromptStore(),
     logger: Logger = ConsoleLogger(),
     updates: UpdateSettings = UpdateSettings(),
+    whatsNew: WhatsNewSettings = WhatsNewSettings(),
 ) = module {
     single { directories }
     single { logger }
@@ -177,4 +188,15 @@ fun desktopModule(
     factoryOf(::RestartIntoUpdateUseCase)
     factoryOf(::ReportUpdatePromptShownUseCase)
     viewModelOf(::UpdateViewModel)
+
+    // What's new after an update: desktop only, like the prompt and the updates above. GetWhatsNewUseCase
+    // is a single: it decides once, and the support prompt and the update dialog ask the same answer.
+    val runningVersion = AppVersion.parse(whatsNew.appVersion.orEmpty())
+    single<WhatsNewStore> { whatsNew.store }
+    single<ChangelogDataSource> { ResourceChangelogDataSource(whatsNew.changelogDir, logger) }
+    single<WhatsNewRepository> { DefaultWhatsNewRepository(get(), get(), Dispatchers.IO) }
+    single { GetWhatsNewUseCase(get(), runningVersion, whatsNew.hasLaunchHistory) }
+    factoryOf(::IsWhatsNewDueUseCase)
+    factory { RecordWhatsNewShownUseCase(get(), runningVersion, logger) }
+    viewModelOf(::WhatsNewViewModel)
 }
