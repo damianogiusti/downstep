@@ -52,9 +52,10 @@ std::vector<double> segmentEnergies(const PcmBuffer &pcm, int segmentFrames) {
                 sum += x * x + y * y;
             }
         } else {
+            // A mono file is one channel in memory but plays on both speakers: count it twice.
             for (size_t i = begin; i < end; ++i) {
                 const double x = left.process(l[i]);
-                sum += x * x;
+                sum += 2.0 * x * x;
             }
         }
         energies[segment] = sum;

@@ -1,5 +1,6 @@
 #include "sdengine.h"
 
+#include "Denormals.h"
 #include "Pcm.h"
 #include "Player.h"
 
@@ -41,14 +42,18 @@ struct SdExport {
 
 extern "C" {
 
-SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps) {
+SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps) try {
     Player *source = sdEnginePlayer(engine);
-    if (!source->isOpen()) return nullptr;
+    // The open file's decoded audio, shared read-only: no second decode, no second copy in memory,
+    // and it stays alive for the export even if the player moves on to another file. Buffer, path
+    // and rate come from one locked read: a file opening on another thread cannot mix two files.
+    auto open = source->snapshot();
+    if (!open.source) return nullptr;
+    const int rate = open.source->sampleRate;
 
     auto exporter = std::make_unique<SdExport>();
-    const int rate = source->sourceSampleRate();
     exporter->player = std::make_unique<Player>(rate, kChunkFrames);
-    if (!exporter->player->open(source->path())) return nullptr;
+    if (!exporter->player->open(std::move(open.source), open.path)) return nullptr;
     exporter->player->applySettings(source->settings());
 
     exporter->file = openFileUtf8(utf8OutputPath, "wb");
@@ -62,12 +67,19 @@ SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitr
 
     exporter->player->setPlaying(true);
     return exporter.release();
+} catch (...) {
+    // Out of memory, most likely: nothing may cross into the JVM.
+    return nullptr;
 }
 
 double sd_export_next(SdExport *exporter) {
     if (exporter->isComplete || exporter->hasFailed) return -1.0;
     float *planar[2] = {exporter->left.data(), exporter->right.data()};
-    const int frames = exporter->player->render(planar, kChunkFrames);
+    int frames = 0;
+    {
+        const ScopedFlushDenormals flushDenormals;
+        frames = exporter->player->render(planar, kChunkFrames);
+    }
     const bool reachedEnd = (exporter->player->takeEvents() & SD_EVENT_REACHED_END) != 0;
     const int bytes = lame_encode_buffer_ieee_float(exporter->lame, planar[0], planar[1], frames,
                                                     exporter->mp3.data(), int(exporter->mp3.size()));

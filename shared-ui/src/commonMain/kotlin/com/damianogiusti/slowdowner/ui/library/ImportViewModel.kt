@@ -78,16 +78,21 @@ class ImportViewModel(
         }
     }
 
-    // Called on the repository's IO thread; StateFlow updates are thread-safe.
+    // Called on the repository's IO thread, once per downloaded chunk; StateFlow updates are thread-safe.
+    // Only whole-percent steps are published: each one redraws the library.
     private fun onImportProgress(progress: ImportProgress) {
         _state.value = when (progress) {
             ImportProgress.Resolving -> ImportUiState.Resolving
-            is ImportProgress.Downloading -> ImportUiState.Downloading(
-                title = progress.title,
-                fraction = progress.totalBytes.takeIf { it > 0 }?.let { progress.downloadedBytes.toFloat() / it },
-            )
+            is ImportProgress.Downloading -> {
+                val fraction = progress.totalBytes.takeIf { it > 0 }?.let { progress.downloadedBytes.toFloat() / it }
+                val shown = _state.value as? ImportUiState.Downloading
+                if (shown != null && shown.title == progress.title && fraction.wholePercent() == shown.fraction.wholePercent()) return
+                ImportUiState.Downloading(title = progress.title, fraction = fraction)
+            }
         }
     }
+
+    private fun Float?.wholePercent(): Int? = this?.let { (it * 100).toInt() }
 }
 
 sealed interface ImportUiState {

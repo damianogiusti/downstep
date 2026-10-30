@@ -11,6 +11,7 @@
 #include <mfreadwrite.h>
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <cstdio>
 
 using Microsoft::WRL::ComPtr;
@@ -54,6 +55,28 @@ private:
 };
 
 constexpr DWORD kAudioStream = DWORD(MF_SOURCE_READER_FIRST_AUDIO_STREAM);
+
+/** Frames the container announces, or 0 when it does not say. */
+int64_t expectedFrames(IMFSourceReader *reader, UINT32 sampleRate) {
+    PROPVARIANT duration;
+    PropVariantInit(&duration);
+    int64_t frames = 0;
+    if (SUCCEEDED(reader->GetPresentationAttribute(DWORD(MF_SOURCE_READER_MEDIASOURCE), MF_PD_DURATION, &duration)) &&
+        duration.vt == VT_UI8) {
+        // 100 ns units. Capped at a day only to keep the arithmetic in range: reservePcm bounds it.
+        const double seconds = std::min(double(duration.uhVal.QuadPart) / 1e7, 86400.0);
+        frames = int64_t(seconds * sampleRate);
+    }
+    PropVariantClear(&duration);
+    return frames;
+}
+
+/** 0 when the size cannot be read: reservePcm then keeps only its time cap. */
+uint64_t fileBytes(const std::string &path) {
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    if (!GetFileAttributesExW(widen(path).c_str(), GetFileExInfoStandard, &data)) return 0;
+    return (uint64_t(data.nFileSizeHigh) << 32) | data.nFileSizeLow;
+}
 
 } // namespace
 
@@ -110,6 +133,12 @@ bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error) {
     out.sampleRate = int(sampleRate);
     out.channels = int(channels);
     out.data.assign(channels, {});
+    // Size the channels once from the container's duration: growing them block by block copied
+    // everything decoded so far each time with MinGW's exact-size reserve (minutes for a long M4A).
+    // The duration is only a hint: a missing or short one falls back to the vector's own growth, and
+    // an absurd one is capped (reservePcm).
+    const int64_t expected = expectedFrames(reader.Get(), sampleRate);
+    if (expected > 0) reservePcm(out, expected + expected / 64 + sampleRate, fileBytes(path));
 
     while (true) {
         DWORD flags = 0;
@@ -141,14 +170,20 @@ bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error) {
             const size_t frames = length / (sizeof(float) * channels);
             for (UINT32 c = 0; c < channels; ++c) {
                 auto &channel = out.data[c];
-                channel.reserve(channel.size() + frames);
-                for (size_t f = 0; f < frames; ++f) channel.push_back(samples[f * channels + c]);
+                const size_t start = channel.size();
+                channel.resize(start + frames);
+                float *to = channel.data() + start;
+                for (size_t f = 0; f < frames; ++f) to[f] = samples[f * channels + c];
             }
             buffer->Unlock();
         }
         if (flags & MF_SOURCE_READERF_ENDOFSTREAM) break;
     }
     out.frames = int64_t(out.data[0].size());
+    // An overstated duration would keep its excess for as long as the file is open.
+    for (auto &channel : out.data) {
+        if (channel.capacity() - channel.size() > channel.size() / 32 + sampleRate) channel.shrink_to_fit();
+    }
     if (out.frames == 0) {
         error = "no audio decoded";
         return false;

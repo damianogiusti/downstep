@@ -45,6 +45,7 @@ import com.damianogiusti.slowdowner.logging.Logger
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.common.LocalTextInputFocus
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
+import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.navigation.ActivityViewModels
 import com.damianogiusti.slowdowner.ui.navigation.SlowDownerApp
@@ -64,8 +65,11 @@ import com.damianogiusti.slowdowner.ui.support.SupportPromptHost
 import com.damianogiusti.slowdowner.ui.update.UpdateBanner
 import com.damianogiusti.slowdowner.ui.update.UpdateHost
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
@@ -129,6 +133,8 @@ fun main() {
     val viewModelOwner = object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
     // Set once the ViewModels exist; read by the window's key handler.
     var shortcuts: PracticeShortcuts? = null
+    // Set once the ViewModels exist; run after the window is gone.
+    var flushOnQuit: (suspend () -> Unit)? = null
     application(exitProcessOnExit = false) {
         // Wide enough for the library and the player side by side (see SlowDownerApp).
         val windowState = rememberWindowState(size = DpSize(1280.dp, 820.dp), position = WindowPosition(Alignment.Center))
@@ -142,6 +148,8 @@ fun main() {
             LaunchedEffect(Unit) {
                 window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT)
                 window.useTransparentTitleBar()
+                // The cold start as the user sees it: what class-data sharing and a lazy start shorten.
+                sinceLaunchMillis()?.let { println("Window composed $it ms after launch") }
             }
             DisposableEffect(Unit) {
                 instance.onAnotherLaunch = {
@@ -190,6 +198,7 @@ fun main() {
                             DesktopApp(
                                 window, viewModelOwner, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking,
                                 onContact = { openContact(ContactSource.LIBRARY_MENU) },
+                                onQuitFlushReady = { flushOnQuit = it },
                                 onShortcutsReady = { shortcuts = it },
                             )
                         }
@@ -200,6 +209,12 @@ fun main() {
                 }
             }
         }
+    }
+    // The last EQ edit may still wait for its pause: the process exits before that ends, and clearing
+    // the ViewModels below does not wait for the save it starts.
+    flushOnQuit?.let { flush ->
+        runCatching { runBlocking(Dispatchers.IO) { withTimeoutOrNull(QUIT_FLUSH_TIMEOUT_MS) { flush() } } }
+            .onFailure { logger.e("Cannot save the last edits on quit", it) }
     }
     // The window is gone, but its ViewModels and the app work still run on the Swing thread: a track
     // left playing kept reading the position and hit the freed engine. Stopping them there, then
@@ -223,6 +238,11 @@ private fun bringToFront(window: java.awt.Window, state: WindowState) {
     window.isAlwaysOnTop = false
     window.requestFocus()
 }
+
+/** Null where the OS does not tell when the process started. */
+private fun sinceLaunchMillis(): Long? = ProcessHandle.current().info().startInstant().map {
+    java.time.Duration.between(it, java.time.Instant.now()).toMillis()
+}.orElse(null)
 
 /** Set by Gradle (-PappVersion, see desktopApp/build.gradle.kts). */
 private val appVersion: String = System.getProperty("slowdowner.version") ?: "dev"
@@ -253,6 +273,9 @@ private fun startEngine(logger: Logger): EngineStart = runCatching {
 
 private const val NO_OUTPUT_SAMPLE_RATE = 44_100
 
+/** Quitting waits this long at most for the last write (preferences). */
+private const val QUIT_FLUSH_TIMEOUT_MS = 2_000L
+
 @Composable
 private fun NoAudioOutputBanner() {
     Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
@@ -273,6 +296,7 @@ private fun DesktopApp(
     onRestart: () -> Unit,
     installWithoutAsking: Boolean,
     onContact: () -> Unit,
+    onQuitFlushReady: (suspend () -> Unit) -> Unit,
     onShortcutsReady: (PracticeShortcuts) -> Unit,
 ) {
     val textInput = remember { TextInputFocus() }
@@ -281,9 +305,11 @@ private fun DesktopApp(
             player = koinViewModel<PlayerViewModel>(),
             imports = koinViewModel<ImportViewModel>(),
             backup = koinViewModel<BackupViewModel>(),
+            effects = koinViewModel<EffectsViewModel>(),
         )
         val actions = remember(viewModels) { DesktopActions(window, viewModels, logger, onContact).toActivityActions() }
         LaunchedEffect(viewModels.player) { onShortcutsReady(PracticeShortcuts(viewModels.player, textInput)) }
+        LaunchedEffect(viewModels.effects) { onQuitFlushReady { viewModels.effects.flushPendingSave() } }
         Column(modifier = Modifier.fillMaxSize()) {
             UpdateBanner()
             Box(modifier = Modifier.weight(1f)) { SlowDownerApp(viewModels = viewModels, activity = actions) }
