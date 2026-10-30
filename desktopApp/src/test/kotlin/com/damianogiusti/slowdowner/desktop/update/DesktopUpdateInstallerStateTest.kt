@@ -8,6 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 // No script runs here: these only check what happens around it, on any computer.
@@ -18,6 +19,37 @@ class DesktopUpdateInstallerStateTest {
 
     private val workDir by lazy { folder.newFolder("install") }
     private val now = System.currentTimeMillis()
+
+    @Test
+    fun `when the Mac is Apple silicon then the update is the arm64 DMG`() {
+        assertEquals("Downstep-mac.dmg", macInstaller("aarch64").assetName)
+        assertEquals("Downstep-mac.dmg", macInstaller("arm64").assetName)
+    }
+
+    @Test
+    fun `when the Mac is Intel then the update is the Intel DMG`() {
+        assertEquals("Downstep-mac-intel.dmg", macInstaller("x86_64").assetName)
+        assertEquals("Downstep-mac-intel.dmg", macInstaller("amd64").assetName)
+    }
+
+    @Test
+    fun `when the architecture is unknown then there is no file and the update is a link only`() {
+        assertNull(macInstaller("riscv64").assetName)
+        assertNull(macInstaller("").assetName)
+    }
+
+    @Test
+    fun `when the app is on Windows then the architecture does not change the file`() {
+        val installer = DesktopUpdateInstaller(
+            AppInstallation.WindowsFolder(folder.newFolder("Downstep")), workDir, ConsoleLogger(), architecture = "aarch64",
+        )
+
+        assertEquals("Downstep-windows-x64.zip", installer.assetName)
+    }
+
+    private fun macInstaller(architecture: String) = DesktopUpdateInstaller(
+        AppInstallation.MacBundle(File(folder.root, "Downstep.app")), workDir, ConsoleLogger(), architecture = architecture,
+    )
 
     @Test
     fun `when nothing is prepared then the swap does not start and the app must not quit`() {

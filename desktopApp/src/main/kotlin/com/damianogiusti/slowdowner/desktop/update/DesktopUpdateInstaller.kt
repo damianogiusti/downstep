@@ -26,6 +26,7 @@ class DesktopUpdateInstaller(
     private val logger: Logger,
     private val processId: Long = ProcessHandle.current().pid(),
     private val trashDir: File? = null,
+    private val architecture: String = System.getProperty("os.arch").orEmpty(),
 ) : UpdateInstaller {
 
     // The command of the last prepare(): set on the IO thread, read when the user confirms.
@@ -33,7 +34,7 @@ class DesktopUpdateInstaller(
     private var pendingSwap: List<String>? = null
 
     override val assetName: String? = when (installation) {
-        is AppInstallation.MacBundle -> MAC_ASSET
+        is AppInstallation.MacBundle -> macAsset(architecture)
         is AppInstallation.WindowsFolder -> WINDOWS_ASSET
         null -> null
     }
@@ -132,12 +133,23 @@ class DesktopUpdateInstaller(
     companion object {
         const val APP_NAME = "Downstep"
         const val MAC_ASSET = "Downstep-mac.dmg"
+        const val MAC_INTEL_ASSET = "Downstep-mac-intel.dmg"
         const val WINDOWS_ASSET = "Downstep-windows-x64.zip"
         const val VERSION_PROPERTY = "slowdowner.version"
         private const val MAIN_CLASS = "com.damianogiusti.slowdowner.desktop.MainKt"
         private const val SCRIPT_ALIVE_CHECK_MS = 1_000L
         private const val LOCK_WAIT_STEPS = 25
         private const val LOCK_WAIT_STEP_MS = 200L
+
+        /**
+         * An unknown architecture gets no file: the update is offered as a link to the release page, and
+         * the same goes for a release with no file of this name (older releases have no Intel DMG).
+         */
+        internal fun macAsset(architecture: String): String? = when (architecture.lowercase()) {
+            "aarch64", "arm64" -> MAC_ASSET
+            "x86_64", "amd64" -> MAC_INTEL_ASSET
+            else -> null
+        }
 
         /** Where [prepare] puts the new app. Next to the installed folder on Windows: on the same disk, the swap is two renames. */
         internal fun stagedCopy(installation: AppInstallation, workDir: File): File = when (installation) {
