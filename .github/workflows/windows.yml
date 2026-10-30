@@ -1,0 +1,258 @@
+# Builds and tests the desktop app on Windows, then packs it for testers: nobody here has a
+# Windows PC, so this job is where the Windows engine, decoder and app are checked.
+name: Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      # Shown in the window title and the log: testers can tell which build they tried.
+      APP_VERSION: 1.0.${{ github.run_number }}
+      # Bungee builds for Windows with MinGW-w64, not MSVC: the engine uses MSYS2's GCC.
+      CMAKE_GENERATOR: Ninja
+      CC: gcc
+      CXX: g++
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '23'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: msys2/setup-msys2@v2
+        id: msys2
+        with:
+          msystem: UCRT64
+          update: false
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+
+      - name: Put MinGW first in PATH
+        run: Add-Content -Path $env:GITHUB_PATH -Value "${{ steps.msys2.outputs.msys2-location }}\ucrt64\bin"
+
+      # The engine's sources come from GitHub, SourceForge and, for Bungee's eigen, gitlab.com, which
+      # is sometimes down for hours. Once fetched, they come from the cache and CMake is told to use
+      # them, so a build no longer needs those servers. A change to engine/CMakeLists.txt fetches again.
+      - name: Restore the engine's dependencies
+        id: native-deps
+        uses: actions/cache/restore@v4
+        with:
+          path: .native-deps
+          key: native-deps-${{ runner.os }}-${{ hashFiles('engine/CMakeLists.txt') }}
+
+      - name: Use the cached dependencies
+        if: steps.native-deps.outputs.cache-hit == 'true'
+        # Forward slashes: CMake reads a backslash in a path as an escape.
+        run: |
+          $deps = "$($PWD.Path.Replace('\', '/'))/.native-deps"
+          cmake -S engine -B engine-desktop/build/native -DCMAKE_BUILD_TYPE=Release "-DFETCHCONTENT_SOURCE_DIR_BUNGEE=$deps/bungee-src" "-DFETCHCONTENT_SOURCE_DIR_MINIAUDIO=$deps/miniaudio-src" "-DFETCHCONTENT_SOURCE_DIR_LAME=$deps/lame-src"
+
+      - name: Engine and app tests
+        run: ./gradlew.bat :engine-desktop:test :desktopApp:test "-PappVersion=$env:APP_VERSION" -PupdateSwapTests=true --stacktrace
+
+      # Even if the tests failed: the download worked, the next run should not need it again.
+      - name: Keep the engine's dependencies
+        if: always() && steps.native-deps.outputs.cache-hit != 'true' && hashFiles('engine-desktop/build/native/_deps/bungee-src/CMakeLists.txt') != ''
+        shell: bash
+        run: |
+          mkdir -p .native-deps
+          for dep in bungee miniaudio lame; do cp -R "engine-desktop/build/native/_deps/$dep-src" ".native-deps/$dep-src"; done
+          # Git data is most of the size and CMake does not need it.
+          find .native-deps -name .git -prune -exec rm -rf {} +
+          du -sh .native-deps
+
+      - name: Save the engine's dependencies
+        if: always() && steps.native-deps.outputs.cache-hit != 'true' && hashFiles('.native-deps/bungee-src/CMakeLists.txt') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .native-deps
+          key: native-deps-${{ runner.os }}-${{ hashFiles('engine/CMakeLists.txt') }}
+
+      # ScreenRenderTest draws the app with Skia on Windows: fonts, icons, layout.
+      - name: Upload test renders
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-renders
+          path: desktopApp/build/screenshots/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # Same build dir as Gradle: only the engine sources compile again.
+      - name: Engine tests (C++)
+        run: |
+          cmake --build engine-desktop/build/native --config Release --target sdengine_tests -j 4
+          ./engine-desktop/build/native/sdengine_tests.exe
+
+      - name: App
+        run: ./gradlew.bat :desktopApp:createDistributable "-PappVersion=$env:APP_VERSION" --stacktrace
+
+      - name: Pack the app
+        run: |
+          $stage = "dist/Downstep-windows-x64-$env:APP_VERSION"
+          New-Item -ItemType Directory -Force "$stage/licenses" | Out-Null
+          Copy-Item -Recurse desktopApp/build/compose/binaries/main/app/Downstep "$stage/Downstep"
+          # The same files the app carries in app/resources/licenses, also at the top of the zip.
+          Copy-Item "$stage/Downstep/app/resources/licenses/*" "$stage/licenses"
+          Get-ChildItem -Recurse "$stage/Downstep/app/resources" | Select-Object FullName, Length
+
+      # Smoke test of what testers get: the packed exe starts, finds its DLLs and logs no
+      # exception. The runner has no audio device: the app runs with the no-output banner.
+      - name: Start the packed app
+        run: |
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop } catch { Write-Host "Resolution unchanged: $_" }
+          $app = Start-Process -FilePath "dist/Downstep-windows-x64-$env:APP_VERSION/Downstep/Downstep.exe" -PassThru
+          Start-Sleep -Seconds 30
+          New-Item -ItemType Directory -Force dist/screenshots | Out-Null
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bitmap = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+          [System.Drawing.Graphics]::FromImage($bitmap).CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+          $bitmap.Save("$PWD/dist/screenshots/desktop.png")
+          # A second launch must quit at once and leave the first copy running (SingleInstance).
+          $second = Start-Process -FilePath "dist/Downstep-windows-x64-$env:APP_VERSION/Downstep/Downstep.exe" -PassThru
+          # Without the handle, PowerShell loses the exit code of a process that has quit.
+          $null = $second.Handle
+          $secondQuit = $second.WaitForExit(20000)
+          if (-not $secondQuit) { Stop-Process -Id $second.Id -Force }
+          Start-Sleep -Seconds 2
+          $running = -not $app.HasExited
+          if ($running) { Stop-Process -Id $app.Id -Force }
+          $log = "$env:APPDATA/SlowDowner/logs/slowdowner.log"
+          Copy-Item $log dist/screenshots/
+          Get-Content $log
+          if (-not $running) { throw "The app exited after start (code $($app.ExitCode))" }
+          if (Select-String -Path $log -Pattern "Exception" -Quiet) { throw "Exceptions in the log" }
+          if (-not $secondQuit) { throw "A second launch kept running next to the first" }
+          if ($second.ExitCode -ne 0) { throw "A second launch exited with code $($second.ExitCode)" }
+          if (-not (Select-String -Path $log -SimpleMatch "Second launch" -Quiet)) { throw "The first copy was not told about the second launch" }
+
+      # The update from the app, end to end: the packed app finds a newer release on a local server
+      # that answers like GitHub, downloads it, quits, gets replaced and starts again. The new exe must
+      # carry no "Mark of the Web", or SmartScreen would ask again. The old folder goes to the Recycle Bin.
+      - name: Update from the app
+        run: |
+          $next = "1.1.$env:GITHUB_RUN_NUMBER"
+          ./gradlew.bat :desktopApp:createDistributable "-PappVersion=$next" --stacktrace
+          $e2e = "$env:RUNNER_TEMP/e2e"
+          New-Item -ItemType Directory -Force "$e2e/zip/licenses", "$e2e/server" | Out-Null
+          Copy-Item -Recurse desktopApp/build/compose/binaries/main/app/Downstep "$e2e/zip/Downstep"
+          Copy-Item "$e2e/zip/Downstep/app/resources/licenses/*" "$e2e/zip/licenses"
+          Compress-Archive -Path "$e2e/zip/*" -DestinationPath "$e2e/server/Downstep-windows-x64.zip"
+          $zip = Get-Item "$e2e/server/Downstep-windows-x64.zip"
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          @{
+            tag_name = "v$next"
+            html_url = "https://github.com/damianogiusti/downstep/releases/tag/v$next"
+            assets = @(@{ name = "Downstep-windows-x64.zip"; size = $zip.Length; digest = "sha256:$sha"; browser_download_url = "http://127.0.0.1:8765/Downstep-windows-x64.zip" })
+          } | ConvertTo-Json -Depth 4 | Set-Content -Encoding ascii "$e2e/server/latest.json"
+          $server = Start-Process python -ArgumentList "-m", "http.server", "8765", "--bind", "127.0.0.1" -WorkingDirectory "$e2e/server" -PassThru
+          # The app asks once, at launch: the server must already answer.
+          for ($i = 0; $i -lt 30; $i++) {
+            try { Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8765/latest.json | Out-Null; break } catch { Start-Sleep -Seconds 1 }
+          }
+          Copy-Item -Recurse "dist/Downstep-windows-x64-$env:APP_VERSION/Downstep" "$e2e/Downstep"
+          $exe = (Resolve-Path "$e2e/Downstep/Downstep.exe").Path
+          # The launcher takes no flags: the JVM reads these, and the new app inherits them too.
+          $env:JAVA_TOOL_OPTIONS = "-Dslowdowner.updates.url=http://127.0.0.1:8765/latest.json -Dslowdowner.updates.installWithoutAsking=true"
+          # As from Explorer: the app's current directory is its own folder, which the swap renames.
+          $first = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          # Someone opens Downstep by hand while the swap runs: that copy must see the update lock and quit
+          # at once, or it would lock the files the swap moves. Started once the script holds the lock.
+          $swapLog = "$env:APPDATA/SlowDowner/cache/updates/install/replace-app.log"
+          $guardTried = $false
+          $guardQuit = $false
+          $guardCode = $null
+          for ($i = 0; $i -lt 600 -and -not $guardTried; $i++) {
+            Start-Sleep -Milliseconds 200
+            if (-not ((Test-Path $swapLog) -and (Select-String -Path $swapLog -SimpleMatch "Holding the update lock" -Quiet))) { continue }
+            $guardTried = $true
+            # The app waits for the lock before it quits: once it is gone, the swap may be past the rename.
+            if ($first.HasExited) { throw "The update lock came after the app quit" }
+            $early = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+            $null = $early.Handle
+            $guardQuit = $early.WaitForExit(20000)
+            if ($guardQuit) { $guardCode = $early.ExitCode } else { Stop-Process -Id $early.Id -Force }
+          }
+          Write-Output "Copy opened during the swap: tried=$guardTried quit=$guardQuit code=$guardCode"
+          $cfg = "$e2e/Downstep/app/Downstep.cfg"
+          $updated = $false
+          for ($i = 0; $i -lt 90 -and -not $updated; $i++) {
+            Start-Sleep -Seconds 2
+            $isNew = (Test-Path $cfg) -and (Select-String -Path $cfg -SimpleMatch "-Dslowdowner.version=$next" -Quiet)
+            $running = Get-Process -Name Downstep -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }
+            $updated = $isNew -and $running
+          }
+          Start-Sleep -Seconds 15
+          New-Item -ItemType Directory -Force dist/screenshots | Out-Null
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bitmap = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+          [System.Drawing.Graphics]::FromImage($bitmap).CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+          $bitmap.Save("$PWD/dist/screenshots/after-update.png")
+          Write-Output "--- replace-app.log"
+          Get-Content "$env:APPDATA/SlowDowner/cache/updates/install/replace-app.log" -ErrorAction SilentlyContinue
+          Write-Output "--- slowdowner.previous.log (old app)"
+          Get-Content "$env:APPDATA/SlowDowner/logs/slowdowner.previous.log" -ErrorAction SilentlyContinue
+          Write-Output "--- slowdowner.log (new app)"
+          $log = "$env:APPDATA/SlowDowner/logs/slowdowner.log"
+          Get-Content $log
+          Copy-Item $log dist/screenshots/after-update.log
+          Get-Process -Name Downstep -ErrorAction SilentlyContinue | Stop-Process -Force
+          Stop-Process -Id $server.Id -Force
+          if (-not $updated) { throw "The app did not update itself to $next" }
+          if (-not (Select-String -Path $log -SimpleMatch "Downstep $next" -Quiet)) { throw "The running app is not $next" }
+          if (-not $guardTried) { throw "The swap never held the update lock" }
+          if (-not $guardQuit -or $guardCode -ne 0) { throw "A copy opened during the swap did not quit at once" }
+          # It quit for the lock, not because the old copy was still open and took it over.
+          if (Select-String -Path "$env:APPDATA/SlowDowner/logs/slowdowner.previous.log" -SimpleMatch "Second launch" -Quiet) {
+            throw "The copy opened during the swap was handled as a second launch"
+          }
+          if (-not (Select-String -Path $log -SimpleMatch "Update swap result {outcome=replaced}" -Quiet)) { throw "The new app did not report the swap" }
+          if (Get-Item $exe -Stream Zone.Identifier -ErrorAction SilentlyContinue) { throw "The new exe has a Mark of the Web" }
+          if (Test-Path "$e2e/Downstep (old)") { throw "The old app was left behind" }
+          # Not deleted: the old version waits in the Recycle Bin.
+          $bin = (New-Object -ComObject Shell.Application).Namespace(10).Items() | ForEach-Object { $_.Name }
+          Write-Output "Recycle Bin: $($bin -join ', ')"
+          if ($bin -notcontains "Downstep (old)") { throw "The old app is not in the Recycle Bin" }
+
+      - name: Upload app screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-app
+          path: dist/screenshots/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Downstep-windows-x64-${{ env.APP_VERSION }}
+          path: dist/Downstep-windows-x64-${{ env.APP_VERSION }}
+          retention-days: 30
+
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 7
