@@ -8,6 +8,8 @@ import kotlinx.serialization.Serializable
 data class ReleaseDto(
     @SerialName("tag_name") val tagName: String,
     @SerialName("html_url") val htmlUrl: String,
+    /** The release notes, in Markdown. */
+    val body: String? = null,
     val assets: List<ReleaseAssetDto> = emptyList(),
 )
 

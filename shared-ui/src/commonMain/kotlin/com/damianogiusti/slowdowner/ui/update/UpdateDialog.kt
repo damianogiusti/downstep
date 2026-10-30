@@ -42,6 +42,7 @@ import com.damianogiusti.slowdowner.ui.resources.update_preparing
 import com.damianogiusti.slowdowner.ui.resources.update_restarting
 import com.damianogiusti.slowdowner.ui.resources.update_retry
 import com.damianogiusti.slowdowner.ui.resources.update_title
+import com.damianogiusti.slowdowner.ui.resources.update_whats_new
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -130,8 +131,9 @@ internal fun UpdateDialog(
                         stringResource(if (state.canInstall) Res.string.update_message_install else Res.string.update_message_manual),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 24.dp),
+                    modifier = Modifier.padding(top = 16.dp, bottom = if (state.notes.isEmpty()) 24.dp else 16.dp),
                 )
+                if (state.notes.isNotEmpty()) WhatsNew(state.notes)
                 InstallProgress(state.install)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
@@ -140,6 +142,20 @@ internal fun UpdateDialog(
                 ) {
                     DialogButtons(state, onInstall, onOpenPage, onCancel, onLater)
                 }
+            }
+        }
+    }
+}
+
+/** The notes are in English whatever the app's language: they are written once, for every release. */
+@Composable
+private fun WhatsNew(notes: List<String>) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(bottom = 24.dp)) {
+        Text(stringResource(Res.string.update_whats_new), style = MaterialTheme.typography.titleSmall)
+        notes.forEach { note ->
+            Row {
+                Text("•", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(end = 8.dp))
+                Text(note, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             }
         }
     }

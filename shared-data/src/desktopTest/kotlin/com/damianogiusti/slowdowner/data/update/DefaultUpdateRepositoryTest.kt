@@ -44,6 +44,15 @@ class DefaultUpdateRepositoryTest {
     }
 
     @Test
+    fun `when the release notes list changes then the release carries them`() = runTest {
+        dataSource.latest = release("v1.2.0").copy(body = "- Normalize volume.\n- Bug fixes.\n\n---\n\nFor Mac with Apple silicon.")
+
+        repository().refresh()
+
+        assertEquals(listOf("Normalize volume.", "Bug fixes."), latest().notes)
+    }
+
+    @Test
     fun `when the release has no file for this computer then it cannot be installed`() = runTest {
         dataSource.latest = release("v1.0.4")
         val repository = repository(FakeUpdateInstaller(assetName = "Downstep-linux.tar"))

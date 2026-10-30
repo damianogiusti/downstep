@@ -3,11 +3,13 @@ package com.damianogiusti.slowdowner.domain.update
 /**
  * A public release of the app. [canInstall]: the app can download it and replace itself. When false
  * (no file for this computer, or an app folder it cannot write), [pageUrl] has the download.
+ * [notes]: what changed, one plain line each, in English; empty if the release says nothing.
  */
 data class AppRelease(
     val version: AppVersion,
     val pageUrl: String,
     val canInstall: Boolean,
+    val notes: List<String> = emptyList(),
 )
 
 /** [release] is newer than [installed]. */
