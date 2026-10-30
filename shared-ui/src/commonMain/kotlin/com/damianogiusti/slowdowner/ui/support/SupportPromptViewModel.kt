@@ -8,11 +8,13 @@ import com.damianogiusti.slowdowner.domain.support.ReportSupportPromptShownUseCa
 import com.damianogiusti.slowdowner.domain.support.ReportWhyFreeOpenedUseCase
 import com.damianogiusti.slowdowner.domain.support.SupportPrompt
 import com.damianogiusti.slowdowner.domain.support.SupportPromptAction
+import com.damianogiusti.slowdowner.domain.whatsnew.IsWhatsNewDueUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -27,6 +29,7 @@ class SupportPromptViewModel(
     private val reportSupportPromptShown: ReportSupportPromptShownUseCase,
     private val reportWhyFreeOpened: ReportWhyFreeOpenedUseCase,
     private val dismissSupportPrompt: DismissSupportPromptUseCase,
+    isWhatsNewDue: IsWhatsNewDueUseCase,
 ) : ViewModel() {
 
     // Once per process: a new subscription (the window back from the Dock) is not a new prompt.
@@ -34,8 +37,12 @@ class SupportPromptViewModel(
 
     // A new launch count gives the same prompt: distinct, so the countdown does not restart.
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<SupportPromptUiState> = observeSupportPrompt()
-        .distinctUntilChanged()
+    // One popup per launch: while What's new is due, the prompt waits for the next launch. Nothing shows
+    // until that is known.
+    val state: StateFlow<SupportPromptUiState> = combine(
+        observeSupportPrompt().distinctUntilChanged(),
+        flow { emit(isWhatsNewDue()) },
+    ) { prompt, isWhatsNewDue -> prompt.takeUnless { isWhatsNewDue } }
         .flatMapLatest { prompt -> prompt?.let(::countdown) ?: flowOf(SupportPromptUiState.Hidden) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SupportPromptUiState.Hidden)
 
