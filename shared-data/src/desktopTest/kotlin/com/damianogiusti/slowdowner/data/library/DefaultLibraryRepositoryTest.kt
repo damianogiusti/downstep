@@ -101,6 +101,8 @@ class DefaultLibraryRepositoryTest {
         youTube.error = StreamUnavailableException("gone")
 
         assertEquals(ImportResult.Unavailable, repository().importFromUrl(URL) {})
+        // Says which video, so it can be tried again.
+        assertEquals(mapOf("source" to "youtube", "url" to URL), logger.at('W').single().properties)
     }
 
     @Test
@@ -110,7 +112,7 @@ class DefaultLibraryRepositoryTest {
         assertEquals(ImportResult.NetworkError, repository().importFromUrl(URL) {})
         assertTrue(store.tracks.value.isEmpty())
         assertTrue(logger.at('E').isEmpty())
-        assertEquals(mapOf("source" to "youtube"), logger.at('W').single().properties)
+        assertEquals(mapOf("source" to "youtube", "url" to URL), logger.at('W').single().properties)
     }
 
     @Test
@@ -118,7 +120,7 @@ class DefaultLibraryRepositoryTest {
         http.error = HttpStatusException(403)
 
         assertEquals(ImportResult.Unavailable, repository().importFromUrl(URL) {})
-        assertEquals(mapOf("source" to "youtube", "status" to "403"), logger.at('E').single().properties)
+        assertEquals(mapOf("source" to "youtube", "status" to "403", "url" to URL), logger.at('E').single().properties)
     }
 
     @Test
@@ -126,7 +128,7 @@ class DefaultLibraryRepositoryTest {
         http.error = HttpStatusException(503)
 
         assertEquals(ImportResult.NetworkError, repository().importFromUrl(URL) {})
-        assertEquals(mapOf("source" to "youtube", "status" to "503"), logger.at('W').single().properties)
+        assertEquals(mapOf("source" to "youtube", "status" to "503", "url" to URL), logger.at('W').single().properties)
         assertTrue(logger.at('E').isEmpty())
     }
 
