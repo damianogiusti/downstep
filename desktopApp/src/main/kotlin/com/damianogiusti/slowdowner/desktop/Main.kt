@@ -125,6 +125,8 @@ fun main() {
             LaunchedEffect(Unit) {
                 window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT)
                 window.useTransparentTitleBar()
+                // The cold start as the user sees it: what class-data sharing and a lazy start shorten.
+                sinceLaunchMillis()?.let { println("Window composed $it ms after launch") }
             }
             DisposableEffect(Unit) {
                 instance.onAnotherLaunch = {
@@ -207,6 +209,11 @@ private fun bringToFront(window: java.awt.Window, state: WindowState) {
     window.isAlwaysOnTop = false
     window.requestFocus()
 }
+
+/** Null where the OS does not tell when the process started. */
+private fun sinceLaunchMillis(): Long? = ProcessHandle.current().info().startInstant().map {
+    java.time.Duration.between(it, java.time.Instant.now()).toMillis()
+}.orElse(null)
 
 /** Set by Gradle (-PappVersion, see desktopApp/build.gradle.kts). */
 private val appVersion: String = System.getProperty("slowdowner.version") ?: "dev"
