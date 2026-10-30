@@ -1,4 +1,6 @@
 # Site build on statichost.eu: the generator needs only Python 3.11+.
+# statichost builds from the branch `site`. .github/workflows/site.yml moves that branch to the
+# commit of a tag `website-vX.Y.Z`, so the site changes only when someone pushes such a tag.
 image: python:3.12-slim
 command: cd website && python3 build.py
 public: website/public
