@@ -82,6 +82,11 @@ object CrashReporting {
         }
     }
 
+    /** Sends what is queued, waiting at most [timeout]: used when the app is about to be halted. */
+    fun flush(timeout: kotlin.time.Duration) {
+        runCatching { Sentry.flush(timeout.inWholeMilliseconds) }
+    }
+
     /** Development prints everything and sends nothing; a release sends and prints nothing. */
     fun logger(): Logger = if (Sentry.isEnabled()) SentryLogger() else ConsoleLogger()
 
