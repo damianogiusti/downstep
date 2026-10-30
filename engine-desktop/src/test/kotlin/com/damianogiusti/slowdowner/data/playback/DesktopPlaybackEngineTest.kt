@@ -22,6 +22,7 @@ import java.nio.ByteOrder
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.log10
+import kotlin.concurrent.thread
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.test.AfterTest
@@ -55,6 +56,30 @@ class DesktopPlaybackEngineTest {
             engine.close()
         }
         scope.cancel()
+    }
+
+    @Test
+    fun `when closed while a track decodes then close waits for the decode`() {
+        // The decode runs on the IO dispatcher: quitting during it used to free the engine under sd_engine_open.
+        val long = toneFile(seconds = 120)
+        try {
+            repeat(12) { round ->
+                val scope = CoroutineScope(Dispatchers.Default)
+                val engine = DesktopPlaybackEngine(NativeEngine.manual(RATE), scope)
+                var opened: Boolean? = null
+                val decode = thread { opened = engine.openFile(long.path) }
+                Thread.sleep((round * 7 % 40).toLong())
+                engine.close()
+                decode.join(30_000)
+                assertFalse(decode.isAlive, "the decode never returned")
+                assertTrue(opened != null)
+                // Closed: a later open is refused, not a call into freed memory.
+                assertFalse(engine.openFile(long.path))
+                scope.cancel()
+            }
+        } finally {
+            long.delete()
+        }
     }
 
     @Test
@@ -276,9 +301,9 @@ class DesktopPlaybackEngineTest {
     private companion object {
         const val RATE = 44_100
 
-        /** 10 s, 16-bit stereo, 441 Hz. */
-        fun toneFile(): File {
-            val frames = 10 * RATE
+        /** 16-bit stereo, 441 Hz; 10 s by default. */
+        fun toneFile(seconds: Int = 10): File {
+            val frames = seconds * RATE
             val data = ByteBuffer.allocate(frames * 4).order(ByteOrder.LITTLE_ENDIAN)
             repeat(frames) { i ->
                 val sample = (sin(2 * PI * 441 * i / RATE) * 16_000).toInt().toShort()
