@@ -83,6 +83,17 @@ class DefaultUpdateRepository(
             }
         }
 
+    override suspend fun startSwap(): Boolean = withContext(dispatcher) {
+        try {
+            installer.startSwap()
+            true
+        } catch (e: Exception) {
+            // The app keeps running as it is; the dialog points to the download page.
+            logger.e("Cannot start the update swap", e)
+            false
+        }
+    }
+
     /** A cut download or a swapped file must never replace the app. */
     private fun verify(file: File, asset: ReleaseAssetDto) {
         if (file.length() != asset.size) throw IOException("Download is ${file.length()} bytes, expected ${asset.size}")

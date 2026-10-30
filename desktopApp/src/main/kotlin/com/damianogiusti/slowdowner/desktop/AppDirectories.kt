@@ -8,6 +8,8 @@ class AppDirectories(val root: File = defaultRoot()) {
     val library: File get() = File(root, "library")
     val cache: File get() = File(root, "cache")
     val logs: File get() = File(root, "logs")
+    /** The update's scripts, their log, the swap lock and its result (see UpdateSwapFiles). */
+    val updateWork: File get() = File(cache, "updates/install")
 
     private companion object {
         /** The system's place for app data: never next to the app, which an update replaces. */

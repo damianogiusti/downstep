@@ -5,6 +5,7 @@ import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.source.AudioSource
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
+import kotlinx.coroutines.test.runTest
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -17,7 +18,7 @@ class PlaybackUseCasesTest {
     private val track = LibraryTrack("1", "Song", "/song.m4a", null, 0)
 
     @Test
-    fun `open track loads its file and marks it as now playing`() {
+    fun `open track loads its file and marks it as now playing`() = runTest {
         OpenTrackUseCase(sources, nowPlaying)(track)
 
         assertEquals(AudioSource.LocalFile("/song.m4a"), sources.current)
@@ -25,7 +26,7 @@ class PlaybackUseCasesTest {
     }
 
     @Test
-    fun `failed open clears now playing`() {
+    fun `failed open clears now playing`() = runTest {
         nowPlaying.set(track)
         sources.openSucceeds = false
 

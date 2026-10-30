@@ -53,11 +53,9 @@ website/         the site, a static page generator (python3 website/build.py, no
 
 ## About this repository
 
-I develop Downstep in a private repository, together with an Android version that I can't
-publish. This repository is a mirror of the parts I can share, and it updates by itself.
-
-Issues are welcome. Pull requests can't be merged here directly, because the mirror would
-overwrite them: if you send one, I will bring the change over by hand.
+Downstep is developed here. Issues and pull requests are welcome: pull requests are reviewed and
+merged on GitHub. See [CONTRIBUTING.md](CONTRIBUTING.md). Releases are drafted from `v*` tags and
+the site is published from the `site` branch.
 
 ## License
 

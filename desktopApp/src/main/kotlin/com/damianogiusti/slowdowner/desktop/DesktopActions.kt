@@ -16,6 +16,7 @@ class DesktopActions(
     private val window: Frame,
     private val viewModels: ActivityViewModels,
     private val logger: Logger,
+    private val onContact: () -> Unit,
 ) {
 
     fun toActivityActions() = ActivityActions(
@@ -30,6 +31,7 @@ class DesktopActions(
         onShareBackup = { reveal(File(it.path)) },
         onSaveBackup = { file -> saveAs(file.name)?.let { viewModels.backup.onSaveTargetPicked(it.path) } },
         onDonate = { openDonation(DonateSource.LIBRARY_MENU, logger) },
+        onContact = onContact,
     )
 
     private fun importPicked(file: File) {

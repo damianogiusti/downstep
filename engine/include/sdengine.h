@@ -87,8 +87,10 @@ typedef struct SdExport SdExport;
 
 /**
  * Starts an MP3 export of the open file with the engine's current sound (speed, pitch, mix, EQ),
- * from the start to the end, loop ignored. It decodes the file again into its own engine: playback
- * is not disturbed. NULL if no file is open or the output cannot be written.
+ * from the start to the end, loop ignored. It renders in its own engine over the audio already
+ * decoded (shared, not decoded again): playback is not disturbed, and closing or replacing the
+ * open file meanwhile does not affect the export. NULL if no file is open or the output cannot be
+ * written.
  */
 SD_API SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps);
 /** Encodes the next chunk. Returns the progress 0..1, or -1 once everything is encoded. */

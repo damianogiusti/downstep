@@ -51,7 +51,10 @@ class DesktopUpdateInstallerTest {
         val dmg = macDiskImage("1.0.4")
         val app = sleepingProcess()
 
-        DesktopUpdateInstaller(AppInstallation.MacBundle(installed), workDir, ConsoleLogger(), app.pid(), trash).prepare(dmg, "1.0.4")
+        DesktopUpdateInstaller(AppInstallation.MacBundle(installed), workDir, ConsoleLogger(), app.pid(), trash).apply {
+            prepare(dmg, "1.0.4")
+            startSwap()
+        }
         // The swap waits for the app to quit.
         Thread.sleep(1_000)
         assertEquals("1.0.3", versionOf(File(installed, "Contents/app")))
@@ -61,12 +64,32 @@ class DesktopUpdateInstallerTest {
         // The new launcher wrote it: the opened app is the new one.
         assertEquals("1.0.4", started.readText().trim())
         assertEquals("1.0.4", versionOf(File(installed, "Contents/app")))
+        // The old app goes to the Trash after the new one opens.
+        waitFor { File(trash, "Downstep (old).app").exists() }
         assertFalse(File(installed.parentFile, "Downstep (old).app").exists())
         // Not deleted: in the Trash, whole.
         assertEquals("1.0.3", versionOf(File(trash, "Downstep (old).app/Contents/app")))
         assertFalse(File(workDir, "Downstep.app").exists())
         run("codesign", "--verify", "--deep", "--strict", installed.path)
         assertFalse("com.apple.quarantine" in run("xattr", "-r", installed.path))
+        assertEquals("replaced", UpdateSwapFiles.takeResult(workDir))
+    }
+
+    @Test
+    fun `on macOS a prepared update changes nothing until the swap starts`() {
+        assumeTrue(isMac && isEnabled)
+        val installed = macApp(File(root, "Applications/Downstep.app"), "1.0.3")
+        val dmg = macDiskImage("1.0.4")
+        val app = sleepingProcess()
+
+        DesktopUpdateInstaller(AppInstallation.MacBundle(installed), workDir, ConsoleLogger(), app.pid(), trash).prepare(dmg, "1.0.4")
+        app.destroy()
+        app.waitFor()
+        Thread.sleep(2_000)
+
+        assertEquals("1.0.3", versionOf(File(installed, "Contents/app")))
+        assertFalse(started.exists())
+        assertFalse(File(workDir, "replace-app.log").exists())
     }
 
     @Test
@@ -90,12 +113,24 @@ class DesktopUpdateInstallerTest {
         val zip = windowsZip("1.0.4")
         val app = sleepingProcess()
 
-        DesktopUpdateInstaller(AppInstallation.WindowsFolder(installed), workDir, ConsoleLogger(), app.pid(), trash).prepare(zip, "1.0.4")
-        Thread.sleep(1_000)
+        DesktopUpdateInstaller(AppInstallation.WindowsFolder(installed), workDir, ConsoleLogger(), app.pid(), trash).apply {
+            prepare(zip, "1.0.4")
+            // Left by an update a day ago: the script must take it again and give it today's date.
+            File(workDir, UpdateSwapFiles.LOCK).apply {
+                writeText("2026-10-22T10:00:00")
+                setLastModified(System.currentTimeMillis() - 24 * 60 * 60 * 1000L)
+            }
+            startSwap()
+        }
+        // While the script waits for the app it holds the lock: a copy opened now would quit at once.
+        waitFor { UpdateSwapFiles.isSwapRunning(workDir) }
         assertEquals("1.0.3", versionOf(File(installed, "app")))
         app.destroy()
 
         waitFor { "Started" in scriptLog() }
+        // Released before the new app starts, or that one would quit too.
+        assertFalse(UpdateSwapFiles.isSwapRunning(workDir))
+        assertEquals("replaced", UpdateSwapFiles.takeResult(workDir))
         waitFor { File(trash, "Downstep (old)").exists() }
         assertFalse(File(installed.parentFile, "Downstep (old)").exists())
         assertEquals("1.0.3", versionOf(File(trash, "Downstep (old)/app")))

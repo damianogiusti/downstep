@@ -134,7 +134,7 @@ class ScreenRenderTest {
             scene = ImageComposeScene(width = widthDp * 2, height = heightDp * 2, density = Density(2f)) {
                 CompositionLocalProvider(LocalLifecycleOwner provides lifecycle, LocalViewModelStoreOwner provides store) {
                     SlowDownerTheme {
-                        val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel())
+                        val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel(), koinViewModel())
                         player = viewModels.player
                         Column(modifier = Modifier.fillMaxSize()) {
                             UpdateBanner()
@@ -180,7 +180,10 @@ class ScreenRenderTest {
     }
 
     private companion object {
-        const val RELEASE_JSON = """{"tag_name":"v1.0.4","html_url":"https://github.com/damianogiusti/downstep/releases/tag/v1.0.4","assets":[]}"""
+        // With the notes as release.yml writes them: changes, "---", install instructions.
+        const val RELEASE_JSON = """{"tag_name":"v1.0.4","html_url":"https://github.com/damianogiusti/downstep/releases/tag/v1.0.4","assets":[],""" +
+            """"body":"\n- Normalize volume: every song plays at a similar level. Quiet songs are raised, loud ones lowered. Exports keep the original volume.\n""" +
+            """- If you open Downstep while it is already running, the open window comes to the front.\n- Bug fixes and small improvements.\n\n---\n\nFor Mac with Apple silicon."}"""
     }
 
     private fun noActions() = ActivityActions(

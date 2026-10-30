@@ -46,6 +46,7 @@ import com.damianogiusti.slowdowner.ui.common.TextInputDialogTexts
 import com.damianogiusti.slowdowner.ui.common.formatSpeed
 import com.damianogiusti.slowdowner.ui.common.formatPitch
 import com.damianogiusti.slowdowner.ui.effects.EffectsSheet
+import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.player.components.ExportBanner
 import com.damianogiusti.slowdowner.ui.player.components.LoopActions
 import com.damianogiusti.slowdowner.ui.player.components.LoopCard
@@ -68,7 +69,7 @@ class PlayerNavigation(
 )
 
 @Composable
-fun PlayerScreen(viewModel: PlayerViewModel, navigation: PlayerNavigation) {
+fun PlayerScreen(viewModel: PlayerViewModel, effects: EffectsViewModel, navigation: PlayerNavigation) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showEffects by rememberSaveable { mutableStateOf(false) }
     var showSavePreset by rememberSaveable { mutableStateOf(false) }
@@ -109,7 +110,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, navigation: PlayerNavigation) {
         ),
     )
 
-    if (showEffects) EffectsSheet(onDismiss = { showEffects = false })
+    if (showEffects) EffectsSheet(onDismiss = { showEffects = false }, viewModel = effects)
     if (showSavePreset) {
         val settings = state.controls.practiceSettings
         TextInputDialog(

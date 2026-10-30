@@ -60,6 +60,7 @@ import com.damianogiusti.slowdowner.domain.update.CheckForUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.InstallUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.ObserveAvailableUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.ReportUpdatePromptShownUseCase
+import com.damianogiusti.slowdowner.domain.update.RestartIntoUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.UpdateRepository
 import com.damianogiusti.slowdowner.logging.ConsoleLogger
 import com.damianogiusti.slowdowner.logging.Logger
@@ -75,7 +76,6 @@ import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
-import org.schabi.newpipe.extractor.NewPipe
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -97,8 +97,6 @@ fun desktopModule(
     single { OkHttpClient.Builder().readTimeout(30, TimeUnit.SECONDS).build() }
     single<SlowDownerDatabase> { desktopDatabase(directories.database) }
     single<DatabaseTransactionRunner> { RoomTransactionRunner(get()) }
-    // Must be initialised once before any YouTube import.
-    single(createdAtStart = true) { NewPipeDownloaderAdapter(get()).also(NewPipe::init) }
 
     // Playback: the C engine (Bungee) on the default output device.
     single { engine }
@@ -113,7 +111,8 @@ fun desktopModule(
     single<LibraryStore> {
         RoomLibraryStore(get(), LegacyJsonLibraryIndex(directories.library, logger), directories.library, logger)
     }
-    singleOf(::NewPipeYouTubeStreamDataSource) { bind<YouTubeStreamDataSource>() }
+    // NewPipe is initialised by the first YouTube import, off the startup path.
+    single<YouTubeStreamDataSource> { NewPipeYouTubeStreamDataSource { NewPipeDownloaderAdapter(get()) } }
     singleOf(::OkHttpFileDataSource) { bind<HttpFileDataSource>() }
     single<DocumentDataSource> { FileDocumentDataSource() }
     single<MediaContainerDataSource> { PassthroughContainerDataSource() }
@@ -161,7 +160,7 @@ fun desktopModule(
 
     // Updates from the public releases: desktop only, like the prompt above.
     single<ReleaseDataSource> { GitHubReleaseDataSource(get(), updates.releasesUrl) }
-    single<UpdateInstaller> { DesktopUpdateInstaller(updates.installation, File(directories.cache, "updates/install"), logger) }
+    single<UpdateInstaller> { DesktopUpdateInstaller(updates.installation, directories.updateWork, logger) }
     single<UpdateRepository> {
         DefaultUpdateRepository(
             dataSource = get(),
@@ -175,6 +174,7 @@ fun desktopModule(
     factoryOf(::CheckForUpdateUseCase)
     factoryOf(::ObserveAvailableUpdateUseCase)
     factoryOf(::InstallUpdateUseCase)
+    factoryOf(::RestartIntoUpdateUseCase)
     factoryOf(::ReportUpdatePromptShownUseCase)
     viewModelOf(::UpdateViewModel)
 }

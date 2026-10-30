@@ -29,21 +29,38 @@ class EffectsViewModel(
     private val _state = MutableStateFlow<EffectsUiState?>(null)
     val state: StateFlow<EffectsUiState?> = _state.asStateFlow()
 
+    /** What the disk holds: [flushPendingSave] writes only what differs. */
+    @Volatile
+    private var saved: EffectsSettings? = null
+
     init {
         viewModelScope.launch {
+            val initial = observeSettings().first()
+            saved = initial
             _state.value = EffectsUiState(
-                settings = observeSettings().first(),
+                settings = initial,
                 mixSlider = 0,
                 mixRightPercent = 0,
                 canNormalizeVolume = engine.canNormalizeVolume,
             ).withMix()
-            // StateFlow conflates bursts of slider moves; each value is applied in order.
-            _state.filterNotNull()
-                .map { it.settings }
-                .distinctUntilChanged()
-                .drop(1)
-                .collect { updateSettings(it) }
+            // StateFlow conflates bursts of slider moves; each value reaches the engine at once and is
+            // saved once they settle, the last one even if this ViewModel is cleared first.
+            updateSettings(
+                settings = _state.filterNotNull().map { it.settings }.distinctUntilChanged().drop(1),
+                onSaved = { saved = it },
+            )
         }
+    }
+
+    /**
+     * Saves the edit the debounce still holds, and waits for it. Called when the app quits: the
+     * process exits before the pause ends, and nothing clears this ViewModel on the way out.
+     */
+    suspend fun flushPendingSave() {
+        val current = _state.value?.settings ?: return
+        if (current == saved) return
+        updateSettings.saveNow(current)
+        saved = current
     }
 
     fun onMixChanged(sliderPosition: Int) {

@@ -14,6 +14,7 @@ import kotlinx.serialization.SerializationException
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -41,6 +42,15 @@ class DefaultUpdateRepositoryTest {
         assertEquals(UpdateCheckResult.Done, repository().refresh())
 
         assertEquals(AppRelease(version("1.0.4"), PAGE, canInstall = true), repository.observeLatestRelease().first())
+    }
+
+    @Test
+    fun `when the release notes list changes then the release carries them`() = runTest {
+        dataSource.latest = release("v1.2.0").copy(body = "- Normalize volume.\n- Bug fixes.\n\n---\n\nFor Mac with Apple silicon.")
+
+        repository().refresh()
+
+        assertEquals(listOf("Normalize volume.", "Bug fixes."), latest().notes)
     }
 
     @Test
@@ -99,6 +109,24 @@ class DefaultUpdateRepositoryTest {
         assertArrayEquals(dmg, installer.prepared.single().first)
         assertEquals("1.0.4", installer.prepared.single().second)
         assertEquals(1f, progress.last())
+        // Ready, not started: the swap waits for the user to confirm the restart.
+        assertEquals(0, installer.swapsStarted)
+    }
+
+    @Test
+    fun `when the swap starts then the installer runs it`() = runTest {
+        assertTrue(repository().startSwap())
+
+        assertEquals(1, installer.swapsStarted)
+    }
+
+    @Test
+    fun `when the swap cannot start then the app keeps running and the cause is logged`() = runTest {
+        installer.swapError = IllegalStateException("No update prepared")
+
+        assertFalse(repository().startSwap())
+
+        assertEquals("Cannot start the update swap", logger.at('E').single().message)
     }
 
     @Test

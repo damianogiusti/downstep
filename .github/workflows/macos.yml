@@ -1,0 +1,155 @@
+# Checks the update from the app on a Mac that is thrown away after the run: the real swap scripts
+# and the real app in /Applications. These checks never run on a developer's computer, where a bug
+# in them could touch the user's apps.
+name: macOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: macos-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 60
+    env:
+      APP_VERSION: 1.0.${{ github.run_number }}
+      NEXT_VERSION: 1.1.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '23'
+
+      # The shared modules also have an Android target, so Gradle needs the SDK to configure.
+      - uses: android-actions/setup-android@v3
+        with:
+          # The default list of some v3 versions still has "tools", which new SDKs no longer have.
+          packages: platform-tools
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The engine's sources come from GitHub, SourceForge and, for Bungee's eigen, gitlab.com, which
+      # is sometimes down for hours. Once fetched, they come from the cache and CMake is told to use
+      # them, so a build no longer needs those servers. A change to engine/CMakeLists.txt fetches again.
+      - name: Restore the engine's dependencies
+        id: native-deps
+        uses: actions/cache/restore@v4
+        with:
+          path: .native-deps
+          key: native-deps-${{ runner.os }}-${{ hashFiles('engine/CMakeLists.txt') }}
+
+      - name: Use the cached dependencies
+        if: steps.native-deps.outputs.cache-hit == 'true'
+        run: >-
+          cmake -S engine -B engine-desktop/build/native -DCMAKE_BUILD_TYPE=Release
+          -DFETCHCONTENT_SOURCE_DIR_BUNGEE=$PWD/.native-deps/bungee-src
+          -DFETCHCONTENT_SOURCE_DIR_MINIAUDIO=$PWD/.native-deps/miniaudio-src
+          -DFETCHCONTENT_SOURCE_DIR_LAME=$PWD/.native-deps/lame-src
+
+      # With the real swap of a fake app (disk image, scripts, Trash).
+      - name: Engine and app tests
+        run: ./gradlew :engine-desktop:test :desktopApp:test -PappVersion=$APP_VERSION -PupdateSwapTests=true --stacktrace
+
+      # Even if the tests failed: the download worked, the next run should not need it again.
+      - name: Keep the engine's dependencies
+        if: always() && steps.native-deps.outputs.cache-hit != 'true' && hashFiles('engine-desktop/build/native/_deps/bungee-src/CMakeLists.txt') != ''
+        shell: bash
+        run: |
+          mkdir -p .native-deps
+          for dep in bungee miniaudio lame; do cp -R "engine-desktop/build/native/_deps/$dep-src" ".native-deps/$dep-src"; done
+          # Git data is most of the size and CMake does not need it.
+          find .native-deps -name .git -prune -exec rm -rf {} +
+          du -sh .native-deps
+
+      - name: Save the engine's dependencies
+        if: always() && steps.native-deps.outputs.cache-hit != 'true' && hashFiles('.native-deps/bungee-src/CMakeLists.txt') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .native-deps
+          key: native-deps-${{ runner.os }}-${{ hashFiles('engine/CMakeLists.txt') }}
+
+      # The old version where people put it. Copied by a script, so it has no quarantine mark: the
+      # runner cannot click "Open Anyway".
+      - name: Install the old version
+        run: |
+          ./gradlew :desktopApp:createDistributable -PappVersion=$APP_VERSION --stacktrace
+          ditto desktopApp/build/compose/binaries/main/app/Downstep.app /Applications/Downstep.app
+
+      # The new version as the release builds it, served by a local server that answers like GitHub.
+      - name: Publish the new version locally
+        run: |
+          ./gradlew :desktopApp:packageDmg -PappVersion=$NEXT_VERSION --stacktrace
+          mkdir -p e2e/server e2e/out
+          mv desktopApp/build/compose/binaries/main/dmg/Downstep-*.dmg e2e/server/Downstep-mac.dmg
+          size=$(stat -f %z e2e/server/Downstep-mac.dmg)
+          sha=$(shasum -a 256 e2e/server/Downstep-mac.dmg | cut -d' ' -f1)
+          cat > e2e/server/latest.json <<EOF
+          {"tag_name": "v$NEXT_VERSION",
+           "html_url": "https://github.com/damianogiusti/downstep/releases/tag/v$NEXT_VERSION",
+           "assets": [{"name": "Downstep-mac.dmg", "size": $size, "digest": "sha256:$sha",
+                       "browser_download_url": "http://127.0.0.1:8765/Downstep-mac.dmg"}]}
+          EOF
+
+      - name: Update from the app
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory e2e/server > e2e/out/server.log 2>&1 &
+          # The app asks once, at launch: the server must already answer.
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8765/latest.json > /dev/null && break; sleep 1; done
+          # The launcher takes no flags: the JVM reads these, and the new app inherits them too.
+          launchctl setenv JAVA_TOOL_OPTIONS "-Dslowdowner.updates.url=http://127.0.0.1:8765/latest.json -Dslowdowner.updates.installWithoutAsking=true"
+          open /Applications/Downstep.app
+          cfg=/Applications/Downstep.app/Contents/app/Downstep.cfg
+          updated=false
+          for i in $(seq 1 90); do
+            sleep 2
+            if grep -q "slowdowner.version=$NEXT_VERSION" "$cfg" 2>/dev/null \
+              && pgrep -f /Applications/Downstep.app/Contents/MacOS/Downstep > /dev/null; then
+              updated=true
+              echo "Updated after $((i * 2)) s"
+              break
+            fi
+          done
+          sleep 15
+          launchctl unsetenv JAVA_TOOL_OPTIONS
+          screencapture -x e2e/out/after-update.png || echo "No screenshot"
+          data="$HOME/Library/Application Support/SlowDowner"
+          echo "--- replace-app.log"; cat "$data/cache/updates/install/replace-app.log" || true
+          echo "--- old app log"; cat "$data/logs/slowdowner.previous.log" || true
+          echo "--- new app log"; cat "$data/logs/slowdowner.log" || true
+          cp "$data/logs/"*.log "$data/cache/updates/install/replace-app.log" e2e/out/ 2>/dev/null || true
+          pkill -f /Applications/Downstep.app/Contents/MacOS/Downstep || true
+          [ "$updated" = true ] || { echo "The app did not update itself to $NEXT_VERSION"; exit 1; }
+          grep -q "Downstep $NEXT_VERSION" "$data/logs/slowdowner.log" || { echo "The running app is not $NEXT_VERSION"; exit 1; }
+          grep -q "Update swap result {outcome=replaced}" "$data/logs/slowdowner.log" || { echo "The new app did not report the swap"; exit 1; }
+          if xattr -r /Applications/Downstep.app | grep -q com.apple.quarantine; then echo "The new app is in quarantine"; exit 1; fi
+          codesign --verify --deep --strict /Applications/Downstep.app
+          [ ! -e "/Applications/Downstep (old).app" ] || { echo "The old app was left behind"; exit 1; }
+          # Not deleted: the old version waits in the Trash.
+          ls -d "$HOME/.Trash/Downstep (old).app" || { echo "The old app is not in the Trash"; exit 1; }
+
+      - name: Upload screenshot and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-update
+          path: e2e/out/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 7

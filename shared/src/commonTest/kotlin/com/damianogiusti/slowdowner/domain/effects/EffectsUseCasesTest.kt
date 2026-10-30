@@ -2,14 +2,21 @@ package com.damianogiusti.slowdowner.domain.effects
 
 import com.damianogiusti.slowdowner.fake.FakeEngine
 import com.damianogiusti.slowdowner.fake.FakeLogger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class EffectsUseCasesTest {
 
     private val engine = FakeEngine()
@@ -55,10 +62,59 @@ class EffectsUseCasesTest {
 
     @Test
     fun `update applies and saves`() = runTest {
-        update(custom)
+        update(flowOf(custom))
 
         assertEquals(custom, repository.current())
         assertEquals(-3f, engine.appliedPreampDb)
+    }
+
+    @Test
+    fun `update applies each change at once and saves once they settle`() = runTest {
+        val edits = MutableSharedFlow<EffectsSettings>()
+        val job = launch { update(edits) }
+        runCurrent()
+
+        listOf(-1f, -2f, -3f).forEach { preamp ->
+            edits.emit(custom.copy(preampDb = preamp))
+            runCurrent()
+            assertEquals(preamp, engine.appliedPreampDb)
+            advanceTimeBy(100)
+        }
+        assertEquals(0, repository.saves)
+
+        advanceTimeBy(UpdateEffectsSettingsUseCase.SAVE_DEBOUNCE_MS + 1)
+        assertEquals(1, repository.saves)
+        assertEquals(-3f, repository.current().preampDb)
+        job.cancel()
+    }
+
+    @Test
+    fun `update saves the last change when cancelled before the pause`() = runTest {
+        val edits = MutableSharedFlow<EffectsSettings>()
+        val job = launch { update(edits) }
+        runCurrent()
+        edits.emit(custom.copy(preampDb = -6f))
+        runCurrent()
+
+        job.cancel()
+        runCurrent()
+
+        assertEquals(1, repository.saves)
+        assertEquals(-6f, repository.current().preampDb)
+    }
+
+    @Test
+    fun `update does not save again what is already saved when cancelled`() = runTest {
+        val edits = MutableSharedFlow<EffectsSettings>()
+        val job = launch { update(edits) }
+        runCurrent()
+        edits.emit(custom)
+        advanceTimeBy(UpdateEffectsSettingsUseCase.SAVE_DEBOUNCE_MS + 1)
+
+        job.cancel()
+        runCurrent()
+
+        assertEquals(1, repository.saves)
     }
 
     @Test
@@ -74,9 +130,9 @@ class EffectsUseCasesTest {
 
     @Test
     fun `when volume normalization is switched then each change is logged once`() = runTest {
-        update(custom.copy(isVolumeNormalized = true))
-        update(custom.copy(isVolumeNormalized = true, preampDb = 2f))
-        update(custom.copy(isVolumeNormalized = false))
+        update(flowOf(custom.copy(isVolumeNormalized = true)))
+        update(flowOf(custom.copy(isVolumeNormalized = true, preampDb = 2f)))
+        update(flowOf(custom.copy(isVolumeNormalized = false)))
 
         assertEquals(
             listOf(
@@ -89,16 +145,20 @@ class EffectsUseCasesTest {
 
     @Test
     fun `when only the EQ changes then nothing is logged`() = runTest {
-        update(custom)
-        update(custom.copy(preampDb = 1f))
+        update(flowOf(custom))
+        update(flowOf(custom.copy(preampDb = 1f)))
 
         assertEquals(emptyList(), logger.infos)
     }
 
     private class InMemoryEffectsSettingsRepository : EffectsSettingsRepository {
         private val settings = MutableStateFlow(EffectsSettings())
+        var saves = 0
         override fun observe(): Flow<EffectsSettings> = settings
         override suspend fun current() = settings.value
-        override suspend fun save(settings: EffectsSettings) { this.settings.value = settings }
+        override suspend fun save(settings: EffectsSettings) {
+            this.settings.value = settings
+            saves++
+        }
     }
 }

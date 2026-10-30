@@ -231,6 +231,14 @@
     <string name="support_message">Non ci sono pubblicità né abbonamenti, e non ci saranno. Sul sito spiego perché ho scelto di regalarla.</string>
     <string name="support_why_free">Perché è gratis?</string>
     <string name="support_donate">Dona</string>
+    <string name="contact_menu">Contatti</string>
+    <string name="contact_menu_mac">Contatta Downstep…</string>
+    <string name="contact_title">Contatti</string>
+    <string name="contact_message">Per domande, problemi o idee scrivimi a:</string>
+    <string name="contact_copy">Copia indirizzo</string>
+    <string name="contact_copied">Copiato</string>
+    <string name="contact_write">Scrivi un'email</string>
+    <string name="contact_no_mail_app">Non si è aperto nessun programma di posta. Copia l'indirizzo e scrivi dalla tua email.</string>
     <string name="support_close">Chiudi</string>
     <string name="support_close_countdown">Chiudi (%1$d)</string>
     <string name="support_why_free_url">https://downstep.app/it/perche-gratis/</string>
@@ -239,6 +247,7 @@
     <string name="update_title">È disponibile una nuova versione</string>
     <string name="update_message">Downstep %1$s è pronta. Tu hai la %2$s.</string>
     <string name="update_message_install">Downstep la scarica, si chiude e si riapre. La tua libreria resta com'è.</string>
+    <string name="update_whats_new">Novità</string>
     <string name="update_message_manual">Scaricala dal sito e mettila al posto dell'app che hai. La tua libreria resta com'è.</string>
     <string name="update_install">Aggiorna e riavvia</string>
     <string name="update_download">Scarica</string>
@@ -248,6 +257,8 @@
     <string name="update_downloading">Scaricamento… %1$d%%</string>
     <string name="update_preparing">Installazione…</string>
     <string name="update_restarting">Riavvio…</string>
+    <string name="update_ready">L'aggiornamento è pronto. Quando riavvii, Downstep si chiude e si riapre da solo tra pochi secondi: nel frattempo non aprirlo tu.</string>
+    <string name="update_restart_now">Riavvia ora</string>
     <string name="update_network_error">Il download non è finito. Controlla la connessione e riprova.</string>
     <string name="update_failed">L'aggiornamento non è riuscito. Puoi scaricarlo dal sito.</string>
     <string name="update_banner">È disponibile Downstep %1$s</string>

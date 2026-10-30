@@ -12,3 +12,5 @@ local.properties
 
 # OS
 .DS_Store
+.claude/worktrees/
+.claude/settings.local.json

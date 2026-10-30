@@ -1,0 +1,55 @@
+# Stops a push or a pull request that carries a denied term in a changed file or in a commit
+# message. The terms are in the secret DENYLIST (one per line): they are not in this repository.
+# The log names the file or the commit, never the term. Pull requests from forks cannot read the
+# secret: the job passes with a notice and the maintainer reviews the change by hand.
+# Same check, locally: scripts/leak-check.sh
+name: Leak check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: leak-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Look for denied terms
+        env:
+          DENYLIST: ${{ secrets.DENYLIST }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -z "$DENYLIST" ]; then
+            echo "::notice::No DENYLIST secret here (fork pull request, or not set): review this change by hand."
+            exit 0
+          fi
+          # The script comes from the base, never from the change under check: a pull request could
+          # edit it, or start from a main that does not have it yet.
+          script="$RUNNER_TEMP/leak-check.sh"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            # HEAD is GitHub's merge of the pull request into the current base: diffing against the
+            # base shows only what the pull request changes, even when it starts from an older main.
+            base="$PR_BASE"
+            git show "$PR_BASE:scripts/leak-check.sh" > "$script"
+          elif [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != 0000000000000000000000000000000000000000 ] \
+            && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+            base="$PUSH_BEFORE"
+          else
+            base="$(git rev-parse HEAD~1)"
+          fi
+          [ -s "$script" ] || git show "$base:scripts/leak-check.sh" > "$script"
+          terms="$RUNNER_TEMP/terms.txt"
+          printf '%s\n' "$DENYLIST" > "$terms"
+          bash "$script" "$terms" "$base"

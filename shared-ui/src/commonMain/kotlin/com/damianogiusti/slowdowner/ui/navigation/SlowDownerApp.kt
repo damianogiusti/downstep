@@ -46,6 +46,7 @@ import com.damianogiusti.slowdowner.ui.backup.BackupUiState
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.backup.PlaylistConflictDialog
 import com.damianogiusti.slowdowner.ui.common.CollectMessages
+import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.common.ConfirmDialog
 import com.damianogiusti.slowdowner.ui.library.ImportBanner
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
@@ -76,6 +77,8 @@ class ActivityActions(
     val onSaveBackup: (BackupFile) -> Unit,
     /** Null where the app is not published (Android): the Donate menu item is then hidden. */
     val onDonate: (() -> Unit)? = null,
+    /** Null hides the Contact menu item (Android has no contact entry). */
+    val onContact: (() -> Unit)? = null,
 )
 
 /** ViewModels scoped to the activity: results of activity pickers and intents land in them. */
@@ -83,6 +86,8 @@ class ActivityViewModels(
     val player: PlayerViewModel,
     val imports: ImportViewModel,
     val backup: BackupViewModel,
+    /** The EQ: window-scoped like the player, so a quit can flush its last edit. */
+    val effects: EffectsViewModel,
 )
 
 /**
@@ -175,6 +180,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                                 onExportTrackBackup = backupViewModel::onExportTrack,
                                 onExportLibraryBackup = backupViewModel::onExportLibrary,
                                 onDonate = activity.onDonate,
+                                onContact = activity.onContact,
                             ),
                             snackbarHostState = snackbarHostState,
                         )
@@ -198,6 +204,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                     ) {
                         PlayerScreen(
                             viewModel = playerViewModel,
+                            effects = viewModels.effects,
                             navigation = PlayerNavigation(
                                 onCollapse = { navController.popBackStack() },
                                 onPlayStop = activity.onPlayStop,
@@ -215,6 +222,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                     Box(modifier = Modifier.width((windowWidth * PLAYER_PANE_FRACTION).coerceIn(PLAYER_PANE_MIN, PLAYER_PANE_MAX))) {
                         PlayerScreen(
                             viewModel = playerViewModel,
+                            effects = viewModels.effects,
                             navigation = PlayerNavigation(
                                 onCollapse = null,
                                 onPlayStop = activity.onPlayStop,
