@@ -259,6 +259,8 @@
     <string name="update_downloading">Downloading… %1$d%%</string>
     <string name="update_preparing">Installing…</string>
     <string name="update_restarting">Restarting…</string>
+    <string name="update_ready">The update is ready. When you restart, Downstep closes and opens again by itself in a few seconds: do not open it yourself in the meantime.</string>
+    <string name="update_restart_now">Restart now</string>
     <string name="update_network_error">The download did not finish. Check the connection and try again.</string>
     <string name="update_failed">The update did not work. You can download it from the website.</string>
     <string name="update_banner">Downstep %1$s is available</string>

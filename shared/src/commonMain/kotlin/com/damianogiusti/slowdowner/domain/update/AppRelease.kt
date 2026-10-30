@@ -23,7 +23,7 @@ sealed interface UpdateCheckResult {
 }
 
 sealed interface UpdateInstallResult {
-    /** The new app is ready: it replaces this one as soon as this one quits. */
+    /** The new app is downloaded and checked: [RestartIntoUpdateUseCase] puts it in place. */
     data object ReadyToRestart : UpdateInstallResult
     data object NetworkError : UpdateInstallResult
     /** The download is not the expected file, or the app cannot be replaced. */

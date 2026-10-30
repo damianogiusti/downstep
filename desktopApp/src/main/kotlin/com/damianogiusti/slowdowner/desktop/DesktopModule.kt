@@ -60,6 +60,7 @@ import com.damianogiusti.slowdowner.domain.update.CheckForUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.InstallUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.ObserveAvailableUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.ReportUpdatePromptShownUseCase
+import com.damianogiusti.slowdowner.domain.update.RestartIntoUpdateUseCase
 import com.damianogiusti.slowdowner.domain.update.UpdateRepository
 import com.damianogiusti.slowdowner.logging.ConsoleLogger
 import com.damianogiusti.slowdowner.logging.Logger
@@ -161,7 +162,7 @@ fun desktopModule(
 
     // Updates from the public releases: desktop only, like the prompt above.
     single<ReleaseDataSource> { GitHubReleaseDataSource(get(), updates.releasesUrl) }
-    single<UpdateInstaller> { DesktopUpdateInstaller(updates.installation, File(directories.cache, "updates/install"), logger) }
+    single<UpdateInstaller> { DesktopUpdateInstaller(updates.installation, directories.updateWork, logger) }
     single<UpdateRepository> {
         DefaultUpdateRepository(
             dataSource = get(),
@@ -175,6 +176,7 @@ fun desktopModule(
     factoryOf(::CheckForUpdateUseCase)
     factoryOf(::ObserveAvailableUpdateUseCase)
     factoryOf(::InstallUpdateUseCase)
+    factoryOf(::RestartIntoUpdateUseCase)
     factoryOf(::ReportUpdatePromptShownUseCase)
     viewModelOf(::UpdateViewModel)
 }
