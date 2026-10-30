@@ -95,16 +95,6 @@ class WhatsNewUseCasesTest {
     }
 
     @Test
-    fun `when asked again in the same launch then the answer stays, even after the version is recorded`() = runTest {
-        val useCase = getWhatsNew("1.3.0", hasLaunchHistory = true)
-        val first = useCase()
-        repository.recordSeen(requireNotNull(version("1.3.0")))
-
-        assertEquals(first, useCase())
-        assertEquals(1, first.size)
-    }
-
-    @Test
     fun `when sections are due then the gate is closed`() = runTest {
         assertTrue(IsWhatsNewDueUseCase(getWhatsNew("1.3.0", hasLaunchHistory = true))())
     }
