@@ -26,8 +26,17 @@ bool Player::open(const std::string &path) {
     // Decode outside the lock: it can take a second, and playback of the old file can go on meanwhile.
     auto decoded = std::make_shared<PcmBuffer>();
     std::string error;
-    if (!decodeFile(path, *decoded, error)) return false;
-    return open(std::move(decoded), path);
+    const DecodeStatus status = decodeFile(path, *decoded, error, memoryBudget_.load());
+    if (status != DecodeStatus::Ok) {
+        recordOpenFailure(status == DecodeStatus::TooLong ? SD_OPEN_TOO_LONG : SD_OPEN_FAILED, error);
+        return false;
+    }
+    if (!open(std::move(decoded), path)) {
+        recordOpenFailure(SD_OPEN_FAILED, "the file has no audio");
+        return false;
+    }
+    recordOpenFailure(SD_OPEN_OK, "");
+    return true;
 }
 
 bool Player::open(std::shared_ptr<const PcmBuffer> decoded, const std::string &path) {

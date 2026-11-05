@@ -3,6 +3,7 @@ package com.damianogiusti.slowdowner.domain.playback
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.source.AudioSource
+import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
 import kotlinx.coroutines.test.runTest
@@ -28,10 +29,20 @@ class PlaybackUseCasesTest {
     @Test
     fun `failed open clears now playing`() = runTest {
         nowPlaying.set(track)
-        sources.openSucceeds = false
+        sources.result = OpenResult.Failed
 
-        assertFalse(OpenTrackUseCase(sources, nowPlaying)(track))
+        assertEquals(OpenResult.Failed, OpenTrackUseCase(sources, nowPlaying)(track))
         assertNull(nowPlaying.observe().value)
+    }
+
+    @Test
+    fun `when the track is too long then the result says so and now playing is cleared`() = runTest {
+        nowPlaying.set(track)
+        sources.result = OpenResult.TooLong
+
+        assertEquals(OpenResult.TooLong, OpenTrackUseCase(sources, nowPlaying)(track))
+        assertNull(nowPlaying.observe().value)
+        assertNull(sources.current)
     }
 
     @Test

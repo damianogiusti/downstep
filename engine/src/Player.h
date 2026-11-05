@@ -3,6 +3,7 @@
 #include "Equalizer.h"
 #include "Limiter.h"
 #include "Pcm.h"
+#include "sdengine.h"
 #include "TimeStretcher.h"
 
 #include <array>
@@ -34,6 +35,20 @@ public:
     explicit Player(int outputRate, int maxBlockFrames);
 
     bool open(const std::string &path);
+    /** Bounds the decoded PCM of the next open() in bytes. 0 = what the OS can give (the default). */
+    void setMemoryBudget(int64_t bytes) { memoryBudget_.store(bytes); }
+    /** Why the last open() failed (SD_OPEN_*), and the decoder's detail text, never with the path. */
+    int openError() const { return openError_.load(); }
+    std::string openErrorText() const {
+        std::lock_guard<std::mutex> guard(errorLock_);
+        return openErrorText_;
+    }
+    /** For failures that never reach the decoder's own report, like an exception. */
+    void recordOpenFailure(int code, const std::string &text) {
+        std::lock_guard<std::mutex> guard(errorLock_);
+        openErrorText_ = text;
+        openError_.store(code);
+    }
     /** Plays audio decoded elsewhere, shared read-only: the export reuses the player's buffer this way. */
     bool open(std::shared_ptr<const PcmBuffer> decoded, const std::string &path);
     void close();
@@ -107,6 +122,11 @@ private:
     std::atomic<int> sourceSampleRate_{0};
     TimeStretcher stretcher_;
     Equalizer equalizer_;
+
+    std::atomic<int64_t> memoryBudget_{0};
+    std::atomic<int> openError_{SD_OPEN_OK};
+    mutable std::mutex errorLock_;
+    std::string openErrorText_;
 
     std::atomic<bool> isOpen_{false};
     std::atomic<double> durationSeconds_{0};

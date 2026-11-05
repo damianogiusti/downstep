@@ -33,7 +33,10 @@ class NativeEngineTest {
         val native = NativeEngine.manual(RATE)
         assertEquals(RATE, native.sampleRate)
         assertFalse(native.isOpen)
+        native.setMemoryBudget(0)
+        assertEquals(NativeEngine.OPEN_OK, native.openError)
         assertTrue(native.open(file.path))
+        assertEquals("", native.openErrorText())
         assertTrue(native.isOpen)
         assertEquals(2.0, native.durationSeconds, 0.01)
 
@@ -66,6 +69,49 @@ class NativeEngineTest {
         native.closeFile()
         assertFalse(native.isOpen)
         native.close()
+    }
+
+    @Test
+    fun `when the budget is smaller than the decoded track then open fails as too long`() {
+        NativeEngine.manual(RATE).use { native ->
+            native.setMemoryBudget(1_000) // the 2 s tone needs about 700 KB
+
+            assertFalse(native.open(file.path))
+
+            assertEquals(NativeEngine.OPEN_TOO_LONG, native.openError)
+            assertFalse(native.isOpen)
+        }
+    }
+
+    @Test
+    fun `when the budget is automatic then the same track opens and the error is cleared`() {
+        NativeEngine.manual(RATE).use { native ->
+            native.setMemoryBudget(1_000)
+            assertFalse(native.open(file.path))
+
+            native.setMemoryBudget(0)
+
+            assertTrue(native.open(file.path))
+            assertEquals(NativeEngine.OPEN_OK, native.openError)
+            assertEquals("", native.openErrorText())
+        }
+    }
+
+    @Test
+    fun `when the file is not audio then open fails with a detail that has no path`() {
+        val notAudio = File.createTempFile("not-audio", ".m4a").apply { writeText("not audio") }
+        try {
+            NativeEngine.manual(RATE).use { native ->
+                assertFalse(native.open(notAudio.path))
+
+                assertEquals(NativeEngine.OPEN_FAILED, native.openError)
+                val detail = native.openErrorText()
+                assertTrue(detail.isNotEmpty())
+                assertFalse(notAudio.path in detail || notAudio.name in detail, detail)
+            }
+        } finally {
+            notAudio.delete()
+        }
     }
 
     @Test

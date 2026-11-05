@@ -132,17 +132,20 @@ class DesktopPlaybackEngine(
     /**
      * Decodes the whole file: blocking, call it off the UI thread. The C engine clears the loop of the
      * previous file; speed, pitch and effects carry over until the caller applies the track's own.
-     * False once the engine is closed.
+     * [FileOpenResult.Failed] once the engine is closed.
      */
-    fun openFile(path: String): Boolean = lifecycle.read {
-        if (isClosed) return@read false
-        val opened = engine.open(path)
-        if (opened) {
+    fun openFile(path: String): FileOpenResult = lifecycle.read {
+        if (isClosed) return@read FileOpenResult.Failed("the engine is closed")
+        if (engine.open(path)) {
             applyLoop(LoopRegion.WHOLE_FILE)
             publishPosition()
             _events.tryEmit(PlaybackEvent.ControlsChanged)
+            return@read FileOpenResult.Opened
         }
-        opened
+        when (engine.openError) {
+            NativeEngine.OPEN_TOO_LONG -> FileOpenResult.TooLong
+            else -> FileOpenResult.Failed(engine.openErrorText())
+        }
     }
 
     fun closeFile() = lifecycle.read {
@@ -283,4 +286,12 @@ class DesktopPlaybackEngine(
     private companion object {
         const val CLOSE_TIMEOUT_SECONDS = 5L
     }
+}
+
+/** What [DesktopPlaybackEngine.openFile] reports. */
+sealed interface FileOpenResult {
+    data object Opened : FileOpenResult
+    data object TooLong : FileOpenResult
+    /** [detail] is the decoder's text for the logs: a step and a system code, never the path. */
+    data class Failed(val detail: String) : FileOpenResult
 }

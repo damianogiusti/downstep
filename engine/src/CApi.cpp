@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <memory>
+#include <new>
+#include <string>
 #include <vector>
 
 namespace {
@@ -85,13 +87,31 @@ SdEngine *sd_engine_create(int withDevice, int manualSampleRate) {
 void sd_engine_destroy(SdEngine *engine) { delete engine; }
 
 int sd_engine_open(SdEngine *engine, const char *utf8Path) {
-    // A decode can run out of memory (a long file, a corrupt header): an exception crossing into the
-    // JVM would end the whole app. A file that cannot be decoded is all it is.
+    // An exception crossing into the JVM would end the whole app. The decoders already turn
+    // std::bad_alloc into "too long"; this covers the rest of open() (stretcher, loudness).
     try {
         return engine->player->open(utf8Path) ? 1 : 0;
+    } catch (const std::bad_alloc &) {
+        engine->player->recordOpenFailure(SD_OPEN_TOO_LONG, "out of memory");
+        return 0;
     } catch (...) {
+        engine->player->recordOpenFailure(SD_OPEN_FAILED, "unexpected exception");
         return 0;
     }
+}
+
+void sd_engine_set_memory_budget(SdEngine *engine, int64_t bytes) { engine->player->setMemoryBudget(bytes); }
+
+int sd_engine_open_error(const SdEngine *engine) { return engine->player->openError(); }
+
+int sd_engine_open_error_text(const SdEngine *engine, char *buffer, int size) {
+    const std::string text = engine->player->openErrorText();
+    if (buffer && size > 0) {
+        const size_t copied = std::min(text.size(), size_t(size - 1));
+        std::copy_n(text.data(), copied, buffer);
+        buffer[copied] = '\0';
+    }
+    return int(text.size());
 }
 
 void sd_engine_close(SdEngine *engine) { engine->player->close(); }
