@@ -24,7 +24,7 @@ class NewPipeYouTubeStreamDataSource(downloader: (() -> Downloader)? = null) : Y
     override fun resolve(url: String): ResolvedAudioDto {
         initialized.value
         val info = try {
-            StreamInfo.getInfo(url)
+            StreamInfo.getInfo(withoutPlaylist(url))
         } catch (e: ContentNotAvailableException) {
             throw StreamUnavailableException("Content not available", e)
         }
@@ -50,4 +50,18 @@ class NewPipeYouTubeStreamDataSource(downloader: (() -> Downloader)? = null) : Y
         val URL = Regex("""https?://\S+""")
         val YOUTUBE_URL = Regex("""^https?://((www|m|music)\.)?(youtube\.com|youtu\.be)/""")
     }
+}
+
+/**
+ * NewPipe refuses a watch link that also names a playlist (`list=`): the links of mixes, playlists and
+ * YouTube Music albums. Only the video is imported, so the playlist is dropped.
+ */
+internal fun withoutPlaylist(url: String): String {
+    val base = url.substringBefore('#').substringBefore('?')
+    val query = url.substringBefore('#').substringAfter('?', "")
+    val fragment = url.substringAfter('#', "")
+    val kept = query.split('&').filter { it.isNotEmpty() && !it.startsWith("list=") }
+    return base +
+        (if (kept.isEmpty()) "" else kept.joinToString("&", prefix = "?")) +
+        (if (fragment.isEmpty()) "" else "#$fragment")
 }
