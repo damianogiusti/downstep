@@ -247,8 +247,10 @@ jobs:
           path: dist/Downstep-windows-x64-${{ env.APP_VERSION }}
           retention-days: 30
 
+      # Every run, not only on failure: the reports show which tests ran and which were skipped on
+      # Windows, the only place where the Windows-only tests run.
       - name: Test reports
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
