@@ -9,7 +9,9 @@ import kotlin.math.sin
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -99,6 +101,18 @@ class NativeEngineTest {
         NativeEngine.manual(RATE).use { native ->
             assertNull(native.beginExport(File.createTempFile("native-export", ".mp3").apply { deleteOnExit() }.path))
         }
+    }
+
+    @Test
+    fun `a library that cannot be loaded says why`() {
+        val notALibrary = File.createTempFile("sdengine", ".bin").apply {
+            writeText("not a library")
+            deleteOnExit()
+        }
+
+        val error = assertFailsWith<IllegalArgumentException> { NativeEngine.manual(RATE, notALibrary.toPath()) }
+
+        assertIs<UnsatisfiedLinkError>(error.cause)
     }
 
     private companion object {

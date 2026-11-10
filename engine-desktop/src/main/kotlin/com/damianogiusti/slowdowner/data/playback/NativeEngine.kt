@@ -241,7 +241,15 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
                 // LAME is found by name when the engine needs it.
                 val lame = library.toAbsolutePath().resolveSibling("mp3lame.dll")
                 if (Files.exists(lame)) System.load(lame.toString())
-                Api(SymbolLookup.libraryLookup(library, Arena.global()))
+                val lookup = try {
+                    SymbolLookup.libraryLookup(library, Arena.global())
+                } catch (e: IllegalArgumentException) {
+                    // FFM only says "Cannot open library". System.load gets the reason from the
+                    // system (a missing dependency, a wrong architecture, access denied).
+                    val reason = runCatching { System.load(library.toString()) }.exceptionOrNull()
+                    throw if (reason == null) e else IllegalArgumentException(e.message, reason)
+                }
+                Api(lookup)
             }
         }
     }
