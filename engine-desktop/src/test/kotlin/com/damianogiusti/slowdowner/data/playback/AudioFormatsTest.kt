@@ -31,6 +31,10 @@ class AudioFormatsTest {
     @Test
     fun `a progressive m4a decodes`() = assertPlays("progressive.m4a")
 
+    /** YouTube's 360p video with sound (itag 18), imported when a video has no audio-only stream. */
+    @Test
+    fun `an mp4 with a video track decodes its audio`() = assertPlays("muxed-video.mp4")
+
     @Test
     fun `an mp3 decodes`() = assertPlays("tone.mp3")
 
