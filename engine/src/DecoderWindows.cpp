@@ -12,7 +12,9 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
+#include <new>
 
 using Microsoft::WRL::ComPtr;
 
@@ -78,26 +80,39 @@ uint64_t fileBytes(const std::string &path) {
     return (uint64_t(data.nFileSizeHigh) << 32) | data.nFileSizeLow;
 }
 
+/**
+ * What the process can still commit (physical memory plus page file), not what is free in RAM: on
+ * Windows an allocation fails when the commit limit is reached, even with the disk half empty.
+ */
+uint64_t availableMemoryBytes() {
+    MEMORYSTATUSEX status;
+    status.dwLength = sizeof(status);
+    if (!GlobalMemoryStatusEx(&status)) return UINT64_MAX;
+    // A 32-bit process also has its address space as a limit.
+    const uint64_t commit = std::min<uint64_t>(status.ullAvailPageFile, status.ullAvailVirtual);
+    return commit > kMemoryMarginBytes ? commit - kMemoryMarginBytes : 0;
+}
+
 } // namespace
 
-bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error) {
+DecodeStatus decodeFile(const std::string &path, PcmBuffer &out, std::string &error, int64_t memoryBudgetBytes) {
     MediaFoundationScope mediaFoundation;
     if (FAILED(mediaFoundation.result())) {
         error = hresultText("MFStartup", mediaFoundation.result());
-        return false;
+        return DecodeStatus::Failed;
     }
 
     ComPtr<IMFSourceReader> reader;
     HRESULT hr = MFCreateSourceReaderFromURL(widen(path).c_str(), nullptr, &reader);
     if (FAILED(hr)) {
         error = hresultText("MFCreateSourceReaderFromURL", hr);
-        return false;
+        return DecodeStatus::Failed;
     }
     reader->SetStreamSelection(DWORD(MF_SOURCE_READER_ALL_STREAMS), FALSE);
     hr = reader->SetStreamSelection(kAudioStream, TRUE);
     if (FAILED(hr)) {
         error = hresultText("no audio stream: SetStreamSelection", hr);
-        return false;
+        return DecodeStatus::Failed;
     }
 
     // Interleaved 32-bit float at the file's own rate and channel count: the engine resamples.
@@ -108,13 +123,13 @@ bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error) {
     hr = reader->SetCurrentMediaType(kAudioStream, nullptr, wanted.Get());
     if (FAILED(hr)) {
         error = hresultText("SetCurrentMediaType (float PCM)", hr);
-        return false;
+        return DecodeStatus::Failed;
     }
     ComPtr<IMFMediaType> actual;
     hr = reader->GetCurrentMediaType(kAudioStream, &actual);
     if (FAILED(hr)) {
         error = hresultText("GetCurrentMediaType", hr);
-        return false;
+        return DecodeStatus::Failed;
     }
     UINT32 channels = 0;
     UINT32 sampleRate = 0;
@@ -122,11 +137,11 @@ bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error) {
     actual->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &sampleRate);
     if (channels < 1 || channels > 2) {
         error = "only mono or stereo files are supported, got " + std::to_string(channels) + " channels";
-        return false;
+        return DecodeStatus::Failed;
     }
     if (sampleRate == 0) {
         error = "the decoder reported no sample rate";
-        return false;
+        return DecodeStatus::Failed;
     }
 
     out = PcmBuffer{};
@@ -138,7 +153,14 @@ bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error) {
     // The duration is only a hint: a missing or short one falls back to the vector's own growth, and
     // an absurd one is capped (reservePcm).
     const int64_t expected = expectedFrames(reader.Get(), sampleRate);
-    if (expected > 0) reservePcm(out, expected + expected / 64 + sampleRate, fileBytes(path));
+    const uint64_t size = fileBytes(path);
+    const uint64_t budget = memoryBudgetBytes > 0 ? uint64_t(memoryBudgetBytes) : availableMemoryBytes();
+    if (!pcmFitsInMemory(expected, int(channels), size, budget)) {
+        out = PcmBuffer{};
+        error = "the decoded audio would not fit in memory";
+        return DecodeStatus::TooLong;
+    }
+    if (expected > 0) reservePcm(out, expected + expected / 64 + sampleRate, size);
 
     while (true) {
         DWORD flags = 0;
@@ -146,34 +168,42 @@ bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error) {
         hr = reader->ReadSample(kAudioStream, 0, nullptr, &flags, nullptr, &sample);
         if (FAILED(hr)) {
             error = hresultText("ReadSample", hr);
-            return false;
+            return DecodeStatus::Failed;
         }
         if (flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED) {
             error = "the audio format changed in the middle of the file";
-            return false;
+            return DecodeStatus::Failed;
         }
         if (sample) {
             ComPtr<IMFMediaBuffer> buffer;
             hr = sample->ConvertToContiguousBuffer(&buffer);
             if (FAILED(hr)) {
                 error = hresultText("ConvertToContiguousBuffer", hr);
-                return false;
+                return DecodeStatus::Failed;
             }
             BYTE *bytes = nullptr;
             DWORD length = 0;
             hr = buffer->Lock(&bytes, nullptr, &length);
             if (FAILED(hr)) {
                 error = hresultText("IMFMediaBuffer::Lock", hr);
-                return false;
+                return DecodeStatus::Failed;
             }
             const auto *samples = reinterpret_cast<const float *>(bytes);
             const size_t frames = length / (sizeof(float) * channels);
-            for (UINT32 c = 0; c < channels; ++c) {
-                auto &channel = out.data[c];
-                const size_t start = channel.size();
-                channel.resize(start + frames);
-                float *to = channel.data() + start;
-                for (size_t f = 0; f < frames; ++f) to[f] = samples[f * channels + c];
+            try {
+                for (UINT32 c = 0; c < channels; ++c) {
+                    auto &channel = out.data[c];
+                    const size_t start = channel.size();
+                    channel.resize(start + frames);
+                    float *to = channel.data() + start;
+                    for (size_t f = 0; f < frames; ++f) to[f] = samples[f * channels + c];
+                }
+            } catch (const std::bad_alloc &) {
+                // No duration (fragmented MP4) or a wrong one: the vector ran out of commit while growing.
+                buffer->Unlock();
+                out = PcmBuffer{};
+                error = "out of memory while decoding";
+                return DecodeStatus::TooLong;
             }
             buffer->Unlock();
         }
@@ -186,7 +216,7 @@ bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error) {
     }
     if (out.frames == 0) {
         error = "no audio decoded";
-        return false;
+        return DecodeStatus::Failed;
     }
-    return true;
+    return DecodeStatus::Ok;
 }

@@ -9,6 +9,8 @@
 #ifndef SDENGINE_H
 #define SDENGINE_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,8 +36,29 @@ typedef struct SdEngine SdEngine;
 SD_API SdEngine *sd_engine_create(int withDevice, int manualSampleRate);
 SD_API void sd_engine_destroy(SdEngine *engine);
 
+/** Reasons of the last `sd_engine_open`, from `sd_engine_open_error`. */
+#define SD_OPEN_OK 0
+/** The file cannot be decoded: unreadable, unsupported, no audio. */
+#define SD_OPEN_FAILED 1
+/** The decoded audio does not fit in memory. */
+#define SD_OPEN_TOO_LONG 2
+
 /** Decodes the whole file into memory. Blocking: call it off the UI thread. 1 = ok, 0 = failed. */
 SD_API int sd_engine_open(SdEngine *engine, const char *utf8Path);
+/**
+ * Limit for the decoded audio of the next `sd_engine_open`, in bytes (32-bit float per channel per
+ * frame). 0 = automatic: what the OS can still give (commit on Windows, physical memory on macOS)
+ * minus a margin. A positive value is used as is: tests set a tiny one to get SD_OPEN_TOO_LONG.
+ */
+SD_API void sd_engine_set_memory_budget(SdEngine *engine, int64_t bytes);
+/** SD_OPEN_* of the last `sd_engine_open`. SD_OPEN_OK before any call and after a successful one. */
+SD_API int sd_engine_open_error(const SdEngine *engine);
+/**
+ * Detail of the last failure, for logs: a decoder step and its system code, never the path. Copies a
+ * NUL-terminated text, cut to `size` - 1 bytes, into `buffer`. Returns the full length, so 0 means
+ * no text; `buffer` may be NULL to only ask for it.
+ */
+SD_API int sd_engine_open_error_text(const SdEngine *engine, char *buffer, int size);
 SD_API void sd_engine_close(SdEngine *engine);
 SD_API int sd_engine_is_open(const SdEngine *engine);
 SD_API double sd_engine_duration_seconds(const SdEngine *engine);

@@ -7,6 +7,7 @@ import com.damianogiusti.slowdowner.domain.playback.NowPlayingRepository
 import com.damianogiusti.slowdowner.domain.playback.OpenTrackUseCase
 import com.damianogiusti.slowdowner.domain.source.AudioSource
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
+import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
 import com.damianogiusti.slowdowner.fake.FakePracticeRepository
@@ -39,7 +40,7 @@ class OpenTrackForPracticeUseCaseTest {
         val nowPlaying = RecordingNowPlaying { decode.isRunning }
         repository.saveLastState("b", practised)
 
-        assertTrue(openUseCase(RecordingSources(decode) { decode.isRunning }, nowPlaying)(songB))
+        assertEquals(OpenResult.Opened, openUseCase(RecordingSources(decode) { decode.isRunning }, nowPlaying)(songB))
 
         assertEquals(listOf("nowPlaying:null on caller", "open /b.m4a on decode", "nowPlaying:b on caller"), log)
         assertEquals(75f, engine.speedPercent)
@@ -71,6 +72,26 @@ class OpenTrackForPracticeUseCaseTest {
         assertEquals(listOf("speed:75.0", "pitch:-2.0", "loop:${practised.loop}"), engine.practiceCalls)
     }
 
+    @Test
+    fun `when the track is too long then the result is TooLong and its settings are not applied`() = runTest {
+        repository.saveLastState("b", practised)
+        val sources = FakeAudioSourceRepository(OpenResult.TooLong)
+
+        assertEquals(OpenResult.TooLong, openUseCase(sources, InMemoryNowPlayingRepository())(songB))
+
+        assertTrue(engine.practiceCalls.isEmpty())
+    }
+
+    @Test
+    fun `when the open fails then the settings are not applied`() = runTest {
+        repository.saveLastState("b", practised)
+        val sources = FakeAudioSourceRepository(OpenResult.Failed)
+
+        assertEquals(OpenResult.Failed, openUseCase(sources, InMemoryNowPlayingRepository())(songB))
+
+        assertTrue(engine.practiceCalls.isEmpty())
+    }
+
     private fun openUseCase(
         sources: AudioSourceRepository,
         nowPlaying: NowPlayingRepository,
@@ -85,7 +106,7 @@ class OpenTrackForPracticeUseCaseTest {
         private val onDecode: () -> Boolean,
     ) : AudioSourceRepository by delegate {
         // Like a repository: it picks the decode dispatcher itself.
-        override suspend fun open(source: AudioSource): Boolean = withContext(decode) {
+        override suspend fun open(source: AudioSource): OpenResult = withContext(decode) {
             log += "open ${(source as AudioSource.LocalFile).path} on ${if (onDecode()) "decode" else "caller"}"
             delegate.open(source)
         }

@@ -210,7 +210,7 @@ void exportsTheWholeFileAtTheCurrentSpeed(const std::string &path) {
     CHECK(sd_export_end(exporter) == 1, "export incomplete");
     PcmBuffer decoded;
     std::string error;
-    CHECK(decodeFile(output, decoded, error), "cannot read the MP3: %s", error.c_str());
+    CHECK(decodeFile(output, decoded, error, 0) == DecodeStatus::Ok, "cannot read the MP3: %s", error.c_str());
     CHECK(std::fabs(decoded.seconds() - 20.0) < 0.3, "MP3 lasts %f s", decoded.seconds());
     CHECK(rms(decoded.data[0], size_t(kRate)) > 0.2, "MP3 is silent");
     std::filesystem::remove(output);
@@ -594,7 +594,7 @@ void exportKeepsTheOriginalLevel(const std::string &path) {
     CHECK(sd_export_end(exporter) == 1, "export incomplete");
     PcmBuffer decoded;
     std::string error;
-    CHECK(decodeFile(output, decoded, error), "cannot read the MP3: %s", error.c_str());
+    CHECK(decodeFile(output, decoded, error, 0) == DecodeStatus::Ok, "cannot read the MP3: %s", error.c_str());
     const double level = rms(decoded.data[0], size_t(kRate));
     CHECK(std::fabs(level - 0.5 / std::sqrt(2.0)) < 0.02, "export level %f", level);
     std::filesystem::remove(output);
@@ -625,7 +625,7 @@ void decoderKeepsEveryFrame() {
         std::string error;
         CHECK(writeWavFloat(path, written, error), "cannot write: %s", error.c_str());
         PcmBuffer decoded;
-        CHECK(decodeFile(path, decoded, error), "cannot decode: %s", error.c_str());
+        CHECK(decodeFile(path, decoded, error, 0) == DecodeStatus::Ok, "cannot decode: %s", error.c_str());
         std::filesystem::remove(path);
         CHECK(decoded.channels == channels, "%d channels", decoded.channels);
         CHECK(decoded.frames == written.frames, "%lld frames, wrote %lld", (long long)decoded.frames,
@@ -647,10 +647,30 @@ void unreadableFileFailsCleanly() {
     }
     PcmBuffer decoded;
     std::string error;
-    CHECK(!decodeFile(path, decoded, error), "decoded a text file");
+    CHECK(decodeFile(path, decoded, error, 0) == DecodeStatus::Failed, "decoded a text file");
     CHECK(!error.empty(), "no error message");
     SdEngine *e = sd_engine_create(0, kRate);
     CHECK(sd_engine_open(e, path.c_str()) == 0 && !sd_engine_is_open(e), "opened a text file");
+    CHECK(sd_engine_open_error(e) == SD_OPEN_FAILED, "error code %d", sd_engine_open_error(e));
+    char text[256];
+    const int length = sd_engine_open_error_text(e, text, int(sizeof(text)));
+    CHECK(length > 0 && std::string(text).find(path) == std::string::npos, "error text: %s", text);
+    sd_engine_destroy(e);
+    std::filesystem::remove(path);
+}
+
+void tooLongForTheBudgetIsReportedWithoutDecoding() {
+    const PcmBuffer written = rampBuffer(2, 5.0);
+    const auto path = tempPath("sdengine-budget.wav");
+    std::string error;
+    CHECK(writeWavFloat(path, written, error), "cannot write: %s", error.c_str());
+    SdEngine *e = sd_engine_create(0, kRate);
+    sd_engine_set_memory_budget(e, 1000);
+    CHECK(sd_engine_open(e, path.c_str()) == 0, "opened over the budget");
+    CHECK(sd_engine_open_error(e) == SD_OPEN_TOO_LONG, "error code %d", sd_engine_open_error(e));
+    sd_engine_set_memory_budget(e, 0);
+    CHECK(sd_engine_open(e, path.c_str()) == 1, "did not open with the automatic budget");
+    CHECK(sd_engine_open_error(e) == SD_OPEN_OK, "error code %d", sd_engine_open_error(e));
     sd_engine_destroy(e);
     std::filesystem::remove(path);
 }
@@ -719,7 +739,7 @@ void exportSharesTheDecodedAudio(const std::string &path) {
     CHECK(sd_export_end(exporter) == 1, "export incomplete");
     PcmBuffer decoded;
     std::string error;
-    CHECK(decodeFile(output, decoded, error), "cannot read the MP3: %s", error.c_str());
+    CHECK(decodeFile(output, decoded, error, 0) == DecodeStatus::Ok, "cannot read the MP3: %s", error.c_str());
     CHECK(std::fabs(decoded.seconds() - 10.0) < 0.3, "MP3 lasts %f s", decoded.seconds());
     CHECK(rms(decoded.data[0], size_t(kRate)) > 0.2, "MP3 is silent");
     std::filesystem::remove(output);
@@ -868,6 +888,7 @@ int main() {
         {"exports the whole file at the current speed", [&] { exportsTheWholeFileAtTheCurrentSpeed(path); }},
         {"loop stays inside its points", [&] { loopStaysInside(path); }},
         {"reaches the end with the loop off", [&] { reachesEndWithLoopOff(path); }},
+        {"too long for the budget is reported", [] { tooLongForTheBudgetIsReportedWithoutDecoding(); }},
         {"mix fades the far side", [&] { mixFadesTheFarSide(path); }},
         {"EQ boosts its band and flat is transparent", [] { eqBoostsItsBandAndFlatIsTransparent(); }},
         {"preamp only with the EQ on", [&] { preampOnlyWithEqOn(path); }},

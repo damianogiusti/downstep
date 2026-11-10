@@ -5,6 +5,7 @@ import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.OpenTrackUseCase
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEvent
+import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
 import com.damianogiusti.slowdowner.fake.FakePracticeRepository
@@ -67,7 +68,7 @@ class PracticeStateUseCasesTest {
     fun `when the track has a saved state then opening applies it`() = runTest {
         repository.saveLastState("b", practised)
 
-        assertTrue(open(songB))
+        assertEquals(OpenResult.Opened, open(songB))
 
         assertEquals(75f, engine.speedPercent)
         assertEquals(-2f, engine.pitchSemitones)
@@ -88,9 +89,9 @@ class PracticeStateUseCasesTest {
 
     @Test
     fun `when the open fails then no settings are applied`() = runTest {
-        sources.openSucceeds = false
+        sources.result = OpenResult.Failed
 
-        assertFalse(open(songB))
+        assertEquals(OpenResult.Failed, open(songB))
         assertTrue(engine.practiceCalls.isEmpty())
     }
 

@@ -50,8 +50,37 @@ inline void reservePcm(PcmBuffer &out, int64_t expectedFrames, uint64_t fileByte
     }
 }
 
-/** Only the decoder depends on the OS: AudioToolbox on macOS, Media Foundation on Windows. */
-bool decodeFile(const std::string &path, PcmBuffer &out, std::string &error);
+enum class DecodeStatus { Ok, Failed, TooLong };
+
+/**
+ * What the rest of the engine needs besides the PCM itself. Nothing in the engine grows with the
+ * track: the stretcher and its FIFOs are fixed-size, the loudness energies are one double per 100 ms
+ * (about 40 KB an hour), export shares the decoded buffer and encodes in chunks. So this is room for
+ * the JVM, the UI and the audio device, not for the track.
+ */
+constexpr uint64_t kMemoryMarginBytes = 512ull * 1024 * 1024;
+
+/**
+ * Whether the PCM of a track that announces [expectedFrames] fits in [budgetBytes]. An unknown
+ * duration (<= 0) fits: the decoder then relies on catching std::bad_alloc. The announced length is
+ * bounded by what [fileBytes] of compressed audio can hold (as in reservePcm), so a corrupt header is
+ * not reported as a long track. There is no three-hour cap here: a real long file must be refused.
+ */
+inline bool pcmFitsInMemory(int64_t expectedFrames, int channels, uint64_t fileBytes, uint64_t budgetBytes) {
+    if (expectedFrames <= 0) return true;
+    uint64_t frames = uint64_t(expectedFrames);
+    // Same bound as reservePcm: 128 frames per byte is below any real codec's bitrate.
+    if (fileBytes > 0) frames = std::min<uint64_t>(frames, fileBytes * 128);
+    const uint64_t bytesPerFrame = uint64_t(channels) * sizeof(float);
+    return frames <= budgetBytes / bytesPerFrame;
+}
+
+/**
+ * Only the decoder depends on the OS: AudioToolbox on macOS, Media Foundation on Windows.
+ * [memoryBudgetBytes] bounds the decoded PCM: 0 = what the OS can still give, minus a margin. On
+ * TooLong or Failed, [error] says why, without the path.
+ */
+DecodeStatus decodeFile(const std::string &path, PcmBuffer &out, std::string &error, int64_t memoryBudgetBytes);
 
 /** fopen for a UTF-8 path: on Windows the narrow fopen reads paths in the ANSI code page. */
 FILE *openFileUtf8(const std::string &path, const char *mode);
