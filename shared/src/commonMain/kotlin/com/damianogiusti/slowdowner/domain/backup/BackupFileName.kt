@@ -1,6 +1,6 @@
 package com.damianogiusti.slowdowner.domain.backup
 
-import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
 
 internal object BackupFileName {
     const val EXTENSION = "sldbackup"
@@ -10,9 +10,18 @@ internal object BackupFileName {
     private val UNSAFE_CHARS = Regex("""[\\/:*?"<>|\x00-\x1F\x7F]""")
     private const val MAX_LABEL_LENGTH = 80
 
-    /** "Downstep - Autumn Leaves - 2026-10-13.sldbackup" */
-    fun of(label: String, date: LocalDate): String {
+    /**
+     * "Downstep - Autumn Leaves - 20261013143005.sldbackup". Down to the second: the same item exported
+     * twice must not get the name of the backup still in the cache, which Windows will not replace.
+     */
+    fun of(label: String, time: LocalDateTime): String {
         val safeLabel = label.replace(UNSAFE_CHARS, "_").trim().take(MAX_LABEL_LENGTH).trim().ifEmpty { "backup" }
-        return "Downstep - $safeLabel - $date.$EXTENSION"
+        return "Downstep - $safeLabel - ${stamp(time)}.$EXTENSION"
+    }
+
+    /** yyyyMMddHHmmss */
+    private fun stamp(time: LocalDateTime): String = with(time) {
+        listOf(month.ordinal + 1, day, hour, minute, second)
+            .joinToString("", prefix = year.toString().padStart(4, '0')) { it.toString().padStart(2, '0') }
     }
 }

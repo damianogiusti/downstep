@@ -7,48 +7,62 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.Test
-import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
 
 class BackupUseCasesTest {
 
     private val repository = FakeBackupRepository()
-    private val today = { LocalDate(2026, 10, 13) }
+    private val now = { LocalDateTime(2026, 10, 13, 9, 5, 7) }
 
     @Test
     fun `when a track is exported then its id and title name the backup`() = runTest {
         val track = LibraryTrack("yt_abc", "Autumn Leaves", "/a.m4a", null, 0)
 
-        ExportTrackBackupUseCase(repository, today)(track) {}
+        ExportTrackBackupUseCase(repository, now)(track) {}
 
         assertEquals(BackupScope.Track("yt_abc"), repository.lastScope)
-        assertEquals("Downstep - Autumn Leaves - 2026-10-13.sldbackup", repository.lastFileName)
+        assertEquals("Downstep - Autumn Leaves - 20261013090507.sldbackup", repository.lastFileName)
+    }
+
+    @Test
+    fun `when the same track is exported twice a second apart then the backups have different names`() = runTest {
+        val track = LibraryTrack("yt_abc", "Autumn Leaves", "/a.m4a", null, 0)
+        val times = ArrayDeque(listOf(LocalDateTime(2026, 10, 13, 23, 59, 59), LocalDateTime(2026, 10, 14, 0, 0, 0)))
+        val export = ExportTrackBackupUseCase(repository) { times.removeFirst() }
+
+        export(track) {}
+        val first = repository.lastFileName
+        export(track) {}
+
+        assertEquals("Downstep - Autumn Leaves - 20261013235959.sldbackup", first)
+        assertEquals("Downstep - Autumn Leaves - 20261014000000.sldbackup", repository.lastFileName)
     }
 
     @Test
     fun `when the library is exported then the scope is the whole library`() = runTest {
-        val exportLibrary = ExportLibraryBackupUseCase(repository, today)
+        val exportLibrary = ExportLibraryBackupUseCase(repository, now)
 
         exportLibrary {}
 
         assertEquals(BackupScope.Library, repository.lastScope)
-        assertEquals("Downstep - Libreria - 2026-10-13.sldbackup", repository.lastFileName)
+        assertEquals("Downstep - Libreria - 20261013090507.sldbackup", repository.lastFileName)
     }
 
     @Test
     fun `when a playlist is exported then its id and name are used`() = runTest {
-        ExportPlaylistBackupUseCase(repository, today)(Playlist(7, "Jazz", 3)) {}
+        ExportPlaylistBackupUseCase(repository, now)(Playlist(7, "Jazz", 3)) {}
 
         assertEquals(BackupScope.Playlist(7), repository.lastScope)
-        assertEquals("Downstep - Jazz - 2026-10-13.sldbackup", repository.lastFileName)
+        assertEquals("Downstep - Jazz - 20261013090507.sldbackup", repository.lastFileName)
     }
 
     @Test
     fun `when the title has unsafe characters then the file name replaces them`() = runTest {
         val track = LibraryTrack("local_1", "AC/DC: Back?", "/a.mp3", null, 0)
 
-        ExportTrackBackupUseCase(repository, today)(track) {}
+        ExportTrackBackupUseCase(repository, now)(track) {}
 
-        assertEquals("Downstep - AC_DC_ Back_ - 2026-10-13.sldbackup", repository.lastFileName)
+        assertEquals("Downstep - AC_DC_ Back_ - 20261013090507.sldbackup", repository.lastFileName)
     }
 
     @Test
