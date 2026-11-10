@@ -63,7 +63,7 @@ class DefaultBackupRepository(
                     job.ensureActive()
                     onProgress(BackupProgress(done, total))
                 }
-                if (!partial.renameTo(target)) throw IOException("Cannot move $partial to $target")
+                moveReplacing(partial, target)
             } finally {
                 partial.delete()
             }
@@ -221,6 +221,16 @@ class DefaultBackupRepository(
                 val target = store.fileFor(track.id, extension)
                 IncomingTrack(track.id, track.audio, File(stagingDir, target.name), target)
             }
+
+    /**
+     * The same item exported twice on one day has the same name. A rename replaces the old file on
+     * macOS and Android, but fails on Windows while the target exists: delete it and try again.
+     */
+    private fun moveReplacing(source: File, target: File) {
+        if (source.renameTo(target)) return
+        if (target.exists() && target.delete() && source.renameTo(target)) return
+        throw IOException("Cannot move $source to $target")
+    }
 
     private fun moveIntoLibrary(track: IncomingTrack) {
         if (!track.staging.renameTo(track.target)) throw IOException("Cannot move ${track.staging} to ${track.target}")

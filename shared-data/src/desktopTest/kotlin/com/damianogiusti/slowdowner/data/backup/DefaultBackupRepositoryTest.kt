@@ -121,6 +121,21 @@ class DefaultBackupRepositoryTest {
     }
 
     @Test
+    fun `when a backup with the same name is in the way then the export replaces it`() = runTest {
+        source.addTrack("a", "mp3", byteArrayOf(1))
+        // Windows refuses to rename onto an existing file; a rename onto a directory fails on
+        // every system, so it stands in for that here.
+        File(source.backupDir, "b.sldbackup").mkdirs()
+
+        val result = source.repository.export(BackupScope.Track("a"), "b.sldbackup") {}
+
+        val file = File((result as BackupExportResult.Success).file.path)
+        assertTrue(file.isFile)
+        assertEquals(listOf("a"), readManifest(file).tracks.map { it.id })
+        assertEquals(listOf("b.sldbackup"), source.backupDir.list()?.toList())
+    }
+
+    @Test
     fun `when a backup is saved then the file is copied to the document`() = runTest {
         source.addTrack("a", "mp3", byteArrayOf(1))
         val backup = (source.repository.export(BackupScope.Track("a"), "b.sldbackup") {} as BackupExportResult.Success).file
