@@ -52,43 +52,6 @@ class NewPipeYouTubeStreamDataSourceTest {
     }
 
     @Test
-    fun `picks the best M4A audio stream`() {
-        val best = dataSource.pickBest(
-            audio = listOf(
-                audio("opus", MediaFormat.WEBMA_OPUS, 160),
-                audio("low", MediaFormat.M4A, 48),
-                audio("high", MediaFormat.M4A, 128),
-            ),
-            video = listOf(video("muxed", MediaFormat.MPEG_4)),
-        )
-
-        assertEquals("high", best?.id)
-    }
-
-    @Test
-    fun `without an audio stream, picks the MP4 video with sound`() {
-        val best = dataSource.pickBest(
-            audio = emptyList(),
-            video = listOf(
-                video("webm", MediaFormat.WEBM),
-                videoBuilder("silent", MediaFormat.MPEG_4).setIsVideoOnly(true).build(),
-                video("muxed", MediaFormat.MPEG_4),
-            ),
-        )
-
-        assertEquals("muxed", best?.id)
-        assertEquals("mp4", best?.format?.suffix)
-    }
-
-    @Test
-    fun `without a progressive stream, there is nothing to download`() {
-        val best = dataSource.pickBest(
-            audio = listOf(audioBuilder("dash", MediaFormat.M4A).setDeliveryMethod(DeliveryMethod.DASH).build()),
-            video = listOf(videoBuilder("hls", MediaFormat.MPEG_4).setDeliveryMethod(DeliveryMethod.HLS).build()),
-        )
-
-        assertNull(best)
-
     fun `a video link inside a playlist gets past the link check`() {
         val offline = NewPipeYouTubeStreamDataSource { OfflineDownloader() }
 
@@ -128,6 +91,45 @@ class NewPipeYouTubeStreamDataSourceTest {
         )
         assertEquals("https://youtu.be/abc?si=xyz", withoutPlaylist("https://youtu.be/abc?si=xyz"))
         assertEquals("https://youtu.be/abc", withoutPlaylist("https://youtu.be/abc"))
+    }
+
+    @Test
+    fun `picks the best M4A audio stream`() {
+        val best = dataSource.pickBest(
+            audio = listOf(
+                audio("opus", MediaFormat.WEBMA_OPUS, 160),
+                audio("low", MediaFormat.M4A, 48),
+                audio("high", MediaFormat.M4A, 128),
+            ),
+            video = listOf(video("muxed", MediaFormat.MPEG_4)),
+        )
+
+        assertEquals("high", best?.id)
+    }
+
+    @Test
+    fun `without an audio stream, picks the MP4 video with sound`() {
+        val best = dataSource.pickBest(
+            audio = emptyList(),
+            video = listOf(
+                video("webm", MediaFormat.WEBM),
+                videoBuilder("silent", MediaFormat.MPEG_4).setIsVideoOnly(true).build(),
+                video("muxed", MediaFormat.MPEG_4),
+            ),
+        )
+
+        assertEquals("muxed", best?.id)
+        assertEquals("mp4", best?.format?.suffix)
+    }
+
+    @Test
+    fun `without a progressive stream, there is nothing to download`() {
+        val best = dataSource.pickBest(
+            audio = listOf(audioBuilder("dash", MediaFormat.M4A).setDeliveryMethod(DeliveryMethod.DASH).build()),
+            video = listOf(videoBuilder("hls", MediaFormat.MPEG_4).setDeliveryMethod(DeliveryMethod.HLS).build()),
+        )
+
+        assertNull(best)
     }
 
     @Test
