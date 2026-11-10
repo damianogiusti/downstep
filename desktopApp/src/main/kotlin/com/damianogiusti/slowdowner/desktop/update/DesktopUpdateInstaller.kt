@@ -62,7 +62,7 @@ class DesktopUpdateInstaller(
 
     private fun prepareWindows(folder: File, zip: File, version: String) {
         val staged = stagedCopy(AppInstallation.WindowsFolder(folder), workDir)
-        staged.deleteTree()
+        clearStagedWindows(staged)
         // The zip has a Downstep folder, whatever name the user gave to theirs.
         ZipArchive.extractFolder(zip, APP_NAME, staged)
         checkApp(File(staged, "app"), version)
@@ -72,6 +72,21 @@ class DesktopUpdateInstaller(
             "powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass",
             "-File", script.path, "-ProcessId", processId.toString(), "-NewApp", staged.path, "-Target", folder.path,
         ) + (trashDir?.let { listOf("-TrashDir", it.path) } ?: emptyList())
+    }
+
+    /**
+     * A copy left by an earlier attempt can hold something Windows will not delete now (a folder
+     * another program has open). It need not go now, only make room: it is set aside under the
+     * discarded name, which [discardAbandoned] deletes at a later start, and the update goes on.
+     */
+    private fun clearStagedWindows(staged: File) {
+        try {
+            staged.deleteTree()
+        } catch (e: IOException) {
+            val parent = staged.parentFile ?: throw e
+            if (!staged.renameTo(File(parent, staged.name + DISCARDED + System.currentTimeMillis()))) throw e
+            logger.w("Earlier update copy set aside, not deleted", e)
+        }
     }
 
     override fun startSwap() {

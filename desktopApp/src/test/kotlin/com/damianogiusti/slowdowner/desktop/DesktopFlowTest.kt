@@ -21,6 +21,7 @@ import com.damianogiusti.slowdowner.domain.library.ImportTrackFromUrlUseCase
 import com.damianogiusti.slowdowner.domain.library.ObserveLibraryUseCase
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.practice.OpenTrackForPracticeUseCase
+import com.damianogiusti.slowdowner.domain.source.OpenResult
 import androidx.compose.ui.input.key.Key
 import com.damianogiusti.slowdowner.ui.common.TextInputFocus
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
@@ -82,7 +83,7 @@ class DesktopFlowTest {
         val library = koin.get<ObserveLibraryUseCase>()().first { it.isNotEmpty() }
         assertEquals(listOf(imported.track.id), library.map { it.id })
 
-        assertTrue(koin.get<OpenTrackForPracticeUseCase>()(library.single()))
+        assertEquals(OpenResult.Opened, koin.get<OpenTrackForPracticeUseCase>()(library.single()))
         val engine = koin.get<PlaybackEngine>()
         assertEquals(10f, engine.durationSeconds, 0.01f)
         engine.setSpeedPercent(50f)
@@ -117,7 +118,7 @@ class DesktopFlowTest {
         startAppWork(koin, scope)
         val imported = koin.get<ImportDocumentUseCase>()(toneFile().path)
         assertIs<ImportResult.Success>(imported)
-        assertTrue(koin.get<OpenTrackForPracticeUseCase>()(imported.track))
+        assertEquals(OpenResult.Opened, koin.get<OpenTrackForPracticeUseCase>()(imported.track))
         // Lets the auto-save subscribe before the change, as the app does at start.
         delay(200)
         koin.get<PlaybackEngine>().setSpeedPercent(75f)
@@ -220,7 +221,7 @@ class DesktopFlowTest {
         if (System.getProperty("slowdowner.networkTests") != "true") return@runBlocking
         val result = koin.get<ImportTrackFromUrlUseCase>()("https://www.youtube.com/watch?v=jNQXAC9IVRw") {}
         assertIs<ImportResult.Success>(result, "import: $result")
-        assertTrue(koin.get<OpenTrackForPracticeUseCase>()(result.track))
+        assertEquals(OpenResult.Opened, koin.get<OpenTrackForPracticeUseCase>()(result.track))
         val engine = koin.get<PlaybackEngine>()
         assertTrue(engine.durationSeconds in 15f..25f, "duration ${engine.durationSeconds}")
         engine.togglePlayStop()

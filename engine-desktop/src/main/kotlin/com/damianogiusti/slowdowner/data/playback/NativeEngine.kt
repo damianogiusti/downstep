@@ -10,6 +10,7 @@ import java.lang.foreign.ValueLayout.ADDRESS
 import java.lang.foreign.ValueLayout.JAVA_DOUBLE
 import java.lang.foreign.ValueLayout.JAVA_FLOAT
 import java.lang.foreign.ValueLayout.JAVA_INT
+import java.lang.foreign.ValueLayout.JAVA_LONG
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -52,6 +53,21 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
     fun open(path: String): Boolean = Arena.ofConfined().use { arena ->
         val utf8Path: MemorySegment = arena.allocateFrom(path)
         api.open.invokeExact(handle, utf8Path) as Int != 0
+    }
+
+    /** Why the last [open] failed: [OPEN_OK], [OPEN_FAILED] or [OPEN_TOO_LONG]. */
+    val openError: Int get() = api.openError.invokeExact(handle) as Int
+
+    /** Decoder detail of the last failure: a step and a system code, never the path. Empty if none. */
+    fun openErrorText(): String = Arena.ofConfined().use { arena ->
+        val buffer: MemorySegment = arena.allocate(OPEN_ERROR_TEXT_BYTES.toLong())
+        val length = api.openErrorText.invokeExact(handle, buffer, OPEN_ERROR_TEXT_BYTES) as Int
+        if (length == 0) "" else buffer.getString(0)
+    }
+
+    /** Bounds the decoded audio of the next [open], in bytes. 0 = what the OS can give (the default). */
+    fun setMemoryBudget(bytes: Long) {
+        api.setMemoryBudget.invokeExact(handle, bytes)
     }
 
     fun closeFile() {
@@ -158,6 +174,10 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
     companion object {
         const val EVENT_REACHED_END = 1
         const val EQ_BANDS = 7
+        const val OPEN_OK = 0
+        const val OPEN_FAILED = 1
+        const val OPEN_TOO_LONG = 2
+        private const val OPEN_ERROR_TEXT_BYTES = 256
 
         /** System property with the path of `libsdengine`. Set by Gradle for tests. */
         const val LIBRARY_PROPERTY = "slowdowner.engine.library"
@@ -201,6 +221,9 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         val create = function("sd_engine_create", ADDRESS, JAVA_INT, JAVA_INT)
         val destroy = function("sd_engine_destroy", null, ADDRESS)
         val open = function("sd_engine_open", JAVA_INT, ADDRESS, ADDRESS)
+        val setMemoryBudget = function("sd_engine_set_memory_budget", null, ADDRESS, JAVA_LONG)
+        val openError = function("sd_engine_open_error", JAVA_INT, ADDRESS)
+        val openErrorText = function("sd_engine_open_error_text", JAVA_INT, ADDRESS, ADDRESS, JAVA_INT)
         val close = function("sd_engine_close", null, ADDRESS)
         val isOpen = function("sd_engine_is_open", JAVA_INT, ADDRESS, critical = true)
         val durationSeconds = function("sd_engine_duration_seconds", JAVA_DOUBLE, ADDRESS, critical = true)
@@ -241,7 +264,15 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
                 // LAME is found by name when the engine needs it.
                 val lame = library.toAbsolutePath().resolveSibling("mp3lame.dll")
                 if (Files.exists(lame)) System.load(lame.toString())
-                Api(SymbolLookup.libraryLookup(library, Arena.global()))
+                val lookup = try {
+                    SymbolLookup.libraryLookup(library, Arena.global())
+                } catch (e: IllegalArgumentException) {
+                    // FFM only says "Cannot open library". System.load gets the reason from the
+                    // system (a missing dependency, a wrong architecture, access denied).
+                    val reason = runCatching { System.load(library.toString()) }.exceptionOrNull()
+                    throw if (reason == null) e else IllegalArgumentException(e.message, reason)
+                }
+                Api(lookup)
             }
         }
     }

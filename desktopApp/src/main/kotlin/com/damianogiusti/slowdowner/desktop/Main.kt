@@ -188,7 +188,7 @@ fun main() {
             }
             // macOS only: there the menus sit in the screen's menu bar. On Windows they would be a bar
             // inside the window, and Alt+F4 already closes it. One window: closing it quits.
-            if (isMacOs) MenuBar {
+            if (hasScreenMenuBar) MenuBar {
                 Menu(stringResource(Res.string.menu_file)) {
                     Item(stringResource(Res.string.menu_close_window), shortcut = KeyShortcut(Key.W, meta = true), onClick = ::exitApplication)
                 }

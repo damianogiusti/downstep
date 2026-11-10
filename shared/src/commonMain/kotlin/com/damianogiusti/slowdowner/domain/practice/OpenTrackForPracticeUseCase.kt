@@ -3,6 +3,7 @@ package com.damianogiusti.slowdowner.domain.practice
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.playback.OpenTrackUseCase
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
+import com.damianogiusti.slowdowner.domain.source.OpenResult
 
 /**
  * Opens a track with its own practice settings: saves the outgoing track, opens the new
@@ -14,14 +15,14 @@ class OpenTrackForPracticeUseCase(
     private val engine: PlaybackEngine,
     private val repository: PracticeRepository,
 ) {
-    suspend operator fun invoke(track: LibraryTrack): Boolean {
+    suspend operator fun invoke(track: LibraryTrack): OpenResult {
         savePracticeState()
         // Load before opening, so marking the track as playing and applying its settings run back to
         // back on the caller's (main) thread, with no suspension between them: a debounced auto-save
         // cannot slip in and store the old values on the new track. Only the decode runs elsewhere.
         val settings = repository.lastState(track.id) ?: PracticeSettings()
-        val opened = openTrack(track)
-        if (opened) engine.applyPracticeSettings(settings)
-        return opened
+        val result = openTrack(track)
+        if (result == OpenResult.Opened) engine.applyPracticeSettings(settings)
+        return result
     }
 }

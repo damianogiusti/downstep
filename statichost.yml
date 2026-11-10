@@ -1,6 +1,6 @@
 # Site build on statichost.eu: the generator needs only Python 3.11+.
-# statichost builds from the branch `site`, not from `main`: the site changes only when `site` is
-# fast-forwarded to `main` (git push origin main:site).
+# statichost builds from the branch `site`, not from `main`: fast-forward `site` to `main`
+# (git push origin main:site), then start the build in the statichost.eu panel. No webhook starts it.
 image: python:3.12-slim
 command: cd website && python3 build.py
 public: website/public

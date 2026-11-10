@@ -21,6 +21,7 @@
     <string name="import_downloading">Scarico "%1$s"…</string>
 
     <string name="error_cannot_open">Impossibile aprire "%1$s": formato non supportato dal motore?</string>
+    <string name="error_track_too_long">"%1$s" è troppo lunga da aprire: Downstep tiene in memoria tutta la traccia. Prova con una parte più breve.</string>
     <string name="error_unsupported_link">Link non supportato. Condividi un link YouTube.</string>
     <string name="error_unsupported_link_desktop">Link non supportato. Incolla un link YouTube.</string>
     <string name="error_import_running">Un import è già in corso.</string>

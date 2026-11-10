@@ -4,6 +4,7 @@ import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEvent
 import com.damianogiusti.slowdowner.domain.source.AudioSource
+import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.logging.ConsoleLogger
 import com.damianogiusti.slowdowner.logging.Logger
 import kotlinx.coroutines.CoroutineScope
@@ -23,6 +24,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.log10
 import kotlin.concurrent.thread
+import kotlin.io.path.createTempDirectory
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.test.AfterTest
@@ -66,7 +68,7 @@ class DesktopPlaybackEngineTest {
             repeat(12) { round ->
                 val scope = CoroutineScope(Dispatchers.Default)
                 val engine = DesktopPlaybackEngine(NativeEngine.manual(RATE), scope)
-                var opened: Boolean? = null
+                var opened: FileOpenResult? = null
                 val decode = thread { opened = engine.openFile(long.path) }
                 Thread.sleep((round * 7 % 40).toLong())
                 engine.close()
@@ -74,7 +76,7 @@ class DesktopPlaybackEngineTest {
                 assertFalse(decode.isAlive, "the decode never returned")
                 assertTrue(opened != null)
                 // Closed: a later open is refused, not a call into freed memory.
-                assertFalse(engine.openFile(long.path))
+                assertTrue(engine.openFile(long.path) is FileOpenResult.Failed)
                 scope.cancel()
             }
         } finally {
@@ -244,9 +246,9 @@ class DesktopPlaybackEngineTest {
         val logged = mutableListOf<String>()
         val repository = DesktopAudioSourceRepository(engine, LineLogger(logged))
 
-        assertFalse(repository.open(AudioSource.LocalFile("/nope/missing.m4a")))
+        assertEquals(OpenResult.Failed, repository.open(AudioSource.LocalFile("/nope/missing.m4a")))
         assertFalse(engine.isOpen)
-        assertEquals(listOf("W Cannot open track {extension=m4a, reason=unreadable}"), logged)
+        assertEquals(listOf("W Cannot open track {extension=m4a, source=other, size=<10MB, reason=unreadable}"), logged)
     }
 
     @Test
@@ -258,8 +260,46 @@ class DesktopPlaybackEngineTest {
             deleteOnExit()
         }
 
-        assertFalse(DesktopAudioSourceRepository(engine, LineLogger(logged)).open(AudioSource.LocalFile(notAudio.path)))
-        assertEquals(listOf("E Cannot open track {extension=mp3, reason=decoder}"), logged)
+        val result = DesktopAudioSourceRepository(engine, LineLogger(logged)).open(AudioSource.LocalFile(notAudio.path))
+
+        assertEquals(OpenResult.Failed, result)
+        val line = logged.single()
+        assertTrue(line.startsWith("E Cannot open track {extension=mp3, source=other, size=<10MB, reason=decoder, detail="), line)
+        assertFalse(notAudio.name in line || notAudio.parent in line, line)
+    }
+
+    @Test
+    fun `a track too long for memory is TooLong and a warning without a native detail`() = runTest {
+        val engine = DesktopPlaybackEngine(native, backgroundScope)
+        native.setMemoryBudget(1_000)
+        val logged = mutableListOf<String>()
+
+        val result = DesktopAudioSourceRepository(engine, LineLogger(logged)).open(AudioSource.LocalFile(file.path))
+
+        assertEquals(OpenResult.TooLong, result)
+        assertFalse(engine.isOpen)
+        assertEquals(listOf("W Cannot open track {extension=wav, source=other, size=<10MB, reason=tooLong}"), logged)
+    }
+
+    @Test
+    fun `the source is derived from the file name prefix and the name is never logged`() = runTest {
+        val engine = DesktopPlaybackEngine(native, backgroundScope)
+        native.setMemoryBudget(1_000)
+        val folder = createTempDirectory("sources").toFile()
+        try {
+            val sources = listOf("yt_abc.wav" to "youtube", "local_abc.wav" to "file", "abc.wav" to "other")
+            for ((name, expected) in sources) {
+                val copy = File(folder, name).apply { writeBytes(file.readBytes()) }
+                val logged = mutableListOf<String>()
+
+                DesktopAudioSourceRepository(engine, LineLogger(logged)).open(AudioSource.LocalFile(copy.path))
+
+                assertTrue("source=$expected," in logged.single(), logged.single())
+                assertFalse("abc" in logged.single(), logged.single())
+            }
+        } finally {
+            folder.deleteRecursively()
+        }
     }
 
     @Test
@@ -274,7 +314,7 @@ class DesktopPlaybackEngineTest {
 
         val opened = DesktopAudioSourceRepository(engine, ConsoleLogger(), decode).open(AudioSource.LocalFile(file.path))
 
-        assertTrue(opened)
+        assertEquals(OpenResult.Opened, opened)
         assertEquals(1, decodeThreads.size)
         assertTrue(decodeThreads.single() !== Thread.currentThread())
     }
@@ -289,7 +329,7 @@ class DesktopPlaybackEngineTest {
 
     private suspend fun TestScope.openEngine(): DesktopPlaybackEngine {
         val engine = DesktopPlaybackEngine(native, backgroundScope)
-        assertTrue(DesktopAudioSourceRepository(engine, ConsoleLogger()).open(AudioSource.LocalFile(file.path)))
+        assertEquals(OpenResult.Opened, DesktopAudioSourceRepository(engine, ConsoleLogger()).open(AudioSource.LocalFile(file.path)))
         assertEquals(10f, engine.durationSeconds, 0.01f)
         return engine
     }

@@ -2,6 +2,7 @@ package com.damianogiusti.slowdowner.desktop.update
 
 import java.io.File
 import java.io.IOException
+import java.nio.file.AccessDeniedException
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -36,11 +37,37 @@ internal fun File.deleteTree() {
 
             override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
                 if (exc != null) throw exc
-                Files.delete(dir)
+                deleteClearingReadOnly(dir)
                 return FileVisitResult.CONTINUE
             }
         },
     )
+}
+
+/**
+ * Windows refuses to delete a read-only folder too ("access denied"), and a folder can carry that flag
+ * (Explorer sets it on customized folders, some sync and copy tools keep it). The flag is cleared only
+ * when a delete is refused, and the delete is tried once more; any other refusal is thrown as it was.
+ */
+internal fun deleteClearingReadOnly(
+    path: Path,
+    delete: (Path) -> Unit = Files::delete,
+    clearReadOnly: (Path) -> Boolean = ::clearDosReadOnly,
+) {
+    try {
+        delete(path)
+    } catch (e: AccessDeniedException) {
+        if (!clearReadOnly(path)) throw e
+        delete(path)
+    }
+}
+
+/** True when the flag was set and is now cleared. Never on a link, and never off Windows. */
+private fun clearDosReadOnly(path: Path): Boolean {
+    if (!isWindows || Files.isSymbolicLink(path)) return false
+    if (Files.getAttribute(path, "dos:readonly", LinkOption.NOFOLLOW_LINKS) != true) return false
+    Files.setAttribute(path, "dos:readonly", false, LinkOption.NOFOLLOW_LINKS)
+    return true
 }
 
 private val isWindows = File.separatorChar == '\\'

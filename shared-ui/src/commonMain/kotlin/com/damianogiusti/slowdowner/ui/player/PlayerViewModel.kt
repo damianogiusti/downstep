@@ -19,6 +19,7 @@ import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.SetLoopRegionUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
+import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.ui.common.UiMessage
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -85,10 +86,12 @@ class PlayerViewModel(
         if (_state.value.isExporting) return
         viewModelScope.launch {
             // One open at a time: each one saves the outgoing track first, so order matters.
-            val opened = openMutex.withLock { openTrack(track) }
-            if (!opened) {
-                _messages.trySend(UiMessage(Res.string.error_cannot_open, listOf(track.title)))
+            val message = when (openMutex.withLock { openTrack(track) }) {
+                OpenResult.Opened -> null
+                OpenResult.TooLong -> Res.string.error_track_too_long
+                OpenResult.Failed -> Res.string.error_cannot_open
             }
+            if (message != null) _messages.trySend(UiMessage(message, listOf(track.title)))
             refreshPlayer()
         }
     }
