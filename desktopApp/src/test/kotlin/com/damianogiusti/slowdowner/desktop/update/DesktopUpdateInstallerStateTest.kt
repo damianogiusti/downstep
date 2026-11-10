@@ -1,9 +1,12 @@
 package com.damianogiusti.slowdowner.desktop.update
 
 import com.damianogiusti.slowdowner.logging.ConsoleLogger
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -90,6 +93,42 @@ class DesktopUpdateInstallerStateTest {
         DesktopUpdateInstaller.discardAbandoned(AppInstallation.MacBundle(bundle), workDir, now)
 
         assertTrue(staged.exists())
+    }
+
+    @Test
+    fun `when the Windows copy of an earlier attempt cannot be deleted then it is set aside and the update goes on`() {
+        val installed = folder.newFolder("Apps", "Downstep")
+        val leftover = staged(File(installed.parentFile, "Downstep.update"), ageMillis = 0)
+        // Stands in for a folder Windows will not delete: here a folder whose files cannot be removed.
+        val stuck = File(leftover, "app").apply { setWritable(false) }
+        assumeTrue(!stuck.canWrite())
+        try {
+            DesktopUpdateInstaller(AppInstallation.WindowsFolder(installed), workDir, ConsoleLogger()).prepare(windowsZip("1.0.4"), "1.0.4")
+
+            assertTrue("java-options=-Dslowdowner.version=1.0.4" in File(leftover, "app/Downstep.cfg").readLines())
+            val aside = installed.parentFile.listFiles { file -> file.name.startsWith("Downstep.update.discarded-") }.orEmpty()
+            assertEquals(1, aside.size)
+        } finally {
+            installed.parentFile.walk().forEach { it.setWritable(true) }
+        }
+    }
+
+    private fun windowsZip(version: String): File {
+        val zip = File(folder.root, "Downstep-windows-x64.zip")
+        ZipOutputStream(zip.outputStream()).use { out ->
+            fun entry(name: String, text: String) {
+                out.putNextEntry(ZipEntry(name))
+                out.write(text.toByteArray())
+                out.closeEntry()
+            }
+            entry("Downstep/Downstep.exe", "exe")
+            entry(
+                "Downstep/app/Downstep.cfg",
+                "[Application]\napp.mainclass=com.damianogiusti.slowdowner.desktop.MainKt\n\n" +
+                    "[JavaOptions]\njava-options=-Dslowdowner.version=$version\n",
+            )
+        }
+        return zip
     }
 
     private fun staged(dir: File, ageMillis: Long): File {
