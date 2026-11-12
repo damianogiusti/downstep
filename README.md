@@ -29,8 +29,7 @@ On Windows the engine builds with MinGW-w64; Bungee does not build with MSVC.
 ./gradlew :desktopApp:run                 # start the app
 ./gradlew :desktopApp:packageDmg          # unsigned DMG (macOS)
 ./gradlew :desktopApp:createDistributable # app folder (macOS or Windows)
-./gradlew :shared:jvmTest :shared-data:desktopTest :shared-ui:desktopTest
-./gradlew :engine-desktop:test :desktopApp:test
+./gradlew check                           # every test of every module, as CI runs it
 ```
 
 The app keeps its data in `~/Library/Application Support/SlowDowner` on macOS and in

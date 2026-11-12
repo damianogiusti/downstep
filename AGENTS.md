@@ -25,10 +25,12 @@ The shared modules also have an Android target, so Gradle needs the Android SDK 
 
 ```sh
 ./gradlew :desktopApp:run                 # start the app (uses the real data folder, see Desktop)
+./gradlew check                           # every test of every module, as CI runs it
 ./gradlew :shared:jvmTest :shared-data:desktopTest :shared-ui:desktopTest
 ./gradlew :shared:jvmTest --tests "com.damianogiusti.slowdowner.domain.library.*"
 ./gradlew :shared:iosSimulatorArm64Test   # same domain tests on Kotlin/Native
 ./gradlew :engine-desktop:test            # builds engine/ with CMake, tests through FFM
+./gradlew :engine-desktop:nativeEngineTest # engine/tests in C++
 ./gradlew :desktopApp:test                # DI graph, import and play flow, off-screen render
 ./gradlew :desktopApp:createDistributable # app folder in desktopApp/build/compose/binaries/main/app
 ./gradlew :desktopApp:packageDmg          # unsigned DMG (macOS)
@@ -118,6 +120,7 @@ A database change, once agreed, needs a Room migration, the exported schema in
 - ViewModels: `shared-ui/src/desktopTest/`.
 - Hand-written fakes in a `fake/` package. No mocking libraries. `runTest` for coroutines.
 - Test names in backticks: ``fun `when import fails then result is Unavailable`()``.
+  Domain tests also compile for iOS, where a name cannot contain `,` `.` `:` `;` `/` `<` `>` `[` `]`.
 - Use temporary directories only. Never read or write the real data folder
   (`~/Library/Application Support/SlowDowner`, `%APPDATA%\SlowDowner`).
 - Never create links to real system folders. Never use a recursive delete that follows links.
@@ -170,11 +173,10 @@ A database change, once agreed, needs a Room migration, the exported schema in
 
 ## Before you finish
 
-Run the tests for the modules you touched:
+Run every test, as CI does on macOS and Windows:
 
 ```sh
-./gradlew :shared:jvmTest :shared-data:desktopTest :shared-ui:desktopTest
-./gradlew :engine-desktop:test :desktopApp:test
+./gradlew check
 ```
 
 Then check the diff against this file, and write:

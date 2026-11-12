@@ -48,7 +48,7 @@ class WhatsNewUseCasesTest {
     }
 
     @Test
-    fun `when several versions were skipped then all show, newest first`() = runTest {
+    fun `when several versions were skipped then all show with the newest first`() = runTest {
         repository.lastSeen = version("1.1.0")
         assertEquals(listOf("1.4.0", "1.3.0", "1.2.0"), shownVersions("1.4.0", hasLaunchHistory = true))
     }

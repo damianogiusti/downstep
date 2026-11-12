@@ -11,6 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import kotlinx.serialization.json.JsonPrimitive
 import java.io.File
 
 class RoomLibraryStoreTest {
@@ -27,7 +28,7 @@ class RoomLibraryStoreTest {
     @Test
     fun `when a legacy index exists then the first read imports it and retires the file`() = runTest {
         val audio = folder.newFile("yt_abc.m4a")
-        writeLegacyIndex("""[{"id":"yt_abc","title":"Song","filePath":"${audio.path}","sourceUrl":"u","addedAt":5}]""")
+        writeLegacyIndex("""[{"id":"yt_abc","title":"Song","filePath":${JsonPrimitive(audio.path)},"sourceUrl":"u","addedAt":5}]""")
 
         val tracks = store.observe().first()
 
@@ -40,7 +41,7 @@ class RoomLibraryStoreTest {
     fun `when a legacy track is already in the database then the stored row wins`() = runTest {
         val audio = folder.newFile("yt_abc.m4a")
         dao.upsert(TrackEntity("yt_abc", "Renamed", audio.path, "u", 9))
-        writeLegacyIndex("""[{"id":"yt_abc","title":"Song","filePath":"${audio.path}","sourceUrl":"u","addedAt":5}]""")
+        writeLegacyIndex("""[{"id":"yt_abc","title":"Song","filePath":${JsonPrimitive(audio.path)},"sourceUrl":"u","addedAt":5}]""")
 
         assertEquals("Renamed", store.find("yt_abc")?.title)
     }
@@ -66,7 +67,7 @@ class RoomLibraryStoreTest {
     @Test
     fun `when a legacy track is removed before any read then the import does not bring it back`() = runTest {
         val audio = folder.newFile("yt_abc.m4a")
-        writeLegacyIndex("""[{"id":"yt_abc","title":"Song","filePath":"${audio.path}","sourceUrl":"u","addedAt":5}]""")
+        writeLegacyIndex("""[{"id":"yt_abc","title":"Song","filePath":${JsonPrimitive(audio.path)},"sourceUrl":"u","addedAt":5}]""")
 
         store.remove("yt_abc")
 
@@ -76,7 +77,7 @@ class RoomLibraryStoreTest {
     @Test
     fun `when the legacy index cannot be renamed then the import still completes and reports it`() = runTest {
         val audio = folder.newFile("yt_abc.m4a")
-        writeLegacyIndex("""[{"id":"yt_abc","title":"Song","filePath":"${audio.path}","sourceUrl":"u","addedAt":5}]""")
+        writeLegacyIndex("""[{"id":"yt_abc","title":"Song","filePath":${JsonPrimitive(audio.path)},"sourceUrl":"u","addedAt":5}]""")
         // A directory with the backup name makes the rename fail.
         File(folder.root, "index.json.imported").mkdir()
         File(folder.root, "index.json.imported/keep").writeText("x")
