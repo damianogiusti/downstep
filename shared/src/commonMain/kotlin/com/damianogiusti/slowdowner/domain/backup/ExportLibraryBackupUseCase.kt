@@ -1,12 +1,12 @@
 package com.damianogiusti.slowdowner.domain.backup
 
-import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
 
 /** Every track with its practice state and presets, plus every playlist. */
 class ExportLibraryBackupUseCase(
     private val repository: BackupRepository,
-    private val today: () -> LocalDate = ::localToday,
+    private val now: () -> LocalDateTime = ::localNow,
 ) {
     suspend operator fun invoke(onProgress: (BackupProgress) -> Unit): BackupExportResult =
-        repository.export(BackupScope.Library, BackupFileName.of(BackupFileName.LIBRARY_LABEL, today()), onProgress)
+        repository.export(BackupScope.Library, BackupFileName.of(BackupFileName.LIBRARY_LABEL, now()), onProgress)
 }
