@@ -186,6 +186,7 @@ Requirements are in the [README](README.md).
 
 ```sh
 ./gradlew :desktopApp:run                 # start the app
+./gradlew check                           # every test of every module, as CI runs it
 ./gradlew :shared:jvmTest :shared-data:desktopTest :shared-ui:desktopTest
 ./gradlew :shared:jvmTest --tests "com.damianogiusti.slowdowner.domain.library.*"
 ./gradlew :engine-desktop:test            # builds the engine with CMake, tests through FFM

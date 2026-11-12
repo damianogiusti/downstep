@@ -55,8 +55,10 @@ jobs:
           -DFETCHCONTENT_SOURCE_DIR_LAME=$PWD/.native-deps/lame-src
 
       # With the real swap of a fake app (disk image, scripts, Trash).
-      - name: Engine and app tests
-        run: ./gradlew :engine-desktop:test :desktopApp:test -PappVersion=$APP_VERSION -PupdateSwapTests=true --stacktrace
+      # `check` runs the tests of every module, also the domain tests on the iOS simulator.
+      # --continue: one failing module does not hide the results of the others.
+      - name: All tests
+        run: ./gradlew check --continue -PappVersion=$APP_VERSION -PupdateSwapTests=true --stacktrace
 
       # Even if the tests failed: the download worked, the next run should not need it again.
       - name: Keep the engine's dependencies
@@ -190,8 +192,8 @@ jobs:
           -DFETCHCONTENT_SOURCE_DIR_MINIAUDIO=$PWD/.native-deps/miniaudio-src
           -DFETCHCONTENT_SOURCE_DIR_LAME=$PWD/.native-deps/lame-src
 
-      - name: Engine and app tests
-        run: ./gradlew :engine-desktop:test :desktopApp:test --stacktrace
+      - name: All tests
+        run: ./gradlew check --continue --stacktrace
 
       - name: The app carries an x86_64 engine
         run: |

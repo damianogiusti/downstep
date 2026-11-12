@@ -63,8 +63,10 @@ jobs:
           $deps = "$($PWD.Path.Replace('\', '/'))/.native-deps"
           cmake -S engine -B engine-desktop/build/native -DCMAKE_BUILD_TYPE=Release "-DFETCHCONTENT_SOURCE_DIR_BUNGEE=$deps/bungee-src" "-DFETCHCONTENT_SOURCE_DIR_MINIAUDIO=$deps/miniaudio-src" "-DFETCHCONTENT_SOURCE_DIR_LAME=$deps/lame-src"
 
-      - name: Engine and app tests
-        run: ./gradlew.bat :engine-desktop:test :desktopApp:test "-PappVersion=$env:APP_VERSION" -PupdateSwapTests=true --stacktrace
+      # `check` runs the tests of every module, so a new module or test set is never left out.
+      # --continue: one failing module does not hide the results of the others.
+      - name: All tests
+        run: ./gradlew.bat check --continue "-PappVersion=$env:APP_VERSION" -PupdateSwapTests=true --stacktrace
 
       # Even if the tests failed: the download worked, the next run should not need it again.
       - name: Keep the engine's dependencies
@@ -93,12 +95,6 @@ jobs:
           path: desktopApp/build/screenshots/
           if-no-files-found: ignore
           retention-days: 14
-
-      # Same build dir as Gradle: only the engine sources compile again.
-      - name: Engine tests (C++)
-        run: |
-          cmake --build engine-desktop/build/native --config Release --target sdengine_tests -j 4
-          ./engine-desktop/build/native/sdengine_tests.exe
 
       - name: App
         run: ./gradlew.bat :desktopApp:createDistributable "-PappVersion=$env:APP_VERSION" --stacktrace
