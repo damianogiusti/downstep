@@ -21,7 +21,7 @@ class BackupUseCasesTest {
         ExportTrackBackupUseCase(repository, now)(track) {}
 
         assertEquals(BackupScope.Track("yt_abc"), repository.lastScope)
-        assertEquals("Downstep - Autumn Leaves - 20261013090507.sldbackup", repository.lastFileName)
+        assertEquals("Downstep-Autumn-Leaves-20261013090507.sldbackup", repository.lastFileName)
     }
 
     @Test
@@ -34,8 +34,8 @@ class BackupUseCasesTest {
         val first = repository.lastFileName
         export(track) {}
 
-        assertEquals("Downstep - Autumn Leaves - 20261013235959.sldbackup", first)
-        assertEquals("Downstep - Autumn Leaves - 20261014000000.sldbackup", repository.lastFileName)
+        assertEquals("Downstep-Autumn-Leaves-20261013235959.sldbackup", first)
+        assertEquals("Downstep-Autumn-Leaves-20261014000000.sldbackup", repository.lastFileName)
     }
 
     @Test
@@ -45,7 +45,7 @@ class BackupUseCasesTest {
         exportLibrary {}
 
         assertEquals(BackupScope.Library, repository.lastScope)
-        assertEquals("Downstep - Libreria - 20261013090507.sldbackup", repository.lastFileName)
+        assertEquals("Downstep-Libreria-20261013090507.sldbackup", repository.lastFileName)
     }
 
     @Test
@@ -53,7 +53,7 @@ class BackupUseCasesTest {
         ExportPlaylistBackupUseCase(repository, now)(Playlist(7, "Jazz", 3)) {}
 
         assertEquals(BackupScope.Playlist(7), repository.lastScope)
-        assertEquals("Downstep - Jazz - 20261013090507.sldbackup", repository.lastFileName)
+        assertEquals("Downstep-Jazz-20261013090507.sldbackup", repository.lastFileName)
     }
 
     @Test
@@ -62,7 +62,16 @@ class BackupUseCasesTest {
 
         ExportTrackBackupUseCase(repository, now)(track) {}
 
-        assertEquals("Downstep - AC_DC_ Back_ - 20261013090507.sldbackup", repository.lastFileName)
+        assertEquals("Downstep-AC-DC-Back-20261013090507.sldbackup", repository.lastFileName)
+    }
+
+    @Test
+    fun `when the title has repeated or outer spaces then the file name has single dashes`() = runTest {
+        val track = LibraryTrack("local_2", "  Take   Five\t", "/a.mp3", null, 0)
+
+        ExportTrackBackupUseCase(repository, now)(track) {}
+
+        assertEquals("Downstep-Take-Five-20261013090507.sldbackup", repository.lastFileName)
     }
 
     @Test
