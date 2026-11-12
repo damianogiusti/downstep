@@ -49,3 +49,29 @@ tasks.test {
     systemProperty("slowdowner.engine.library", engineLibrary.get().asFile.path)
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
+
+// engine/tests in C++: render path, allocations, decoders. Part of `check`, so every system that
+// builds the engine also runs them, not only the CI job that remembers to.
+val engineTestsBinary = engineBuildDir.map { it.file(if (osName.startsWith("Windows")) "sdengine_tests.exe" else "sdengine_tests") }
+
+val buildNativeEngineTests = tasks.register<Exec>("buildNativeEngineTests") {
+    enabled = hasEngine
+    dependsOn(configureNativeEngine)
+    inputs.dir(engineDir.dir("src"))
+    inputs.dir(engineDir.dir("include"))
+    inputs.dir(engineDir.dir("tests"))
+    inputs.file(engineDir.file("CMakeLists.txt"))
+    outputs.file(engineTestsBinary)
+    val jobs = Runtime.getRuntime().availableProcessors().toString()
+    commandLine(cmake.get(), "--build", engineBuildDir.get().asFile.path, "--config", "Release", "--target", "sdengine_tests", "-j", jobs)
+}
+
+val nativeEngineTest = tasks.register<Exec>("nativeEngineTest") {
+    group = "verification"
+    description = "Runs the C++ engine tests."
+    enabled = hasEngine
+    dependsOn(buildNativeEngineTests)
+    commandLine(engineTestsBinary.get().asFile.path)
+}
+
+tasks.check { dependsOn(nativeEngineTest) }
