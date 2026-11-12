@@ -354,12 +354,14 @@ class DefaultBackupRepositoryTest {
     fun `when the export fails then the previous backup is kept`() = runTest {
         source.addTrack("a", "mp3", byteArrayOf(1))
         source.repository.export(BackupScope.Track("a"), "old.sldbackup") {}
-        File(source.dao.tracks.single().filePath).setReadable(false)
+        // A directory with the target name makes the final rename fail on every system. Not an
+        // unreadable audio file: Windows cannot take read access away from its owner.
+        File(source.backupDir, "new.sldbackup/keep").apply { parentFile.mkdirs() }.writeText("x")
 
         val result = source.repository.export(BackupScope.Track("a"), "new.sldbackup") {}
 
         assertTrue(result is BackupExportResult.Failure)
-        assertEquals(listOf("old.sldbackup"), source.backupDir.list()?.toList())
+        assertTrue(File(source.backupDir, "old.sldbackup").isFile)
     }
 
     @Test
