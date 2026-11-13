@@ -49,7 +49,15 @@ class ExportTrackUseCaseTest {
     fun `file name carries speed and a non-zero pitch`() {
         assertEquals("Song 57% +6st.mp3", ExportTrackUseCase.fileName("Song", 57.3f, 6f))
         assertEquals("Song 125% -2st.mp3", ExportTrackUseCase.fileName("Song", 125f, -2f))
-        assertEquals("Song 75%.mp3", ExportTrackUseCase.fileName("Song", 75f, 0.2f))
+        assertEquals("Song 75%.mp3", ExportTrackUseCase.fileName("Song", 75f, 0f))
+    }
+
+    @Test
+    fun `file name shows cents with two decimals`() {
+        assertEquals("Song 75% +2.15st.mp3", ExportTrackUseCase.fileName("Song", 75f, 2.15f))
+        assertEquals("Song 75% -0.30st.mp3", ExportTrackUseCase.fileName("Song", 75f, -0.3f))
+        assertEquals("Song 75% +0.05st.mp3", ExportTrackUseCase.fileName("Song", 75f, 0.05f))
+        assertEquals("Song 75% -11.95st.mp3", ExportTrackUseCase.fileName("Song", 75f, -11.95f))
     }
 
     @Test

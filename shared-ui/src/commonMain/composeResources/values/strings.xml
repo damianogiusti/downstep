@@ -143,6 +143,7 @@
     <string name="go_to_library">Go to library</string>
     <string name="external_track">External track</string>
     <string name="speed">Speed</string>
+    <string name="pitch_fine">Fine</string>
     <string name="pitch">Pitch</string>
     <string name="reset_value">Reset %1$s</string>
     <string name="loop_title">A-B loop</string>

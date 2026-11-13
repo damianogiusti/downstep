@@ -62,6 +62,7 @@ class WhatsNewRenderTest {
             desktopModule(
                 directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(),
                 InMemorySupportPromptStore().apply { stored = SupportPromptDto(launchCount = 3, lastShownAtMillis = null) },
+                playerPreferencesStore = InMemoryPlayerPreferencesStore(),
                 whatsNew = WhatsNewSettings("1.3.0", hasLaunchHistory = true, whatsNewStore, changelogDir),
             ),
             useCasesModule,

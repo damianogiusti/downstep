@@ -95,6 +95,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, effects: EffectsViewModel, navigati
             ),
             speed = ValueCardActions(viewModel::onSpeedChanged, viewModel::onSpeedStep, viewModel::onSpeedReset),
             pitch = ValueCardActions(viewModel::onPitchChanged, viewModel::onPitchStep, viewModel::onPitchReset),
+            onPitchFineToggle = viewModel::onPitchFineToggled,
             presets = PresetActions(
                 onSave = { showSavePreset = true },
                 onSelect = viewModel::onPresetSelected,
@@ -120,7 +121,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, effects: EffectsViewModel, navigati
                 confirm = stringResource(Res.string.save),
                 message = stringResource(Res.string.preset_save_message),
             ),
-            initialText = suggestedPresetName(settings),
+            initialText = suggestedPresetName(settings, stringResource(Res.string.decimal_separator)),
             onConfirm = {
                 viewModel.onSavePreset(it)
                 showSavePreset = false
@@ -141,8 +142,8 @@ fun PlayerScreen(viewModel: PlayerViewModel, effects: EffectsViewModel, navigati
     }
 }
 
-private fun suggestedPresetName(settings: PracticeSettings) =
-    "${formatSpeed(settings.speedPercent)}, ${formatPitch(settings.pitchSemitones)}"
+private fun suggestedPresetName(settings: PracticeSettings, separator: String) =
+    "${formatSpeed(settings.speedPercent)}, ${formatPitch(settings.pitchSemitones, separator)}"
 
 /** Everything the player content can trigger. */
 class PlayerContentActions(
@@ -150,6 +151,7 @@ class PlayerContentActions(
     val loop: LoopActions,
     val speed: ValueCardActions,
     val pitch: ValueCardActions,
+    val onPitchFineToggle: (Boolean) -> Unit,
     val presets: PresetActions,
     val onSeek: (Float) -> Unit,
     val onLoopRegionChanged: (Float, Float) -> Unit,
@@ -254,7 +256,7 @@ fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions) {
                 LoopCard(controls, actions.loop, enabled, Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     SpeedCard(controls, actions.speed, enabled, Modifier.weight(1f))
-                    PitchCard(controls, actions.pitch, enabled, Modifier.weight(1f))
+                    PitchCard(controls, actions.pitch, actions.onPitchFineToggle, enabled, Modifier.weight(1f))
                 }
             }
             PresetChips(state.presets, state.activePresetId, enabled && state.track != null, actions.presets)
@@ -292,6 +294,7 @@ private fun PlayerContentPreview() {
                 loop = LoopActions({}, {}, {}, {}, {}, {}, {}),
                 speed = ValueCardActions({}, {}, {}),
                 pitch = ValueCardActions({}, {}, {}),
+                onPitchFineToggle = {},
                 presets = PresetActions({}, {}, {}),
                 onSeek = {},
                 onLoopRegionChanged = { _, _ -> },

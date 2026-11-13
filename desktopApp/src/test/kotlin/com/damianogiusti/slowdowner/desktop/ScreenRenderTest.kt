@@ -1,5 +1,8 @@
 package com.damianogiusti.slowdowner.desktop
 
+import com.damianogiusti.slowdowner.data.player.PlayerPreferencesDto
+import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
+import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,6 +61,7 @@ class ScreenRenderTest {
 
     private val directories = AppDirectories(Files.createTempDirectory("slowdowner-render").toFile())
     private val supportPromptStore = InMemorySupportPromptStore()
+    private val playerPreferencesStore = InMemoryPlayerPreferencesStore()
     // Answers like api.github.com with a release newer than the app under test.
     private val releases = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
         createContext("/latest") { exchange ->
@@ -71,7 +75,7 @@ class ScreenRenderTest {
     private val koin = startKoin {
         modules(
             desktopModule(
-                directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(), supportPromptStore, updates = updates,
+                directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(), supportPromptStore, playerPreferencesStore, updates = updates,
             ),
             useCasesModule,
             uiModule,
@@ -99,6 +103,20 @@ class ScreenRenderTest {
         val imported = runBlocking { koin.get<ImportDocumentUseCase>()(tone.path) }
         assertIs<ImportResult.Success>(imported)
         val bytes = render(File("build/screenshots/library-wide.png"), widthDp = 1280, heightDp = 820) { player ->
+            player.onTrackSelected(imported.track)
+        }
+        assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+    }
+
+    @Test
+    fun `with Fine on the pitch card shows cents and fine steps`() {
+        playerPreferencesStore.stored = PlayerPreferencesDto(isPitchFine = true)
+        val tone = File(Files.createTempDirectory("slowdowner-render-audio").toFile(), "Autumn Leaves.wav")
+        tone.writeBytes(toneWav())
+        val imported = runBlocking { koin.get<ImportDocumentUseCase>()(tone.path) }
+        assertIs<ImportResult.Success>(imported)
+        runBlocking { koin.get<PracticeRepository>().saveLastState(imported.track.id, PracticeSettings(pitchSemitones = 2.15f)) }
+        val bytes = render(File("build/screenshots/pitch-fine.png"), widthDp = 1280, heightDp = 820) { player ->
             player.onTrackSelected(imported.track)
         }
         assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")

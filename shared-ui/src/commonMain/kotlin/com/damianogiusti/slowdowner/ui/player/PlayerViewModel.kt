@@ -9,9 +9,13 @@ import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
+import com.damianogiusti.slowdowner.domain.playback.SliderCurves
+import com.damianogiusti.slowdowner.domain.player.ObservePlayerPreferencesUseCase
+import com.damianogiusti.slowdowner.domain.player.SetPitchFineUseCase
 import com.damianogiusti.slowdowner.domain.practice.ApplyPresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.DeletePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.ObservePresetsUseCase
+import com.damianogiusti.slowdowner.domain.practice.PitchStep
 import com.damianogiusti.slowdowner.domain.practice.OpenTrackForPracticeUseCase
 import com.damianogiusti.slowdowner.domain.practice.PracticePreset
 import com.damianogiusti.slowdowner.domain.practice.SavePresetResult
@@ -76,6 +80,11 @@ class PlayerViewModel(
                 .collect { presets -> _state.update { it.copy(presets = presets) } }
         }
         viewModelScope.launch {
+            practice.observePlayerPreferences().collect { preferences ->
+                _state.update { it.copy(controls = it.controls.copy(isPitchFine = preferences.isPitchFine)) }
+            }
+        }
+        viewModelScope.launch {
             // End of track is handled by the playback service, which outlives the UI.
             engine.events.collect { refreshPlayer() }
         }
@@ -112,11 +121,23 @@ class PlayerViewModel(
 
     fun onSpeedChanged(sliderPosition: Int) = control { engine.setSpeedFromSlider(sliderPosition) }
 
-    fun onPitchChanged(sliderPosition: Int) = control { engine.setPitchFromSlider(sliderPosition) }
+    fun onPitchChanged(sliderPosition: Int) = control {
+        if (_state.value.controls.isPitchFine) {
+            engine.setPitchSemitones(SliderCurves.fineSemitones(sliderPosition))
+        } else {
+            engine.setPitchFromSlider(sliderPosition)
+        }
+    }
+
+    fun onPitchFineToggled(isOn: Boolean) {
+        viewModelScope.launch { practice.setPitchFine(isOn) }
+    }
 
     fun onSpeedStep(steps: Int) = control { practice.stepSpeed(steps) }
 
-    fun onPitchStep(steps: Int) = control { practice.stepPitch(steps) }
+    fun onPitchStep(steps: Int) = control {
+        practice.stepPitch(steps, if (_state.value.controls.isPitchFine) PitchStep.Fine else PitchStep.Semitone)
+    }
 
     fun onSpeedReset() = control { engine.setSpeedPercent(DEFAULT_SPEED_PERCENT) }
 
@@ -222,7 +243,7 @@ class PlayerViewModel(
     }
 
     private fun refreshPlayer() {
-        _state.update { it.copy(controls = readControls()) }
+        _state.update { it.copy(controls = readControls(it.controls.isPitchFine)) }
         if (engine.isPlaying) startPositionUpdates()
     }
 
@@ -236,11 +257,11 @@ class PlayerViewModel(
                 _state.update { it.copy(controls = it.controls.copy(position = position)) }
                 delay(POSITION_UPDATE_MS)
             }
-            _state.update { it.copy(controls = readControls()) }
+            _state.update { it.copy(controls = readControls(it.controls.isPitchFine)) }
         }
     }
 
-    private fun readControls() = PlayerControlsState(
+    private fun readControls(isPitchFine: Boolean) = PlayerControlsState(
         isOpen = engine.isOpen,
         isPlaying = engine.isPlaying,
         position = engine.position,
@@ -249,6 +270,7 @@ class PlayerViewModel(
         speedPercent = engine.speedPercent,
         pitchSlider = engine.pitchSliderPosition,
         pitchSemitones = engine.pitchSemitones,
+        isPitchFine = isPitchFine,
         isLoopOn = engine.isLoopOn,
         loopStart = engine.loopStart,
         loopEnd = engine.loopEnd,
@@ -264,6 +286,8 @@ class PlayerViewModel(
 class PracticeUseCases(
     val stepSpeed: StepSpeedUseCase,
     val stepPitch: StepPitchUseCase,
+    val observePlayerPreferences: ObservePlayerPreferencesUseCase,
+    val setPitchFine: SetPitchFineUseCase,
     val setLoopRegion: SetLoopRegionUseCase,
     val observePresets: ObservePresetsUseCase,
     val savePreset: SavePresetUseCase,
