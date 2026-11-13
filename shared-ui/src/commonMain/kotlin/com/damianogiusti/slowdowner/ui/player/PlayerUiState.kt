@@ -28,6 +28,8 @@ data class PlayerControlsState(
     val speedPercent: Float = 100f,
     val pitchSlider: Int = 0,
     val pitchSemitones: Float = 0f,
+    /** App-wide preference, not engine state. */
+    val isPitchFine: Boolean = false,
     val isLoopOn: Boolean = false,
     val loopStart: Float = 0f,
     val loopEnd: Float = 1f,

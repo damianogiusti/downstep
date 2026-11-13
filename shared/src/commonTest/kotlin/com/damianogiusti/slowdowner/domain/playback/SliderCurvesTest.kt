@@ -55,4 +55,41 @@ class SliderCurvesTest {
         val quarter = SliderCurves.mixRight(SliderCurves.mixPosition(0.25f))
         assertTrue(kotlin.math.abs(quarter - 0.25f) < 0.001f, "mix $quarter")
     }
+
+    @Test
+    fun `fine pitch snaps to multiples of five cents`() {
+        for (position in 0..10_000 step 37) {
+            val value = SliderCurves.fineSemitones(position)
+            val steps = value * 20
+            assertEquals(steps.toInt().toFloat(), kotlin.math.round(steps), 0.001f, "position $position")
+            assertTrue(value in -12f..12f, "position $position")
+        }
+    }
+
+    @Test
+    fun `fine pitch is exact to two decimals`() {
+        for (position in 0..10_000 step 11) {
+            val value = SliderCurves.fineSemitones(position)
+            assertEquals((value * 100).let { kotlin.math.round(it) } / 100f, value, "position $position")
+        }
+    }
+
+    @Test
+    fun `fine pitch is zero in the dead zone and reaches both ends`() {
+        assertEquals(0f, SliderCurves.fineSemitones(5_000))
+        assertEquals(0f, SliderCurves.fineSemitones(4_990))
+        assertEquals(0f, SliderCurves.fineSemitones(5_020))
+        assertEquals(-12f, SliderCurves.fineSemitones(0))
+        assertEquals(12f, SliderCurves.fineSemitones(10_000))
+    }
+
+    @Test
+    fun `fine pitch position round-trips within a slider step`() {
+        // The dead zone (4980..5020) all comes back as the centre.
+        for (position in (0..10_000 step 53).filter { it < 4_980 || it > 5_020 }) {
+            val back = SliderCurves.pitchPosition(SliderCurves.fineSemitones(position))
+            // 5 cents are about 21 slider positions: snapping moves the value half of that at most.
+            assertTrue(kotlin.math.abs(back - position) <= 11, "position $position came back as $back")
+        }
+    }
 }

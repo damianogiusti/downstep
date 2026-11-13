@@ -33,22 +33,31 @@ fun formatSignedDecimal(value: Float, separator: String = "."): String {
 /** "75%" */
 fun formatSpeed(percent: Float): String = "${percent.roundToInt()}%"
 
-/** "−2 st", "0 st", "+3 st", with a real minus sign. */
-fun formatPitch(semitones: Float): String {
-    val value = semitones.roundToInt()
+/**
+ * "−2 st", "0 st", "+3 st", with a real minus sign. With cents, two decimals: "+2.15 st", "−0.30 st".
+ * [separator] comes from `decimal_separator`.
+ */
+fun formatPitch(semitones: Float, separator: String = "."): String {
+    val hundredths = (semitones * 100).roundToInt()
+    val magnitude = abs(hundredths)
+    val sign = if (hundredths < 0) "−" else "+"
     return when {
-        value > 0 -> "+$value st"
-        value < 0 -> "−${abs(value)} st"
-        else -> "0 st"
+        hundredths == 0 -> "0 st"
+        magnitude % 100 == 0 -> "$sign${magnitude / 100} st"
+        else -> "$sign${magnitude / 100}$separator${(magnitude % 100).toString().padStart(2, '0')} st"
     }
 }
+
+private const val PITCH_SHOWN_FROM = 0.005f
 
 /** Short summary for a badge or a preset name, e.g. "75%, −2 st, Loop". Null when all default. */
 @Composable
 fun practiceSummary(settings: PracticeSettings): String? {
     val parts = buildList {
         if (settings.speedPercent.roundToInt() != 100) add(formatSpeed(settings.speedPercent))
-        if (settings.pitchSemitones.roundToInt() != 0) add(formatPitch(settings.pitchSemitones))
+        if (abs(settings.pitchSemitones) >= PITCH_SHOWN_FROM) {
+            add(formatPitch(settings.pitchSemitones, stringResource(Res.string.decimal_separator)))
+        }
         if (settings.loop.isOn) add(stringResource(Res.string.loop))
     }
     return parts.takeIf { it.isNotEmpty() }?.joinToString(", ")

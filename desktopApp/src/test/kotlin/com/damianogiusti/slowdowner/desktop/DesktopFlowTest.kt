@@ -62,7 +62,7 @@ class DesktopFlowTest {
     private val effectsStore = InMemoryEffectsSettingsStore()
     private val supportPromptStore = InMemorySupportPromptStore()
     private val koin = startKoin {
-        modules(desktopModule(directories, native, effectsStore, supportPromptStore), useCasesModule, uiModule)
+        modules(desktopModule(directories, native, effectsStore, supportPromptStore, InMemoryPlayerPreferencesStore()), useCasesModule, uiModule)
     }.koin
 
     @AfterTest

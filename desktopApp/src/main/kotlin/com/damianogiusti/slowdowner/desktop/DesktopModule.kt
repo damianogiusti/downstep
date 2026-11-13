@@ -9,6 +9,10 @@ import com.damianogiusti.slowdowner.data.database.desktopDatabase
 import com.damianogiusti.slowdowner.data.effects.DefaultEffectsSettingsRepository
 import com.damianogiusti.slowdowner.data.effects.EffectsSettingsStore
 import com.damianogiusti.slowdowner.data.effects.PreferencesEffectsSettingsStore
+import com.damianogiusti.slowdowner.data.player.DefaultPlayerPreferencesRepository
+import com.damianogiusti.slowdowner.data.player.PlayerPreferencesStore
+import com.damianogiusti.slowdowner.data.player.PreferencesPlayerPreferencesStore
+import com.damianogiusti.slowdowner.domain.player.PlayerPreferencesRepository
 import com.damianogiusti.slowdowner.data.export.DefaultExportRepository
 import com.damianogiusti.slowdowner.data.export.OfflineRenderer
 import com.damianogiusti.slowdowner.data.library.DefaultLibraryRepository
@@ -98,6 +102,7 @@ fun desktopModule(
     engine: NativeEngine,
     effectsStore: EffectsSettingsStore = PreferencesEffectsSettingsStore(),
     supportPromptStore: SupportPromptStore = PreferencesSupportPromptStore(),
+    playerPreferencesStore: PlayerPreferencesStore = PreferencesPlayerPreferencesStore(),
     logger: Logger = ConsoleLogger(),
     updates: UpdateSettings = UpdateSettings(),
     whatsNew: WhatsNewSettings = WhatsNewSettings(),
@@ -134,6 +139,8 @@ fun desktopModule(
     // Effects, export, practice, playlists, backup
     single<EffectsSettingsStore> { effectsStore }
     single<EffectsSettingsRepository> { DefaultEffectsSettingsRepository(get(), Dispatchers.IO) }
+    single<PlayerPreferencesStore> { playerPreferencesStore }
+    single<PlayerPreferencesRepository> { DefaultPlayerPreferencesRepository(get(), Dispatchers.IO) }
     single<OfflineRenderer> { NativeOfflineRenderer(get()) }
     single<ExportRepository> {
         DefaultExportRepository(get(), get(), File(directories.cache, "exports"), Dispatchers.IO, logger)
