@@ -13,11 +13,14 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <new>
 #include <optional>
+#include <string>
+#include <vector>
 
 using Microsoft::WRL::ComPtr;
 
@@ -108,56 +111,76 @@ bool startsLikeMp4(const std::string &path) {
 
 /**
  * Media Foundation decodes no audio from a fragmented MP4 whose sound track has an edit list that
- * starts past 0, as YouTube's audio does (Mp4EditList.h). For such a file this returns a stream over a
- * copy in memory where the edts box is renamed to "free": same size, so no offset in the file moves,
- * and Media Foundation skips it as padding. [edit] is what the edit said, for the caller to apply.
- * Null for every other file, which is read from its path as before. The copy is the compressed file,
- * a few MB for a song: small next to the PCM it decodes to.
+ * starts past 0, as YouTube's audio does (Mp4EditList.h). For such a file, [make] writes a copy to the
+ * temp folder with the edts box renamed to "free": same size, so no offset in the file moves, and
+ * Media Foundation skips it as padding. The decoder reads that copy, and applies the edit itself.
+ * A file, not a stream in memory: MinGW's headers lack MFCreateMFByteStreamOnStream. The copy is
+ * deleted with this object; one left by a crash stays in the temp folder for the system to clean.
  */
-ComPtr<IStream> withoutEditList(const std::string &path, uint64_t size, std::optional<FragmentedEditList> &edit) {
-    if (size == 0 || !startsLikeMp4(path)) return nullptr;
-    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, SIZE_T(size));
-    if (!memory) return nullptr;
-    auto *bytes = static_cast<uint8_t *>(GlobalLock(memory));
-    bool isRead = false;
-    if (bytes) {
-        if (FILE *file = openFileUtf8(path, "rb")) {
-            isRead = std::fread(bytes, 1, size_t(size), file) == size_t(size);
-            std::fclose(file);
-        }
-        if (isRead) edit = findFragmentedEditList(bytes, size_t(size));
-        if (edit) std::memcpy(bytes + edit->edtsOffset + 4, "free", 4);
-        GlobalUnlock(memory);
+class EditListHiddenCopy {
+public:
+    EditListHiddenCopy() = default;
+    EditListHiddenCopy(const EditListHiddenCopy &) = delete;
+    EditListHiddenCopy &operator=(const EditListHiddenCopy &) = delete;
+    ~EditListHiddenCopy() {
+        if (!path_.empty()) DeleteFileW(path_.c_str());
     }
-    ComPtr<IStream> stream;
-    // TRUE: the stream frees the memory when it is released.
-    if (!edit || FAILED(CreateStreamOnHGlobal(memory, TRUE, &stream))) {
-        GlobalFree(memory);
-        edit.reset();
-        return nullptr;
-    }
-    return stream;
-}
 
-HRESULT createReader(const std::string &path, IStream *memory, ComPtr<IMFSourceReader> &reader, std::string &error) {
-    if (!memory) {
-        const HRESULT hr = MFCreateSourceReaderFromURL(widen(path).c_str(), nullptr, &reader);
-        if (FAILED(hr)) error = hresultText("MFCreateSourceReaderFromURL", hr);
-        return hr;
+    /** The edit of [path], with [path()] to read instead; nothing for every other file, or if the copy fails. */
+    std::optional<FragmentedEditList> make(const std::string &path, uint64_t size) {
+        if (size == 0 || !startsLikeMp4(path)) return std::nullopt;
+        std::vector<uint8_t> bytes;
+        try {
+            bytes.resize(size_t(size));
+        } catch (const std::bad_alloc &) {
+            return std::nullopt;
+        }
+        FILE *file = openFileUtf8(path, "rb");
+        if (!file) return std::nullopt;
+        const bool isRead = std::fread(bytes.data(), 1, bytes.size(), file) == bytes.size();
+        std::fclose(file);
+        if (!isRead) return std::nullopt;
+        const auto edit = findFragmentedEditList(bytes.data(), bytes.size());
+        if (!edit) return std::nullopt;
+        std::memcpy(bytes.data() + edit->edtsOffset + 4, "free", 4);
+        std::wstring target = tempName();
+        if (target.empty() || !write(target, bytes)) return std::nullopt;
+        path_ = std::move(target);
+        return edit;
     }
-    ComPtr<IMFByteStream> byteStream;
-    HRESULT hr = MFCreateMFByteStreamOnStream(memory, &byteStream);
-    if (FAILED(hr)) {
-        error = hresultText("MFCreateMFByteStreamOnStream", hr);
-        return hr;
+
+    const std::wstring &path() const { return path_; }
+
+private:
+    /** In the temp folder, with the .m4a extension Media Foundation picks the container by. */
+    static std::wstring tempName() {
+        static std::atomic<unsigned> counter{0};
+        wchar_t folder[MAX_PATH + 1];
+        const DWORD length = GetTempPathW(MAX_PATH + 1, folder);
+        if (length == 0 || length > MAX_PATH) return {};
+        return std::wstring(folder) + L"sdengine-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
+               std::to_wstring(GetTickCount64()) + L"-" + std::to_wstring(counter++) + L".m4a";
     }
-    // Without a URL there is no extension to tell the container from.
-    ComPtr<IMFAttributes> attributes;
-    if (SUCCEEDED(byteStream.As(&attributes))) attributes->SetString(MF_BYTESTREAM_CONTENT_TYPE, L"audio/mp4");
-    hr = MFCreateSourceReaderFromByteStream(byteStream.Get(), nullptr, &reader);
-    if (FAILED(hr)) error = hresultText("MFCreateSourceReaderFromByteStream", hr);
-    return hr;
-}
+
+    static bool write(const std::wstring &target, const std::vector<uint8_t> &bytes) {
+        // CREATE_NEW: never over a file that is already there.
+        HANDLE handle = CreateFileW(target.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_TEMPORARY, nullptr);
+        if (handle == INVALID_HANDLE_VALUE) return false;
+        bool isWritten = true;
+        size_t at = 0;
+        while (isWritten && at < bytes.size()) {
+            const DWORD chunk = DWORD(std::min<size_t>(bytes.size() - at, size_t(1) << 30));
+            DWORD written = 0;
+            isWritten = WriteFile(handle, bytes.data() + at, chunk, &written, nullptr) && written == chunk;
+            at += written;
+        }
+        CloseHandle(handle);
+        if (!isWritten) DeleteFileW(target.c_str());
+        return isWritten;
+    }
+
+    std::wstring path_;
+};
 
 } // namespace
 
@@ -169,11 +192,15 @@ DecodeStatus decodeFile(const std::string &path, PcmBuffer &out, std::string &er
     }
 
     const uint64_t size = fileBytes(path);
-    std::optional<FragmentedEditList> edit;
-    const ComPtr<IStream> memory = withoutEditList(path, size, edit);
+    // Before the reader: it lets go of the copy before the copy is deleted.
+    EditListHiddenCopy copy;
+    const std::optional<FragmentedEditList> edit = copy.make(path, size);
     ComPtr<IMFSourceReader> reader;
-    HRESULT hr = createReader(path, memory.Get(), reader, error);
-    if (FAILED(hr)) return DecodeStatus::Failed;
+    HRESULT hr = MFCreateSourceReaderFromURL((edit ? copy.path() : widen(path)).c_str(), nullptr, &reader);
+    if (FAILED(hr)) {
+        error = hresultText("MFCreateSourceReaderFromURL", hr);
+        return DecodeStatus::Failed;
+    }
     reader->SetStreamSelection(DWORD(MF_SOURCE_READER_ALL_STREAMS), FALSE);
     hr = reader->SetStreamSelection(kAudioStream, TRUE);
     if (FAILED(hr)) {
