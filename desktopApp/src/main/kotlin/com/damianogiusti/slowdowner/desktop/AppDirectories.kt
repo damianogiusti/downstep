@@ -8,6 +8,8 @@ class AppDirectories(val root: File = defaultRoot()) {
     val library: File get() = File(root, "library")
     /** Stem files, one folder per track. Outside the library and its backups. */
     val stems: File get() = File(root, "stems")
+    /** ML model files, one folder per model, downloaded on demand. */
+    val models: File get() = File(root, "models")
     val cache: File get() = File(root, "cache")
     val logs: File get() = File(root, "logs")
     /** The update's scripts, their log, the swap lock and its result (see UpdateSwapFiles). */

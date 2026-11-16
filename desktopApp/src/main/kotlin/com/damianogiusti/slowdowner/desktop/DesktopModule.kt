@@ -35,7 +35,10 @@ import com.damianogiusti.slowdowner.data.playback.NativeOfflineRenderer
 import com.damianogiusti.slowdowner.data.playlists.DefaultPlaylistRepository
 import com.damianogiusti.slowdowner.data.practice.DefaultPracticeRepository
 import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
+import com.damianogiusti.slowdowner.data.stems.DefaultStemModelRepository
 import com.damianogiusti.slowdowner.data.stems.DefaultStemsRepository
+import com.damianogiusti.slowdowner.data.stems.ModelFileSpec
+import com.damianogiusti.slowdowner.data.stems.StemModelSpec
 import com.damianogiusti.slowdowner.data.stems.RoomStemsStore
 import com.damianogiusti.slowdowner.data.stems.StemsStore
 import com.damianogiusti.slowdowner.data.support.DefaultSupportPromptRepository
@@ -61,6 +64,7 @@ import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.playlists.PlaylistRepository
 import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
+import com.damianogiusti.slowdowner.domain.stems.StemModelRepository
 import com.damianogiusti.slowdowner.domain.stems.StemsRepository
 import com.damianogiusti.slowdowner.domain.support.DismissSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.ObserveSupportPromptUseCase
@@ -156,6 +160,9 @@ fun desktopModule(
     single { get<SlowDownerDatabase>().stemsDao() }
     single<StemsStore> { RoomStemsStore(get(), directories.stems) }
     single<StemsRepository> { DefaultStemsRepository(get(), Dispatchers.IO, logger) }
+    single<StemModelRepository> {
+        DefaultStemModelRepository(get(), DESKTOP_STEM_MODEL, directories.models, Dispatchers.IO, logger)
+    }
     single { get<SlowDownerDatabase>().backupDao() }
     single { BackupArchive() }
     single<BackupRepository> {
@@ -214,3 +221,16 @@ fun desktopModule(
     factory { RecordWhatsNewShownUseCase(get(), runningVersion, logger) }
     viewModelOf(::WhatsNewViewModel)
 }
+
+/** Pinned to a commit, so the size and checksum cannot drift under us. The graph (.xml) ships in the installer. */
+private val DESKTOP_STEM_MODEL = StemModelSpec(
+    id = "htdemucs-6s-ov",
+    files = listOf(
+        ModelFileSpec(
+            name = "htdemucs_fwd.bin",
+            url = "https://huggingface.co/Intel/demucs-openvino/resolve/efb3d2bc54f93899b13b72b12c57001e19f09ae2/htdemucs_v4_6s/htdemucs_fwd.bin",
+            sizeBytes = 74_384_618L,
+            sha256 = "5d66281099b5fdaba8844e306f3d6710b3e0b005fa9aad4514ce7604e24fbec9",
+        ),
+    ),
+)
