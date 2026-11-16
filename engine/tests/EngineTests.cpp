@@ -6,6 +6,7 @@
 #include "Equalizer.h"
 #include "Limiter.h"
 #include "Loudness.h"
+#include "Mp4EditList.h"
 #include "Pcm.h"
 #include "Player.h"
 #include "sdengine.h"
@@ -15,8 +16,10 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <functional>
+#include <initializer_list>
 #include <new>
 #include <random>
 #include <string>
@@ -824,6 +827,85 @@ void renderingDoesNotAllocate(const std::string &path) {
     }
 }
 
+using Bytes = std::vector<uint8_t>;
+
+Bytes u32(uint32_t v) { return {uint8_t(v >> 24), uint8_t(v >> 16), uint8_t(v >> 8), uint8_t(v)}; }
+
+Bytes u64(uint64_t v) {
+    Bytes high = u32(uint32_t(v >> 32));
+    const Bytes low = u32(uint32_t(v));
+    high.insert(high.end(), low.begin(), low.end());
+    return high;
+}
+
+Bytes join(std::initializer_list<Bytes> parts) {
+    Bytes all;
+    for (const auto &part : parts) all.insert(all.end(), part.begin(), part.end());
+    return all;
+}
+
+Bytes box(const char *type, const Bytes &payload) {
+    return join({u32(uint32_t(8 + payload.size())), Bytes(type, type + 4), payload});
+}
+
+Bytes elst0(int32_t mediaTime) { return box("elst", join({u32(0), u32(1), u32(133324), u32(uint32_t(mediaTime)), u32(0x00010000)})); }
+
+Bytes soundTrack(const Bytes &edts, const char *handler = "soun") {
+    const Bytes mdhd = box("mdhd", join({u32(0), u32(0), u32(0), u32(44100), u32(133324), u32(0)}));
+    const Bytes hdlr = box("hdlr", join({u32(0), u32(0), Bytes(handler, handler + 4), u32(0), u32(0), u32(0)}));
+    return box("trak", join({box("tkhd", Bytes(84)), edts, box("mdia", join({mdhd, hdlr}))}));
+}
+
+/** The layout of YouTube's itag 140, without the audio: ftyp, moov with mvex and an edited track, a fragment. */
+Bytes youTubeLike(const Bytes &tracks, bool isFragmented = true) {
+    const Bytes mvex = isFragmented ? box("mvex", box("trex", Bytes(24))) : Bytes{};
+    return join({box("ftyp", Bytes(16)), box("moov", join({box("mvhd", Bytes(100)), tracks, mvex})),
+                 box("moof", Bytes(40)), box("mdat", Bytes(64))});
+}
+
+void anEditListPastZeroIsFoundInAFragmentedMp4() {
+    const Bytes file = youTubeLike(soundTrack(box("edts", elst0(1600))));
+    const auto edit = findFragmentedEditList(file.data(), file.size());
+    CHECK(edit && edit->mediaTime == 1600 && edit->timescale == 44100, "not found or wrong values");
+    if (edit) CHECK(std::memcmp(file.data() + edit->edtsOffset + 4, "edts", 4) == 0, "offset %zu", edit->edtsOffset);
+
+    const Bytes version1 = youTubeLike(soundTrack(box("edts", box("elst", join({u32(0x01000000), u32(1), u64(133324), u64(2112), u32(0x00010000)})))));
+    const auto wide = findFragmentedEditList(version1.data(), version1.size());
+    CHECK(wide && wide->mediaTime == 2112, "64-bit edit list not read");
+
+    // A video track first (itag 18 has one): only the sound track counts.
+    const Bytes muxed = youTubeLike(join({soundTrack(box("edts", elst0(512)), "vide"), soundTrack(box("edts", elst0(1600)))}));
+    const auto sound = findFragmentedEditList(muxed.data(), muxed.size());
+    CHECK(sound && sound->mediaTime == 1600, "took the video track's edit");
+}
+
+void otherMp4sHaveNoEditListToHide() {
+    for (const auto &[name, file] : {
+             std::pair{"plain MP4", youTubeLike(soundTrack(box("edts", elst0(1600))), false)},
+             std::pair{"edit at 0", youTubeLike(soundTrack(box("edts", elst0(0))))},
+             std::pair{"empty edit", youTubeLike(soundTrack(box("edts", elst0(-1))))},
+             std::pair{"no edit list", youTubeLike(soundTrack(Bytes{}))},
+             std::pair{"video only", youTubeLike(soundTrack(box("edts", elst0(1600)), "vide"))},
+         }) {
+        CHECK(!findFragmentedEditList(file.data(), file.size()), "%s: found an edit list", name);
+    }
+}
+
+void aCutOrCorruptMp4IsReadWithinItsBytes() {
+    const Bytes file = youTubeLike(soundTrack(box("edts", elst0(1600))));
+    // A file cut anywhere, as a download that stopped: an edit list is found only if all of it is there.
+    for (size_t size = 0; size <= file.size(); ++size) {
+        const Bytes cut(file.begin(), file.begin() + std::ptrdiff_t(size));
+        const auto edit = findFragmentedEditList(cut.data(), cut.size());
+        CHECK(!edit || edit->edtsOffset + 8 <= size, "cut at %zu: offset %zu", size, edit->edtsOffset);
+    }
+    Bytes corrupt = file;
+    const size_t moov = 24; // after the 24-byte ftyp
+    CHECK(std::memcmp(corrupt.data() + moov + 4, "moov", 4) == 0, "no moov at %zu", moov);
+    corrupt[moov + 2] = 0xff; // its size, far past the end
+    CHECK(!findFragmentedEditList(corrupt.data(), corrupt.size()), "read a moov larger than the file");
+}
+
 /** A container's length is a hint: a corrupt one must not reserve gigabytes, nor throw out of the decode. */
 void aCorruptLengthReservesOnlyWhatTheFileCanHold() {
     const auto buffer = [](int sampleRate) {
@@ -915,6 +997,9 @@ int main() {
         {"flushes denormals in scope", [] { flushesDenormalsInScope(); }},
         {"rendering does not allocate", [&] { renderingDoesNotAllocate(path); }},
         {"a corrupt length reserves only what the file can hold", [] { aCorruptLengthReservesOnlyWhatTheFileCanHold(); }},
+        {"an edit list past zero is found in a fragmented MP4", [] { anEditListPastZeroIsFoundInAFragmentedMp4(); }},
+        {"other MP4s have no edit list to hide", [] { otherMp4sHaveNoEditListToHide(); }},
+        {"a cut or corrupt MP4 is read within its bytes", [] { aCutOrCorruptMp4IsReadWithinItsBytes(); }},
         {"export begins while another file opens", [&] { exportBeginsWhileAnotherFileOpens(path); }},
     };
     for (const auto &[name, test] : tests) {

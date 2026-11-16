@@ -93,6 +93,7 @@ set(ENGINE_SOURCES
   ${DECODER_SOURCE}
   src/Loudness.cpp
   src/Mp3Export.cpp
+  src/Mp4EditList.cpp
   src/Player.cpp
   src/TimeStretcher.cpp
   src/Wav.cpp)

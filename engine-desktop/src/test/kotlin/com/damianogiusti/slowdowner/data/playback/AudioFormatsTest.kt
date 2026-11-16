@@ -27,6 +27,15 @@ class AudioFormatsTest {
     @Test
     fun `a fragmented DASH m4a decodes`() = assertPlays("fragmented-dash.m4a")
 
+    /**
+     * YouTube's audio as it really is (itag 140): the DASH file above plus an edit list that starts
+     * the track 1600 samples in, and its durations. Media Foundation decoded no audio from it ("no
+     * audio decoded", seen by users on Windows). Made from fragmented-dash.m4a by adding the edts box
+     * and the durations; the audio is the same.
+     */
+    @Test
+    fun `a fragmented m4a with YouTube's edit list decodes`() = assertPlays("youtube-edit-list.m4a")
+
     /** What Android's import writes, and what restored backups bring. */
     @Test
     fun `a progressive m4a decodes`() = assertPlays("progressive.m4a")
