@@ -4,6 +4,7 @@ import java.io.File
 import java.nio.file.Files
 import kotlin.math.abs
 import kotlin.test.AfterTest
+import kotlin.test.assertEquals
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -35,6 +36,18 @@ class AudioFormatsTest {
      */
     @Test
     fun `a fragmented m4a with YouTube's edit list decodes`() = assertPlays("youtube-edit-list.m4a")
+
+    /** On Windows the decoder reads a copy without the edit list: it must not stay behind. */
+    @Test
+    fun `decoding YouTube's edit list leaves no copy in the temp folder`() {
+        val temp = File(System.getProperty("java.io.tmpdir"))
+        fun copies() = temp.listFiles { file -> file.name.startsWith("sdengine-") && file.name.endsWith(".m4a") }.orEmpty().toSet()
+        val before = copies()
+
+        assertTrue(native.open(fixture("youtube-edit-list.m4a").path))
+
+        assertEquals(emptySet(), copies() - before)
+    }
 
     /** What Android's import writes, and what restored backups bring. */
     @Test
