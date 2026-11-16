@@ -269,6 +269,33 @@ class DesktopPlaybackEngineTest {
     }
 
     @Test
+    fun `a YouTube import the decoder rejects logs the link of its video and no other name`() = runTest {
+        val engine = DesktopPlaybackEngine(native, backgroundScope)
+        val folder = createTempDirectory("links").toFile()
+        try {
+            val links = listOf(
+                "yt_abcDEF_-123.m4a" to "https://youtu.be/abcDEF_-123",
+                // Not a video id: a file of the user's that only looks like an import.
+                "yt_My own song.m4a" to null,
+                "local_abcDEF_-123.m4a" to null,
+            )
+            for ((name, expected) in links) {
+                val notAudio = File(folder, name).apply { writeText("not audio") }
+                val logged = mutableListOf<String>()
+
+                DesktopAudioSourceRepository(engine, LineLogger(logged)).open(AudioSource.LocalFile(notAudio.path))
+
+                val line = logged.single()
+                assertTrue("reason=decoder" in line, line)
+                if (expected != null) assertTrue(line.endsWith(", url=$expected}"), line) else assertFalse("url=" in line, line)
+                assertFalse(folder.name in line || "My own song" in line, line)
+            }
+        } finally {
+            folder.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `a track too long for memory is TooLong and a warning without a native detail`() = runTest {
         val engine = DesktopPlaybackEngine(native, backgroundScope)
         native.setMemoryBudget(1_000)
