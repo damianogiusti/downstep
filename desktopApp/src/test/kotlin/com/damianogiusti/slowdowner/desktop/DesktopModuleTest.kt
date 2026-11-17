@@ -31,7 +31,7 @@ class DesktopModuleTest {
         modules(
             desktopModule(
                 directories, NativeEngine.manual(44_100), InMemoryEffectsSettingsStore(), InMemorySupportPromptStore(),
-                whatsNew = WhatsNewSettings(store = InMemoryWhatsNewStore()),
+                playerPreferencesStore = InMemoryPlayerPreferencesStore(), whatsNew = WhatsNewSettings(store = InMemoryWhatsNewStore()),
             ),
             useCasesModule,
             uiModule,

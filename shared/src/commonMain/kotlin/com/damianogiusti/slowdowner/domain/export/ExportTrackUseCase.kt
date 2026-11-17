@@ -2,6 +2,7 @@ package com.damianogiusti.slowdowner.domain.export
 
 import com.damianogiusti.slowdowner.domain.playback.NowPlayingRepository
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class ExportTrackUseCase(
@@ -27,13 +28,20 @@ class ExportTrackUseCase(
         fun fileName(title: String, speedPercent: Float, pitchSemitones: Float): String {
             val safeTitle = title.replace(UNSAFE_CHARS, "_").trim().take(MAX_TITLE_LENGTH).ifEmpty { "audio" }
             val speed = "${speedPercent.roundToInt()}%"
-            val semitones = pitchSemitones.roundToInt()
-            val pitch = when {
-                semitones > 0 -> " +${semitones}st"
-                semitones < 0 -> " ${semitones}st"
-                else -> ""
-            }
+            val pitch = pitchSuffix(pitchSemitones)
             return "$safeTitle $speed$pitch.mp3"
+        }
+
+        // Whole semitones as before (" +2st"); with cents, two decimals (" +2.15st"). ASCII only, for file names.
+        private fun pitchSuffix(pitchSemitones: Float): String {
+            val hundredths = (pitchSemitones * 100).roundToInt()
+            val sign = if (hundredths > 0) "+" else "-"
+            val magnitude = abs(hundredths)
+            return when {
+                hundredths == 0 -> ""
+                magnitude % 100 == 0 -> " $sign${magnitude / 100}st"
+                else -> " $sign${magnitude / 100}.${(magnitude % 100).toString().padStart(2, '0')}st"
+            }
         }
     }
 }

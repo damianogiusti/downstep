@@ -22,6 +22,8 @@ object SliderCurves {
     // Pitch and mix: linear per half.
     private const val PITCH_DEAD_ZONE = 20
     private const val PITCH_RANGE = 12.0
+    private const val FINE_STEP = 0.05
+    private const val FINE_STEP_CENTS = 5
     private const val MIX_DEAD_ZONE = 303
 
     fun speedPercent(position: Int): Float {
@@ -53,6 +55,16 @@ object SliderCurves {
         if (!snapToSemitones) return value.toFloat()
         val cents = currentSemitones - truncate(currentSemitones)
         return (value.roundToInt() + cents).coerceIn(-PITCH_RANGE.toFloat(), PITCH_RANGE.toFloat())
+    }
+
+    /**
+     * The pitch slider in Fine mode: the same curve, on a grid of 5 cents (0.05 semitone). Counted in
+     * whole steps, so the Float is exact to two decimals ("2.15", not "2.1499999").
+     */
+    fun fineSemitones(position: Int): Float {
+        val steps = (linear(position, PITCH_DEAD_ZONE) * PITCH_RANGE / FINE_STEP).roundToInt()
+        val maxSteps = (PITCH_RANGE / FINE_STEP).roundToInt()
+        return steps.coerceIn(-maxSteps, maxSteps) * FINE_STEP_CENTS / 100f
     }
 
     fun pitchPosition(semitones: Float): Int = position(semitones / PITCH_RANGE, PITCH_DEAD_ZONE)

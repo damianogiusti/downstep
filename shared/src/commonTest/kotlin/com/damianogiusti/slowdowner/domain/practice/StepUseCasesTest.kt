@@ -55,6 +55,48 @@ class StepUseCasesTest {
     }
 
     @Test
+    fun `when stepping pitch then the cents are kept`() {
+        engine.pitch = 2.15f
+
+        StepPitchUseCase(engine)(1)
+        assertEquals(3.15f, engine.pitchSemitones)
+
+        StepPitchUseCase(engine)(-2)
+        assertEquals(1.15f, engine.pitchSemitones)
+    }
+
+    @Test
+    fun `when stepping pitch in Fine mode then it moves by five cents`() {
+        engine.pitch = 2f
+
+        StepPitchUseCase(engine)(1, PitchStep.Fine)
+        assertEquals(2.05f, engine.pitchSemitones)
+
+        StepPitchUseCase(engine)(-3, PitchStep.Fine)
+        assertEquals(1.9f, engine.pitchSemitones)
+    }
+
+    @Test
+    fun `when stepping in Fine mode then float noise is rounded away`() {
+        engine.pitch = 2.15f
+
+        StepPitchUseCase(engine)(1, PitchStep.Fine)
+
+        assertEquals(2.2f, engine.pitchSemitones)
+    }
+
+    @Test
+    fun `when stepping pitch past the ends then it is clamped`() {
+        engine.pitch = 11.98f
+        StepPitchUseCase(engine)(1, PitchStep.Fine)
+        assertEquals(12f, engine.pitchSemitones)
+
+        engine.pitch = -11.98f
+        StepPitchUseCase(engine)(-1)
+        assertEquals(-12f, engine.pitchSemitones)
+    }
+
+    @Test
     fun `when handles are dropped in any order then the loop is set between them`() {
         SetLoopRegionUseCase(engine)(0.6f, 0.2f)
 

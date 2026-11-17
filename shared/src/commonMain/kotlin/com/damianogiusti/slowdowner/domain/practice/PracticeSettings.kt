@@ -24,7 +24,7 @@ data class PracticeSettings(
 
     private companion object {
         const val SPEED_TOLERANCE = 0.5f
-        const val PITCH_TOLERANCE = 0.05f
+        const val PITCH_TOLERANCE = 0.005f // Fine mode moves pitch by 0.05
         const val LOOP_TOLERANCE = 0.001f
     }
 }

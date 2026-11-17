@@ -2,6 +2,7 @@ package com.damianogiusti.slowdowner.ui
 
 import com.damianogiusti.slowdowner.ui.common.formatClock
 import com.damianogiusti.slowdowner.ui.common.formatDecimal
+import com.damianogiusti.slowdowner.ui.common.formatPitch
 import com.damianogiusti.slowdowner.ui.common.formatSignedDecimal
 import java.io.File
 import kotlin.test.Test
@@ -24,6 +25,29 @@ class FormatsTest {
     fun `decimals take the separator of the language`() {
         assertEquals("2,4", formatDecimal(2.4f, ","))
         assertEquals("−1,0", formatSignedDecimal(-1f, ","))
+    }
+
+    @Test
+    fun `pitch shows whole semitones without decimals`() {
+        assertEquals("+2 st", formatPitch(2f))
+        assertEquals("−2 st", formatPitch(-2f))
+        assertEquals("0 st", formatPitch(0f))
+        assertEquals("0 st", formatPitch(0.001f))
+    }
+
+    @Test
+    fun `pitch with cents shows two decimals`() {
+        assertEquals("+2.15 st", formatPitch(2.15f))
+        assertEquals("−0.30 st", formatPitch(-0.3f))
+        assertEquals("+0.05 st", formatPitch(0.05f))
+        assertEquals("+2.20 st", formatPitch(2.1999998f))
+    }
+
+    @Test
+    fun `pitch takes the separator of the language`() {
+        assertEquals("+2,15 st", formatPitch(2.15f, ","))
+        assertEquals("−0,30 st", formatPitch(-0.3f, ","))
+        assertEquals("+2 st", formatPitch(2f, ","))
     }
 
     @Test

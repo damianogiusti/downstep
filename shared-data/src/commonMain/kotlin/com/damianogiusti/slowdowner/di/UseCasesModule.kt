@@ -17,6 +17,8 @@ import com.damianogiusti.slowdowner.domain.library.ImportDocumentUseCase
 import com.damianogiusti.slowdowner.domain.library.ImportTrackFromUrlUseCase
 import com.damianogiusti.slowdowner.domain.library.ObserveLibraryUseCase
 import com.damianogiusti.slowdowner.domain.library.RemoveTrackUseCase
+import com.damianogiusti.slowdowner.domain.player.ObservePlayerPreferencesUseCase
+import com.damianogiusti.slowdowner.domain.player.SetPitchFineUseCase
 import com.damianogiusti.slowdowner.domain.playback.CloseTrackUseCase
 import com.damianogiusti.slowdowner.domain.playback.HandleEndOfTrackUseCase
 import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
@@ -62,6 +64,8 @@ val useCasesModule = module {
     factoryOf(::ObserveEffectsSettingsUseCase)
     factoryOf(::UpdateEffectsSettingsUseCase)
     factoryOf(::RestoreEffectsSettingsUseCase)
+    factoryOf(::ObservePlayerPreferencesUseCase)
+    factoryOf(::SetPitchFineUseCase)
     factoryOf(::ExportTrackUseCase)
     factoryOf(::SaveExportUseCase)
     factoryOf(::SavePracticeStateUseCase)

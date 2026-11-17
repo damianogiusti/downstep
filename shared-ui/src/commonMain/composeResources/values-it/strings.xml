@@ -141,6 +141,7 @@
     <string name="go_to_library">Vai alla libreria</string>
     <string name="external_track">Brano esterno</string>
     <string name="speed">Velocità</string>
+    <string name="pitch_fine">Fine</string>
     <string name="pitch">Intonazione</string>
     <string name="reset_value">Ripristina %1$s</string>
     <string name="loop_title">Loop A-B</string>

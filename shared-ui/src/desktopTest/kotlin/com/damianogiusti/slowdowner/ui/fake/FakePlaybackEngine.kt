@@ -17,19 +17,27 @@ class FakePlaybackEngine : PlaybackEngine {
     override val durationSeconds = 0f
     override val speedPercent = 100f
     override val speedSliderPosition = 0
-    override val pitchSemitones = 0f
+    override var pitchSemitones = 0f
+        private set
     override val pitchSliderPosition = 0
     override val isLoopOn = false
     override val loopStart = 0f
     override val loopEnd = 1f
 
+    /** Slider positions the pitch slider sent to the engine itself (not Fine). */
+    val sliderPitchCalls = mutableListOf<Int>()
+
     override fun togglePlayStop() = Unit
     override fun stop() = Unit
     override fun seekTo(position: Float) = Unit
     override fun setSpeedFromSlider(position: Int) = Unit
-    override fun setPitchFromSlider(position: Int) = Unit
+    override fun setPitchFromSlider(position: Int) {
+        sliderPitchCalls += position
+    }
     override fun setSpeedPercent(percent: Float) = Unit
-    override fun setPitchSemitones(semitones: Float) = Unit
+    override fun setPitchSemitones(semitones: Float) {
+        pitchSemitones = semitones
+    }
     override fun setLoop(region: LoopRegion) = Unit
     override fun setLoopOn(enabled: Boolean) = Unit
     override fun markLoopStart() = Unit

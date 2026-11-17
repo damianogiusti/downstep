@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -21,6 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -59,6 +61,7 @@ fun ValueCard(
     actions: ValueCardActions,
     enabled: Boolean,
     modifier: Modifier = Modifier,
+    headerAction: @Composable (() -> Unit)? = null,
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -73,6 +76,7 @@ fun ValueCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
+            headerAction?.invoke()
             IconButton(onClick = actions.onReset, enabled = enabled) {
                 Icon(
                     painterResource(Res.drawable.ic_restart),
@@ -132,17 +136,50 @@ fun SpeedCard(controls: PlayerControlsState, actions: ValueCardActions, enabled:
 }
 
 @Composable
-fun PitchCard(controls: PlayerControlsState, actions: ValueCardActions, enabled: Boolean, modifier: Modifier = Modifier) {
+fun PitchCard(
+    controls: PlayerControlsState,
+    actions: ValueCardActions,
+    onFineToggle: (Boolean) -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val separator = stringResource(Res.string.decimal_separator)
     ValueCard(
         label = stringResource(Res.string.pitch),
-        value = formatPitch(controls.pitchSemitones),
+        value = formatPitch(controls.pitchSemitones, separator),
         sliderPosition = controls.pitchSlider,
         accent = MaterialTheme.colorScheme.tertiary,
-        stepLabels = "−1" to "+1",
+        stepLabels = if (controls.isPitchFine) "−0${separator}05" to "+0${separator}05" else "−1" to "+1",
         actions = actions,
         enabled = enabled,
         modifier = modifier,
+        headerAction = { FineToggle(controls.isPitchFine, onFineToggle, enabled) },
     )
+}
+
+// A flat pill, not a FilterChip: the chip's elevation and label layer looked heavy on this card.
+@Composable
+private fun FineToggle(isOn: Boolean, onToggle: (Boolean) -> Unit, enabled: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val contentColor = when {
+        !enabled -> colors.onSurface.copy(alpha = 0.38f)
+        isOn -> colors.onTertiary
+        else -> colors.onSurfaceVariant
+    }
+    Surface(
+        checked = isOn,
+        onCheckedChange = onToggle,
+        enabled = enabled,
+        shape = CircleShape,
+        color = if (isOn && enabled) colors.tertiary else colors.surfaceContainerHigh,
+        contentColor = contentColor,
+    ) {
+        Text(
+            stringResource(Res.string.pitch_fine),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
 }
 
 /** Callbacks of the [LoopCard]. */

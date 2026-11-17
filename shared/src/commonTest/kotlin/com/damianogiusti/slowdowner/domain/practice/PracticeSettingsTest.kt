@@ -15,6 +15,16 @@ class PracticeSettingsTest {
     }
 
     @Test
+    fun `when pitch differs by five cents then settings do not match`() {
+        assertFalse(PracticeSettings(pitchSemitones = 2.15f).matches(PracticeSettings(pitchSemitones = 2.2f)))
+    }
+
+    @Test
+    fun `when pitch differs only by float noise then settings match`() {
+        assertTrue(PracticeSettings(pitchSemitones = 2.2f).matches(PracticeSettings(pitchSemitones = 2.2000003f)))
+    }
+
+    @Test
     fun `when speed differs by a step then settings do not match`() {
         assertFalse(preset.matches(preset.copy(speedPercent = 80f)))
     }
