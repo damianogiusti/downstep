@@ -28,8 +28,9 @@ public:
             const int64_t first = block * kFramesPerPeak;
             const int64_t last = std::min(first + kFramesPerPeak, pcm.frames);
             float peak = 0.f;
+            // fmax, not std::max: its NaN rule lets the compiler vectorize the loop.
             for (int64_t frame = first; frame < last; ++frame) {
-                peak = std::max(peak, std::max(std::fabs(left[frame]), std::fabs(right[frame])));
+                peak = std::fmax(peak, std::fmax(std::fabs(left[frame]), std::fabs(right[frame])));
             }
             // Decoders can overshoot full scale a little: the outline stays within 0..1.
             summary->peaks_[size_t(block)] = std::min(peak, 1.f);

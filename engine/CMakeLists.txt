@@ -98,9 +98,12 @@ set(ENGINE_SOURCES
   src/TimeStretcher.cpp
   src/Wav.cpp)
 
+# Opening a long file decodes and measures it on several threads (std::thread).
+find_package(Threads REQUIRED)
+
 function(configure_engine_target target)
   target_include_directories(${target} PRIVATE include src ${bungee_SOURCE_DIR})
-  target_link_libraries(${target} PRIVATE bungee_library miniaudio mp3lame ${DECODER_LIBRARIES})
+  target_link_libraries(${target} PRIVATE bungee_library miniaudio mp3lame ${DECODER_LIBRARIES} Threads::Threads)
   target_compile_options(${target} PRIVATE -Wall -Wextra)
 endfunction()
 
