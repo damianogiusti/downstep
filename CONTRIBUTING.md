@@ -119,7 +119,8 @@ follows the rules.
   (English) and `values-it` (Italian). Italian needs correct accents: `è`, `perché`, `più`, never
   `e'` or `piu`.
 - Write `"` and `'` as they are, without a backslash.
-- Placeholders: only `%1$s`, `%1$d` and `%%`. Format numbers in Kotlin and pass them as `%1$s`.
+- Placeholders: only `%1$s` and `%1$d`. Format numbers in Kotlin and pass them as `%1$s`. A
+  literal percent sign is a single `%` (`%1$d%`): Compose Resources does not turn `%%` into one.
   `FormatsTest` checks this.
 
 ## Kotlin
