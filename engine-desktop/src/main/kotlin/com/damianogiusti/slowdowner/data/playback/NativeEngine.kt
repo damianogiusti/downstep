@@ -203,7 +203,7 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
             return if (handle == MemorySegment.NULL) null else NativeEngine(api, handle)
         }
 
-        private fun defaultLibrary(): Path {
+        internal fun defaultLibrary(): Path {
             val path = System.getProperty(LIBRARY_PROPERTY)
             requireNotNull(path) { "set -D$LIBRARY_PROPERTY=<path to libsdengine>" }
             return Path.of(path)
@@ -261,6 +261,15 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         val exportBegin = function("sd_export_begin", ADDRESS, ADDRESS, ADDRESS, JAVA_INT)
         val exportNext = function("sd_export_next", JAVA_DOUBLE, ADDRESS)
         val exportEnd = function("sd_export_end", JAVA_INT, ADDRESS)
+        val pcmDecode = function("sd_pcm_decode", ADDRESS, ADDRESS, JAVA_LONG, ADDRESS)
+        val pcmSampleRate = function("sd_pcm_sample_rate", JAVA_INT, ADDRESS, critical = true)
+        val pcmChannels = function("sd_pcm_channels", JAVA_INT, ADDRESS, critical = true)
+        val pcmFrames = function("sd_pcm_frames", JAVA_LONG, ADDRESS, critical = true)
+        val pcmCopy = function("sd_pcm_copy", JAVA_LONG, ADDRESS, JAVA_INT, JAVA_LONG, ADDRESS, JAVA_LONG)
+        val pcmFree = function("sd_pcm_free", null, ADDRESS)
+        val stemWriterOpen = function("sd_stem_writer_open", ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS)
+        val stemWriterWrite = function("sd_stem_writer_write", JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG)
+        val stemWriterClose = function("sd_stem_writer_close", JAVA_INT, ADDRESS)
 
         companion object {
             private val CRITICAL = arrayOf(Linker.Option.critical(false))
