@@ -28,6 +28,20 @@ SdPcm *sd_pcm_decode(const char *utf8Path, int64_t memoryBudgetBytes, int *statu
     return nullptr;
 }
 
+SdPcm *sd_stem_decode(const char *utf8Path, int64_t memoryBudgetBytes, int *status) try {
+    auto pcm = std::make_unique<SdPcm>();
+    std::string error;
+    const DecodeStatus result = decodeStemMp3(utf8Path, pcm->buffer, error, memoryBudgetBytes);
+    if (status) *status = result == DecodeStatus::Ok ? SD_PCM_OK : result == DecodeStatus::TooLong ? SD_PCM_TOO_LONG : SD_PCM_FAILED;
+    return result == DecodeStatus::Ok ? pcm.release() : nullptr;
+} catch (const std::bad_alloc &) {
+    if (status) *status = SD_PCM_TOO_LONG;
+    return nullptr;
+} catch (...) {
+    if (status) *status = SD_PCM_FAILED;
+    return nullptr;
+}
+
 int sd_pcm_sample_rate(const SdPcm *pcm) { return pcm->buffer.sampleRate; }
 
 int sd_pcm_channels(const SdPcm *pcm) { return pcm->buffer.channels; }

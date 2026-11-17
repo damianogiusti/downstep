@@ -160,6 +160,15 @@ SD_API int64_t sd_pcm_frames(const SdPcm *pcm);
 SD_API int64_t sd_pcm_copy(const SdPcm *pcm, int channel, int64_t firstFrame, float *out, int64_t frames);
 SD_API void sd_pcm_free(SdPcm *pcm);
 
+/**
+ * Decodes an MP3 stem written by `sd_stem_writer_*` into the same SdPcm, with the engine's own decoder
+ * (miniaudio's dr_mp3) instead of the OS one: the same on every platform, and it honours the Xing/LAME
+ * tag, so `sd_pcm_frames` is exactly the number of frames written and the audio is at the same place.
+ * Only for files the stem writer made: other MP3s should go through `sd_pcm_decode`. Budget, statuses
+ * (SD_PCM_*) and the rest as `sd_pcm_decode`; free with `sd_pcm_free`.
+ */
+SD_API SdPcm *sd_stem_decode(const char *utf8Path, int64_t memoryBudgetBytes, int *status);
+
 typedef struct SdStemWriter SdStemWriter;
 
 /** Results of `sd_stem_writer_open` (in `*status`) and `sd_stem_writer_write`. */

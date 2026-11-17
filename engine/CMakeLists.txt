@@ -76,7 +76,10 @@ target_compile_options(mp3lame PRIVATE -w)
 
 add_library(miniaudio STATIC ${miniaudio_SOURCE_DIR}/miniaudio.c)
 target_include_directories(miniaudio PUBLIC ${miniaudio_SOURCE_DIR})
-target_compile_definitions(miniaudio PUBLIC MA_NO_DECODING MA_NO_ENCODING MA_NO_GENERATION)
+# Only the MP3 decoder (dr_mp3), for the stems we write ourselves: the OS decoders ignore the Xing/LAME tag
+# on Windows. No WAV/FLAC, no encoder, no engine or resource manager (the device path is the only other use).
+target_compile_definitions(miniaudio PUBLIC MA_NO_WAV MA_NO_FLAC MA_NO_ENCODING MA_NO_GENERATION
+  MA_NO_RESOURCE_MANAGER MA_NO_NODE_GRAPH MA_NO_ENGINE)
 
 if(APPLE)
   set(DECODER_SOURCE src/DecoderApple.cpp)
@@ -96,6 +99,7 @@ set(ENGINE_SOURCES
   src/Mp4EditList.cpp
   src/PcmApi.cpp
   src/Player.cpp
+  src/StemDecoder.cpp
   src/StemWriter.cpp
   src/TimeStretcher.cpp
   src/Wav.cpp)

@@ -21,6 +21,8 @@ std::string statusText(const char *what, OSStatus status) {
     return std::string(what) + " failed (OSStatus " + std::to_string(int(status)) + ")";
 }
 
+} // namespace
+
 /** macOS compresses and swaps instead of failing an allocation, so physical memory is the bound. */
 uint64_t availableMemoryBytes() {
     uint64_t physical = 0;
@@ -29,6 +31,7 @@ uint64_t availableMemoryBytes() {
     return physical > kMemoryMarginBytes ? physical - kMemoryMarginBytes : 0;
 }
 
+namespace {
 struct FileCloser {
     void operator()(OpaqueExtAudioFile *file) const { ExtAudioFileDispose(file); }
 };
