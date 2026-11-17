@@ -220,6 +220,10 @@ class DesktopPlaybackEngine(
     override fun shiftLoopForward() = editLoop { LoopEditing.shiftForward(it) }
     override fun shiftLoopBackward() = editLoop { LoopEditing.shiftBackward(it) }
 
+    override fun peaks(from: Float, to: Float, buckets: Int): FloatArray = lifecycle.read {
+        if (isClosed) FloatArray(0) else engine.peaks(from.toDouble(), to.toDouble(), buckets)
+    }
+
     override fun setMixFromSlider(position: Int) {
         mixRight = SliderCurves.mixRight(position)
         engine.setMix(mixRight.toDouble())

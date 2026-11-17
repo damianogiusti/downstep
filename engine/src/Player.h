@@ -3,6 +3,7 @@
 #include "Equalizer.h"
 #include "Limiter.h"
 #include "Pcm.h"
+#include "Peaks.h"
 #include "sdengine.h"
 #include "TimeStretcher.h"
 
@@ -97,6 +98,12 @@ public:
     /** Gain normalization gives the open file, dB. */
     double normalizationGainDb() const { return normalizationGainDb_.load(); }
 
+    /**
+     * Waveform outline of the open file (see PeakSummary::read). Any thread: it never touches the
+     * audio thread's lock. 0 when no file is open, or one was opened from shared audio (export).
+     */
+    int peaks(double from, double to, float *out, int buckets) const;
+
     unsigned takeEvents() { return events_.exchange(0); }
     int outputRate() const { return outputRate_; }
 
@@ -127,6 +134,10 @@ private:
     std::atomic<int> openError_{SD_OPEN_OK};
     mutable std::mutex errorLock_;
     std::string openErrorText_;
+
+    // Its own lock: a waveform read must never make the audio thread skip a block.
+    mutable std::mutex peaksLock_;
+    std::shared_ptr<const PeakSummary> peaks_;
 
     std::atomic<bool> isOpen_{false};
     std::atomic<double> durationSeconds_{0};

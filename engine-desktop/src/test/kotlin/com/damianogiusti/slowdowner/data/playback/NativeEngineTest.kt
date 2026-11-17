@@ -37,10 +37,15 @@ class NativeEngineTest {
         assertFalse(native.isOpen)
         native.setMemoryBudget(0)
         assertEquals(NativeEngine.OPEN_OK, native.openError)
+        assertEquals(0, native.peaks(0.0, 1.0, 16).size)
         assertTrue(native.open(file.path))
         assertEquals("", native.openErrorText())
         assertTrue(native.isOpen)
         assertEquals(2.0, native.durationSeconds, 0.01)
+        val peaks = native.peaks(0.0, 1.0, 16)
+        assertEquals(16, peaks.size)
+        // The tone peaks at 16000 of 32768.
+        assertTrue(peaks.all { abs(it - 0.488f) < 0.01f }, peaks.joinToString())
 
         native.setSpeed(1.0)
         native.setPitch(0.0)
