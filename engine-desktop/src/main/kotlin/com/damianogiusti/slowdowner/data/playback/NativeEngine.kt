@@ -263,14 +263,20 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
                 // Windows does not look for a DLL's imports in the DLL's own folder. Once loaded,
                 // LAME is found by name when the engine needs it.
                 val lame = library.toAbsolutePath().resolveSibling("mp3lame.dll")
-                if (Files.exists(lame)) System.load(lame.toString())
+                if (Files.exists(lame)) {
+                    try {
+                        System.load(lame.toString())
+                    } catch (e: UnsatisfiedLinkError) {
+                        throw WindowsLibraryLoad.explain(lame, e)
+                    }
+                }
                 val lookup = try {
                     SymbolLookup.libraryLookup(library, Arena.global())
                 } catch (e: IllegalArgumentException) {
                     // FFM only says "Cannot open library". System.load gets the reason from the
                     // system (a missing dependency, a wrong architecture, access denied).
                     val reason = runCatching { System.load(library.toString()) }.exceptionOrNull()
-                    throw if (reason == null) e else IllegalArgumentException(e.message, reason)
+                    throw WindowsLibraryLoad.explain(library, if (reason == null) e else IllegalArgumentException(e.message, reason))
                 }
                 Api(lookup)
             }

@@ -219,6 +219,7 @@
 
     <string name="error_unsupported_cpu">Questo processore non è supportato dal motore audio (serve NEON).</string>
     <string name="error_engine_unavailable">Il motore audio non si è avviato: la sua libreria manca o non si carica.</string>
+    <string name="error_engine_blocked">Windows ha bloccato il motore audio: Smart App Control o un criterio di sicurezza di questo PC non ne lascia caricare la libreria. Se il PC è gestito da un'organizzazione, chiedi al suo reparto IT di consentire Downstep.</string>
     <string name="error_no_audio_output">Nessuna uscita audio trovata, quindi la riproduzione è disattivata. Collega casse o cuffie e riavvia Downstep.</string>
 
     <!-- Desktop menu bar -->

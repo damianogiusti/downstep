@@ -221,6 +221,7 @@
 
     <string name="error_unsupported_cpu">This processor is not supported by the audio engine (NEON is required).</string>
     <string name="error_engine_unavailable">The audio engine did not start: its library is missing or does not load.</string>
+    <string name="error_engine_blocked">Windows blocked the audio engine: Smart App Control or a security policy of this PC does not let its library load. If an organization manages this PC, ask its IT to allow Downstep.</string>
     <string name="error_no_audio_output">No audio output found, so playback is off. Connect speakers or headphones and restart Downstep.</string>
 
     <!-- Desktop menu bar -->

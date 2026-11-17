@@ -33,6 +33,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
+import com.damianogiusti.slowdowner.data.playback.EngineLibraryBlockedException
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
 import com.damianogiusti.slowdowner.data.support.PreferencesSupportPromptStore
 import com.damianogiusti.slowdowner.desktop.update.DesktopUpdateInstaller
@@ -52,6 +53,7 @@ import com.damianogiusti.slowdowner.ui.navigation.SlowDownerApp
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 import com.damianogiusti.slowdowner.ui.resources.Res
 import com.damianogiusti.slowdowner.ui.resources.contact_menu_mac
+import com.damianogiusti.slowdowner.ui.resources.error_engine_blocked
 import com.damianogiusti.slowdowner.ui.resources.error_engine_unavailable
 import com.damianogiusti.slowdowner.ui.resources.error_no_audio_output
 import com.damianogiusti.slowdowner.ui.resources.menu_close_window
@@ -114,7 +116,7 @@ fun main() {
     instanceProblems.forEach { (message, error, properties) -> logger.w(message, error, properties) }
     // How the last update went on this computer: the script itself cannot report.
     UpdateSwapFiles.takeResult(directories.updateWork)?.let { logger.i("Update swap result", mapOf("outcome" to it)) }
-    val (engine, hasAudioOutput) = startEngine(logger)
+    val (engine, hasAudioOutput, isEngineBlocked) = startEngine(logger)
     val updates = UpdateSettings.current(appVersion)
     thread(isDaemon = true, name = "discard-update") { DesktopUpdateInstaller.discardAbandoned(updates.installation, directories.updateWork) }
     // Read before this run counts itself (RecordAppLaunchUseCase, in startAppWork).
@@ -123,7 +125,11 @@ fun main() {
     logger.i(
         "App started",
         mapOf(
-            "engine" to if (engine != null) "ok" else "unavailable",
+            "engine" to when {
+                engine != null -> "ok"
+                isEngineBlocked -> "blocked"
+                else -> "unavailable"
+            },
             "audioOutput" to hasAudioOutput.toString(),
             "java" to System.getProperty("java.version").orEmpty(),
             "arch" to cpuArchitecture(),
@@ -206,7 +212,7 @@ fun main() {
                     if (engine != null && !hasAudioOutput) NoAudioOutputBanner()
                     Box(modifier = Modifier.weight(1f)) {
                         if (engine == null) {
-                            EngineUnavailable()
+                            EngineUnavailable(isEngineBlocked)
                         } else {
                             DesktopApp(
                                 window, viewModelOwner, logger, onRestart = ::exitApplication, installWithoutAsking = updates.installWithoutAsking,
@@ -307,8 +313,11 @@ private const val NOTICE_DEADLINE_MS = 10_000L
 private const val MIN_WIDTH = 900
 private const val MIN_HEIGHT = 600
 
-/** A null engine shows the error screen: no library, or a library that does not load. */
-private data class EngineStart(val engine: NativeEngine?, val hasAudioOutput: Boolean)
+/**
+ * A null engine shows the error screen: no library, or a library that does not load.
+ * [isBlockedByPolicy]: Windows refused the library (Smart App Control or a policy of the PC).
+ */
+private data class EngineStart(val engine: NativeEngine?, val hasAudioOutput: Boolean, val isBlockedByPolicy: Boolean = false)
 
 private fun startEngine(logger: Logger): EngineStart = runCatching {
     val library = engineLibrary() ?: error("libsdengine not found")
@@ -321,8 +330,11 @@ private fun startEngine(logger: Logger): EngineStart = runCatching {
         }
 }
     // The app is useless without it: the most important line of all.
-    .onFailure { logger.e("Cannot start the audio engine", it) }
-    .getOrElse { EngineStart(null, hasAudioOutput = false) }
+    .onFailure {
+        val reason = if (it is EngineLibraryBlockedException) "blocked_by_policy" else "load_failed"
+        logger.e("Cannot start the audio engine", it, mapOf("reason" to reason))
+    }
+    .getOrElse { EngineStart(null, hasAudioOutput = false, isBlockedByPolicy = it is EngineLibraryBlockedException) }
 
 private const val NO_OUTPUT_SAMPLE_RATE = 44_100
 
@@ -376,11 +388,11 @@ private fun DesktopApp(
 }
 
 @Composable
-private fun EngineUnavailable() {
+private fun EngineUnavailable(isBlockedByPolicy: Boolean) {
     Surface(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.padding(16.dp)) {
             Text(
-                stringResource(Res.string.error_engine_unavailable),
+                stringResource(if (isBlockedByPolicy) Res.string.error_engine_blocked else Res.string.error_engine_unavailable),
                 style = MaterialTheme.typography.titleMedium,
             )
         }
