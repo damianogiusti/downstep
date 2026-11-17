@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <exception>
 #include <limits>
+#include <thread>
 #include <vector>
 
 namespace loudness {
@@ -33,16 +35,23 @@ struct KWeightingFilter {
 };
 
 /**
- * Sum of squares of the K-weighted channels, per 100 ms segment; the partial tail is left out. Both
- * channels in one loop: two independent filter chains run side by side, about twice as fast.
+ * Sum of squares of the K-weighted channels for the 100 ms segments [first, last). Both channels in one
+ * loop: two independent filter chains run side by side, about twice as fast. The filters start from
+ * zero [warmUpFrames] before the first segment (fewer at the start of the file), so a range measured on
+ * its own thread matches the one measured in a single pass.
  */
-std::vector<double> segmentEnergies(const PcmBuffer &pcm, int segmentFrames) {
+void segmentEnergies(const PcmBuffer &pcm, int segmentFrames, int64_t warmUpFrames, size_t first, size_t last,
+                     std::vector<double> &energies) {
     const auto stages = kWeighting(pcm.sampleRate);
     KWeightingFilter left{stages}, right{stages};
     const float *l = pcm.data[0].data();
     const float *r = pcm.channels > 1 ? pcm.data[1].data() : nullptr;
-    std::vector<double> energies(size_t(pcm.frames / segmentFrames), 0.0);
-    for (size_t segment = 0; segment < energies.size(); ++segment) {
+    const size_t start = first * size_t(segmentFrames);
+    for (size_t i = start - size_t(std::min<int64_t>(warmUpFrames, int64_t(start))); i < start; ++i) {
+        left.process(l[i]);
+        if (r) right.process(r[i]);
+    }
+    for (size_t segment = first; segment < last; ++segment) {
         double sum = 0;
         const size_t begin = segment * size_t(segmentFrames);
         const size_t end = begin + size_t(segmentFrames);
@@ -60,10 +69,47 @@ std::vector<double> segmentEnergies(const PcmBuffer &pcm, int segmentFrames) {
         }
         energies[segment] = sum;
     }
+}
+
+/**
+ * Per 100 ms segment, the partial tail left out. The filters are recursive, so one pass is serial: about
+ * 2.4 s for 2.5 hours of 48 kHz stereo (M1 Pro). Split into ranges on [threads] threads, each range
+ * warms its filters up on the second before it. Both K-weighting stages settle within a few hundred
+ * milliseconds (the 38 Hz high-pass is the slowest), so the result matches the single pass to about
+ * 1e-6 LU.
+ */
+std::vector<double> segmentEnergies(const PcmBuffer &pcm, int segmentFrames, int threads) {
+    std::vector<double> energies(size_t(pcm.frames / segmentFrames), 0.0);
+    const size_t segments = energies.size();
+    const size_t count = std::max<size_t>(1, std::min(size_t(std::max(threads, 1)), segments));
+    const int64_t warmUpFrames = pcm.sampleRate;
+    const auto measure = [&](size_t k) {
+        segmentEnergies(pcm, segmentFrames, warmUpFrames, segments * k / count, segments * (k + 1) / count, energies);
+    };
+    std::vector<std::thread> workers;
+    size_t next = 1;
+    try {
+        workers.reserve(count - 1);
+        for (; next < count; ++next) workers.emplace_back(measure, next);
+    } catch (const std::exception &) {
+        // No thread or memory to spare (std::system_error, std::bad_alloc): the ranges not handed out
+        // are measured here instead.
+    }
+    for (size_t k = next; k < count; ++k) measure(k);
+    measure(0);
+    for (auto &worker : workers) worker.join();
     return energies;
 }
 
 } // namespace
+
+int loudnessThreads(const PcmBuffer &pcm) {
+    // A thread per 30 s at least: below that, starting it costs more than it saves.
+    const int64_t perThread = int64_t(pcm.sampleRate) * 30;
+    if (pcm.sampleRate <= 0 || pcm.frames < 2 * perThread) return 1;
+    const int64_t hardware = std::max<int64_t>(std::thread::hardware_concurrency(), 1);
+    return int(std::min({hardware, int64_t(kMaxLoudnessThreads), pcm.frames / perThread}));
+}
 
 std::array<Biquad, 2> kWeighting(int sampleRate) {
     // The analog prototypes of the BS.1770 filters, so the curve is the same at any sample rate. At
@@ -94,12 +140,14 @@ std::array<Biquad, 2> kWeighting(int sampleRate) {
     return {shelf, highPass};
 }
 
-double integratedLoudness(const PcmBuffer &pcm) {
+double integratedLoudness(const PcmBuffer &pcm) { return integratedLoudness(pcm, loudnessThreads(pcm)); }
+
+double integratedLoudness(const PcmBuffer &pcm, int threads) {
     const double silence = -std::numeric_limits<double>::infinity();
     const int segmentFrames = int(std::lround(pcm.sampleRate * 0.1));
     if (segmentFrames <= 0 || pcm.channels <= 0) return silence;
 
-    const std::vector<double> energies = segmentEnergies(pcm, segmentFrames);
+    const std::vector<double> energies = segmentEnergies(pcm, segmentFrames, threads);
     if (energies.size() < size_t(kSegmentsPerBlock)) return silence;
 
     // Mean square of each block, summed over the channels (all weights are 1).

@@ -397,6 +397,33 @@ void measuresFiveMinutesQuickly() {
     CHECK(ms < 2000, "took %.0f ms", ms);
 }
 
+/** Hours of audio are measured on several threads, each warming its filters up: the same result as one pass. */
+void loudnessOnThreadsMatchesOnePass() {
+    // Noise whose level changes every few seconds, so the gates have work to do; stereo and mono.
+    for (const bool stereo : {true, false}) {
+        PcmBuffer pcm = sine(kRate, 600, 1000, 0.0, true);
+        std::mt19937 random(11);
+        std::uniform_real_distribution<float> noise(-1.f, 1.f);
+        for (int64_t i = 0; i < pcm.frames; ++i) {
+            const float level = 0.02f + 0.3f * float((i / (3 * kRate)) % 7) / 7.f;
+            pcm.data[0][size_t(i)] = level * noise(random);
+            pcm.data[1][size_t(i)] = level * noise(random);
+        }
+        if (!stereo) {
+            pcm.channels = 1;
+            pcm.data.pop_back();
+        }
+        const double one = loudness::integratedLoudness(pcm, 1);
+        const double many = loudness::integratedLoudness(pcm, loudness::kMaxLoudnessThreads);
+        CHECK(std::isfinite(one) && std::fabs(one - many) < 1e-3, "%s: one pass %f LUFS, threads %f",
+              stereo ? "stereo" : "mono", one, many);
+    }
+    CHECK(loudness::loudnessThreads(sine(kRate, 50, 1000, 0.1, true)) == 1, "threads for 50 s");
+    CHECK(loudness::loudnessThreads(sine(kRate, 600, 1000, 0.1, true)) ==
+              int(std::min<unsigned>(std::max(std::thread::hardware_concurrency(), 1u), unsigned(loudness::kMaxLoudnessThreads))),
+          "threads for 10 min: %d", loudness::loudnessThreads(sine(kRate, 600, 1000, 0.1, true)));
+}
+
 void limiterKeepsPeaksUnderTheCeiling() {
     Limiter limiter;
     limiter.prepare(kRate);
@@ -639,6 +666,72 @@ void decoderKeepsEveryFrame() {
             CHECK(decoded.data[size_t(c)] == written.data[size_t(c)], "channel %d differs", c);
         }
     }
+}
+
+/** A 16-bit PCM WAV of [pcm] (rounded), announcing [announcedFrames] frames (default: all of them). */
+void writeWav16(const std::string &path, const PcmBuffer &pcm, int64_t announcedFrames = -1) {
+    FILE *f = openFileUtf8(path, "wb");
+    if (!f) return;
+    auto u32 = [&](uint32_t v) { std::fwrite(&v, 4, 1, f); };
+    auto u16 = [&](uint16_t v) { std::fwrite(&v, 2, 1, f); };
+    const int64_t announced = announcedFrames < 0 ? pcm.frames : announcedFrames;
+    const auto dataBytes = uint32_t(announced * pcm.channels * 2);
+    std::fwrite("RIFF", 1, 4, f);
+    u32(36 + dataBytes);
+    std::fwrite("WAVEfmt ", 1, 8, f);
+    u32(16);
+    u16(1); // integer PCM
+    u16(uint16_t(pcm.channels));
+    u32(uint32_t(pcm.sampleRate));
+    u32(uint32_t(pcm.sampleRate * pcm.channels * 2));
+    u16(uint16_t(pcm.channels * 2));
+    u16(16);
+    std::fwrite("data", 1, 4, f);
+    u32(dataBytes);
+    for (int64_t i = 0; i < pcm.frames; ++i)
+        for (int c = 0; c < pcm.channels; ++c) u16(uint16_t(int16_t(std::lround(pcm.data[size_t(c)][size_t(i)] * 32767.0))));
+    std::fclose(f);
+}
+
+/**
+ * Long PCM files are read in slices on several threads: every frame lands where it belongs, also at the
+ * seams between slices, in 16-bit as in float (decoderKeepsEveryFrame).
+ */
+void decoderReadsLongPcmInSlicesExactly() {
+    for (const auto &[channels, seconds] : {std::pair{2, 97.31}, std::pair{1, 61.7}}) {
+        const PcmBuffer written = rampBuffer(channels, seconds);
+        const auto path = tempPath("sdengine-ramp16.wav");
+        writeWav16(path, written);
+        PcmBuffer decoded;
+        std::string error;
+        CHECK(decodeFile(path, decoded, error, 0) == DecodeStatus::Ok, "cannot decode: %s", error.c_str());
+        std::filesystem::remove(path);
+        CHECK(decoded.frames == written.frames, "%lld frames, wrote %lld", (long long)decoded.frames,
+              (long long)written.frames);
+        if (decoded.channels != channels || decoded.frames != written.frames) continue;
+        for (int c = 0; c < channels; ++c) {
+            int64_t wrong = 0;
+            for (int64_t i = 0; i < written.frames; ++i) {
+                const float expected = float(int16_t(std::lround(written.data[size_t(c)][size_t(i)] * 32767.0))) / 32768.f;
+                if (decoded.data[size_t(c)][size_t(i)] != expected) ++wrong;
+            }
+            CHECK(wrong == 0, "channel %d: %lld frames differ", c, (long long)wrong);
+        }
+    }
+}
+
+/** A WAV cut short of the length its header announces: the frames that are there, as before. */
+void aCutShortPcmFileKeepsTheFramesItHas() {
+    const PcmBuffer written = rampBuffer(2, 60.0);
+    const auto path = tempPath("sdengine-cut16.wav");
+    writeWav16(path, written, written.frames * 2);
+    PcmBuffer decoded;
+    std::string error;
+    const DecodeStatus status = decodeFile(path, decoded, error, 0);
+    std::filesystem::remove(path);
+    CHECK(status == DecodeStatus::Ok, "status %d: %s", int(status), error.c_str());
+    CHECK(decoded.frames == written.frames, "%lld frames, wrote %lld", (long long)decoded.frames,
+          (long long)written.frames);
 }
 
 void unreadableFileFailsCleanly() {
@@ -1007,6 +1100,7 @@ int main() {
         {"loudness ignores silence and quiet passages", [] { loudnessIgnoresSilenceAndQuietPassages(); }},
         {"normalization gain is clamped", [] { normalizationGainIsClamped(); }},
         {"measures five minutes quickly", [] { measuresFiveMinutesQuickly(); }},
+        {"loudness on threads matches one pass", [] { loudnessOnThreadsMatchesOnePass(); }},
         {"limiter keeps peaks under the ceiling", [] { limiterKeepsPeaksUnderTheCeiling(); }},
         {"limiter never rounds past the ceiling", [] { limiterNeverRoundsPastTheCeiling(); }},
         {"limiter leaves quiet audio alone", [] { limiterLeavesQuietAudioAlone(); }},
@@ -1018,6 +1112,11 @@ int main() {
         {"normalized render does not call operator new", [&] { normalizedRenderDoesNotCallNew(path); }},
         {"export keeps the original level", [&] { exportKeepsTheOriginalLevel(path); }},
         {"decoder keeps every frame", [] { decoderKeepsEveryFrame(); }},
+#ifdef __APPLE__
+        // Only the AudioToolbox decoder reads PCM in slices.
+        {"decoder reads long PCM in slices exactly", [] { decoderReadsLongPcmInSlicesExactly(); }},
+        {"a cut-short PCM file keeps the frames it has", [] { aCutShortPcmFileKeepsTheFramesItHas(); }},
+#endif
         {"an unreadable file fails cleanly", [] { unreadableFileFailsCleanly(); }},
         {"mono is kept as one channel and plays on both sides", [] { monoIsKeptAsOneChannelAndPlaysOnBothSides(); }},
         {"mono loudness equals the same file in stereo", [] { monoLoudnessEqualsTheSameFileInStereo(); }},
