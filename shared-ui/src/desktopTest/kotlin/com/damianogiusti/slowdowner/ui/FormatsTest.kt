@@ -3,6 +3,7 @@ package com.damianogiusti.slowdowner.ui
 import com.damianogiusti.slowdowner.ui.common.formatClock
 import com.damianogiusti.slowdowner.ui.common.formatDecimal
 import com.damianogiusti.slowdowner.ui.common.formatPitch
+import com.damianogiusti.slowdowner.ui.common.formatPreciseClock
 import com.damianogiusti.slowdowner.ui.common.formatSignedDecimal
 import java.io.File
 import kotlin.test.Test
@@ -53,6 +54,13 @@ class FormatsTest {
     @Test
     fun `clock pads the seconds`() {
         assertEquals("3:05", formatClock(185f))
+    }
+
+    @Test
+    fun `precise clock shows hundredths in the language's separator`() {
+        assertEquals("1:05.25", formatPreciseClock(65.25f))
+        assertEquals("0:00,07", formatPreciseClock(0.07f, ","))
+        assertEquals("1:00.00", formatPreciseClock(59.999f))
     }
 
     /** Compose Resources fills only %N$s and %N$d (and %%): anything else would show up raw, as %1$.1f did. */

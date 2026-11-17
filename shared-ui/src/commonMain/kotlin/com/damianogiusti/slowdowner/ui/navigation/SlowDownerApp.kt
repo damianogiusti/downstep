@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.navigation
 
+import com.damianogiusti.slowdowner.ui.settings.SettingsScreen
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -79,6 +80,8 @@ class ActivityActions(
     val onDonate: (() -> Unit)? = null,
     /** Null hides the Contact menu item (Android has no contact entry). */
     val onContact: (() -> Unit)? = null,
+    /** Shows Settings in the library menu. Off on Android: its engine draws no waveform, the only setting so far. */
+    val hasSettings: Boolean = false,
 )
 
 /** ViewModels scoped to the activity: results of activity pickers and intents land in them. */
@@ -181,6 +184,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                                 onExportLibraryBackup = backupViewModel::onExportLibrary,
                                 onDonate = activity.onDonate,
                                 onContact = activity.onContact,
+                                onSettings = { navController.navigate(SettingsRoute) { launchSingleTop = true } }.takeIf { activity.hasSettings },
                             ),
                             snackbarHostState = snackbarHostState,
                         )
@@ -195,6 +199,9 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                             ),
                             snackbarHostState = snackbarHostState,
                         )
+                    }
+                    composable<SettingsRoute> {
+                        SettingsScreen(onBack = { navController.popBackStack() })
                     }
                     composable<PlayerRoute>(
                         enterTransition = { slideInVertically(tween(PLAYER_TRANSITION_MS)) { it } },

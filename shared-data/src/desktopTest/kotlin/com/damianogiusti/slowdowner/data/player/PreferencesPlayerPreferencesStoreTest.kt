@@ -32,4 +32,20 @@ class PreferencesPlayerPreferencesStoreTest {
         store.write(PlayerPreferencesDto(isPitchFine = false))
         assertEquals(PlayerPreferencesDto(isPitchFine = false), store.read())
     }
+
+    @Test
+    fun `each choice is stored on its own`() {
+        val written = PlayerPreferencesDto(isPitchFine = false, isLoopFine = true, isWaveformShown = true)
+
+        store.write(written)
+
+        assertEquals(written, store.read())
+    }
+
+    @Test
+    fun `a store written before the loop and waveform choices reads them as off`() {
+        node.putBoolean("pitch_fine", true)
+
+        assertEquals(PlayerPreferencesDto(isPitchFine = true, isLoopFine = false, isWaveformShown = false), store.read())
+    }
 }

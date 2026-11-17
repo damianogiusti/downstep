@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -22,7 +22,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +38,7 @@ import com.damianogiusti.slowdowner.ui.common.ValueSlider
 import com.damianogiusti.slowdowner.ui.common.formatClock
 import com.damianogiusti.slowdowner.ui.common.formatPitch
 import com.damianogiusti.slowdowner.ui.common.formatSpeed
+import com.damianogiusti.slowdowner.ui.player.LoopZoomUiState
 import com.damianogiusti.slowdowner.ui.player.PlayerControlsState
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import com.damianogiusti.slowdowner.ui.theme.tabular
@@ -153,33 +153,11 @@ fun PitchCard(
         actions = actions,
         enabled = enabled,
         modifier = modifier,
-        headerAction = { FineToggle(controls.isPitchFine, onFineToggle, enabled) },
+        headerAction = {
+            val colors = MaterialTheme.colorScheme
+            FineToggle(FineToggleState(controls.isPitchFine, enabled, colors.tertiary, colors.onTertiary), onFineToggle)
+        },
     )
-}
-
-// A flat pill, not a FilterChip: the chip's elevation and label layer looked heavy on this card.
-@Composable
-private fun FineToggle(isOn: Boolean, onToggle: (Boolean) -> Unit, enabled: Boolean) {
-    val colors = MaterialTheme.colorScheme
-    val contentColor = when {
-        !enabled -> colors.onSurface.copy(alpha = 0.38f)
-        isOn -> colors.onTertiary
-        else -> colors.onSurfaceVariant
-    }
-    Surface(
-        checked = isOn,
-        onCheckedChange = onToggle,
-        enabled = enabled,
-        shape = CircleShape,
-        color = if (isOn && enabled) colors.tertiary else colors.surfaceContainerHigh,
-        contentColor = contentColor,
-    ) {
-        Text(
-            stringResource(Res.string.pitch_fine),
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-        )
-    }
 }
 
 /** Callbacks of the [LoopCard]. */
@@ -191,10 +169,18 @@ class LoopActions(
     val onHalve: () -> Unit,
     val onDouble: () -> Unit,
     val onShiftForward: () -> Unit,
+    val onFineToggle: (Boolean) -> Unit,
+    /** From the zoom on the loop, shown while Fine is on. */
+    val timeline: TimelineActions,
 )
 
+/** The loop's controls, and the zoom on it while Fine is on. Disabled while an export renders. */
+class LoopCardState(val controls: PlayerControlsState, val zoom: LoopZoomUiState?, val isEnabled: Boolean)
+
 @Composable
-fun LoopCard(controls: PlayerControlsState, actions: LoopActions, enabled: Boolean, modifier: Modifier = Modifier) {
+fun LoopCard(state: LoopCardState, actions: LoopActions, modifier: Modifier = Modifier) {
+    val controls = state.controls
+    val enabled = state.isEnabled
     val loopLength = (controls.loopEnd - controls.loopStart) * controls.durationSeconds
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -220,8 +206,12 @@ fun LoopCard(controls: PlayerControlsState, actions: LoopActions, enabled: Boole
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            val colors = MaterialTheme.colorScheme
+            FineToggle(FineToggleState(controls.isLoopFine, enabled, colors.primary, colors.onPrimary), actions.onFineToggle)
+            Spacer(Modifier.width(8.dp))
             Switch(checked = controls.isLoopOn, onCheckedChange = actions.onToggle, enabled = enabled)
         }
+        state.zoom?.let { zoom -> LoopZoom(LoopZoomState(controls, zoom, enabled), actions.timeline) }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             MarkerButton("A", stringResource(Res.string.loop_mark_start), SlowDownerTheme.colors.markerA, enabled, actions.onMarkStart)
             MarkerButton("B", stringResource(Res.string.loop_mark_end), SlowDownerTheme.colors.markerB, enabled, actions.onMarkEnd)

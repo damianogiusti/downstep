@@ -10,3 +10,6 @@ data class PlaylistRoute(val playlistId: Long)
 
 @Serializable
 data object PlayerRoute
+
+@Serializable
+data object SettingsRoute

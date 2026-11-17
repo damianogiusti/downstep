@@ -82,6 +82,8 @@ class LibraryNavigation(
     val onDonate: (() -> Unit)?,
     /** Null hides the Contact item (see ActivityActions.onContact). */
     val onContact: (() -> Unit)?,
+    /** Null hides the Settings item (see ActivityActions.hasSettings). */
+    val onSettings: (() -> Unit)? = null,
 )
 
 @Composable
@@ -115,6 +117,7 @@ fun LibraryScreen(
             onImport = { showImport = true },
             onDonate = navigation.onDonate,
             onContact = navigation.onContact,
+            onSettings = navigation.onSettings,
         ),
     )
 
@@ -199,6 +202,7 @@ class LibraryContentActions(
     val onImport: () -> Unit,
     val onDonate: (() -> Unit)? = null,
     val onContact: (() -> Unit)? = null,
+    val onSettings: (() -> Unit)? = null,
 )
 
 @Composable
@@ -229,9 +233,7 @@ fun LibraryContent(state: LibraryUiState, tab: LibraryTab, actions: LibraryConte
                     if (isSearching) actions.onTabSelected(LibraryTab.Tracks)
                 },
                 onQueryChanged = actions.onQueryChanged,
-                onLibraryBackup = actions.onExportLibraryBackup,
-                onDonate = actions.onDonate,
-                onContact = actions.onContact,
+                menu = LibraryMenuActions(actions.onExportLibraryBackup, actions.onDonate, actions.onContact, actions.onSettings),
             )
             LibraryTabs(tab, actions.onTabSelected)
             when (tab) {
@@ -248,9 +250,7 @@ private fun LibraryHeader(
     isSearching: Boolean,
     onSearchToggled: () -> Unit,
     onQueryChanged: (String) -> Unit,
-    onLibraryBackup: () -> Unit,
-    onDonate: (() -> Unit)?,
-    onContact: (() -> Unit)?,
+    menu: LibraryMenuActions,
 ) {
     Column(modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp, bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -279,7 +279,7 @@ private fun LibraryHeader(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (!isSearching) LibraryMenu(onLibraryBackup, onDonate, onContact)
+            if (!isSearching) LibraryMenu(menu)
         }
         if (!isSearching) {
             Text(
@@ -439,8 +439,16 @@ private fun TrackMenu(onAddToPlaylist: () -> Unit, onExportBackup: () -> Unit, o
     }
 }
 
+/** The library's ⋮ menu. A null item is hidden. */
+private class LibraryMenuActions(
+    val onLibraryBackup: () -> Unit,
+    val onDonate: (() -> Unit)?,
+    val onContact: (() -> Unit)?,
+    val onSettings: (() -> Unit)?,
+)
+
 @Composable
-private fun LibraryMenu(onLibraryBackup: () -> Unit, onDonate: (() -> Unit)?, onContact: (() -> Unit)?) {
+private fun LibraryMenu(actions: LibraryMenuActions) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
@@ -456,10 +464,20 @@ private fun LibraryMenu(onLibraryBackup: () -> Unit, onDonate: (() -> Unit)?, on
                 leadingIcon = { Icon(painterResource(Res.drawable.ic_archive), null) },
                 onClick = {
                     expanded = false
-                    onLibraryBackup()
+                    actions.onLibraryBackup()
                 },
             )
-            onDonate?.let { donate ->
+            actions.onSettings?.let { settings ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.settings)) },
+                    leadingIcon = { Icon(painterResource(Res.drawable.ic_settings), null) },
+                    onClick = {
+                        expanded = false
+                        settings()
+                    },
+                )
+            }
+            actions.onDonate?.let { donate ->
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.support_donate)) },
                     leadingIcon = { Icon(painterResource(Res.drawable.ic_favorite), null) },
@@ -469,7 +487,7 @@ private fun LibraryMenu(onLibraryBackup: () -> Unit, onDonate: (() -> Unit)?, on
                     },
                 )
             }
-            onContact?.let { contact ->
+            actions.onContact?.let { contact ->
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.contact_menu)) },
                     leadingIcon = { Icon(painterResource(Res.drawable.ic_mail), null) },

@@ -48,6 +48,15 @@ import java.nio.file.Files
 import javax.swing.SwingUtilities
 import kotlin.math.PI
 import kotlin.math.sin
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventType
+import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
+import com.damianogiusti.slowdowner.domain.practice.OpenTrackForPracticeUseCase
+import com.damianogiusti.slowdowner.domain.practice.SetLoopRegionUseCase
+import com.damianogiusti.slowdowner.ui.settings.SettingsActions
+import com.damianogiusti.slowdowner.ui.settings.SettingsContent
+import com.damianogiusti.slowdowner.ui.settings.SettingsUiState
+import kotlin.math.exp
 import kotlin.test.AfterTest
 import kotlin.test.assertIs
 import kotlin.test.Test
@@ -136,10 +145,117 @@ class ScreenRenderTest {
         assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
     }
 
-    /** Renders the app at the given size; [setup] runs on the Swing thread once the ViewModels exist. */
-    private fun render(output: File, widthDp: Int, heightDp: Int, setup: (PlayerViewModel) -> Unit = {}): Int {
+    @Test
+    fun `with the waveform and loop Fine on the player draws the waveform and zooms on the loop`() {
+        playerPreferencesStore.stored = PlayerPreferencesDto(isLoopFine = true, isWaveformShown = true)
+        openWithLoop(rhythmWav(), loopStart = 0.3f, loopEnd = 0.42f)
+        for (scheme in ColorScheme.entries) {
+            val name = scheme.name.lowercase()
+            val bytes = render(File("build/screenshots/waveform-$name.png"), widthDp = 1280, heightDp = 820, scheme = scheme)
+            assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+        }
+    }
+
+    @Test
+    fun `with the waveform and loop Fine on a short loop is spread out in the zoom`() {
+        playerPreferencesStore.stored = PlayerPreferencesDto(isLoopFine = true, isWaveformShown = true)
+        // 1.5 s of a 4-minute song: on the whole-song timeline A and B are a few pixels apart.
+        openWithLoop(rhythmWav(seconds = 240), loopStart = 0.5f, loopEnd = 0.50625f)
+        val bytes = render(File("build/screenshots/waveform-short-loop.png"), widthDp = 1280, heightDp = 820)
+        assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+    }
+
+    @Test
+    fun `with loop Fine on and the waveform off the zoom is a plain track`() {
+        playerPreferencesStore.stored = PlayerPreferencesDto(isLoopFine = true)
+        openWithLoop(rhythmWav(seconds = 240), loopStart = 0.5f, loopEnd = 0.50625f)
+        val bytes = render(File("build/screenshots/loop-fine-short-loop.png"), widthDp = 1280, heightDp = 820)
+        assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+    }
+
+    @Test
+    fun `with the waveform on and loop Fine off there is no zoom`() {
+        playerPreferencesStore.stored = PlayerPreferencesDto(isWaveformShown = true)
+        openWithLoop(rhythmWav(), loopStart = 0.3f, loopEnd = 0.42f)
+        val bytes = render(File("build/screenshots/waveform-without-zoom.png"), widthDp = 1280, heightDp = 820)
+        assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+    }
+
+    @Test
+    fun `with the waveform off a short loop shows A and B apart`() {
+        openWithLoop(rhythmWav(seconds = 240), loopStart = 0.5f, loopEnd = 0.50625f)
+        val bytes = render(File("build/screenshots/timeline-short-loop.png"), widthDp = 1280, heightDp = 820)
+        assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+    }
+
+    @Test
+    fun `the library menu offers Settings`() {
+        val bytes = render(File("build/screenshots/library-menu-settings.png"), widthDp = 440, heightDp = 600,
+            actions = noActions(hasSettings = true),
+            afterFirstFrames = {
+                // The ⋮ button: right end of the header row, 12 dp padding, 48 dp touch target, 16 dp from the top.
+                val menu = Offset((440 - 12 - 24) * 2f, (16 + 24) * 2f)
+                scene.sendPointerEvent(PointerEventType.Press, menu)
+                scene.sendPointerEvent(PointerEventType.Release, menu)
+            },
+        )
+        assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+    }
+
+    @Test
+    fun `the settings screen shows the waveform switch`() {
+        for (isShown in listOf(false, true)) {
+            val output = File("build/screenshots/settings-waveform-${if (isShown) "on" else "off"}.png")
+            val bytes = renderContent(output, widthDp = 440, heightDp = 400) {
+                SettingsContent(SettingsUiState.Ready(isWaveformShown = isShown), SettingsActions({}, {}))
+            }
+            assertTrue(bytes > 5_000, "suspiciously small render: $bytes bytes")
+        }
+    }
+
+    private enum class ColorScheme { Light, Dark }
+
+    private lateinit var scene: ImageComposeScene
+
+    /** Imports and opens [wav] with an A/B loop, before the ViewModels exist: they read it on creation. */
+    private fun openWithLoop(wav: ByteArray, loopStart: Float, loopEnd: Float) {
+        val file = File(Files.createTempDirectory("slowdowner-render-audio").toFile(), "Autumn Leaves.wav")
+        file.writeBytes(wav)
+        val imported = runBlocking { koin.get<ImportDocumentUseCase>()(file.path) }
+        assertIs<ImportResult.Success>(imported)
+        runBlocking { koin.get<OpenTrackForPracticeUseCase>()(imported.track) }
+        koin.get<SetLoopRegionUseCase>()(loopStart, loopEnd)
+        koin.get<PlaybackEngine>().seekTo((loopStart + loopEnd) / 2)
+    }
+
+    /** Renders one composable alone, in the light theme. */
+    private fun renderContent(output: File, widthDp: Int, heightDp: Int, content: @androidx.compose.runtime.Composable () -> Unit): Int {
         output.parentFile.mkdirs()
-        lateinit var scene: ImageComposeScene
+        var bytes = 0
+        SwingUtilities.invokeAndWait {
+            val single = ImageComposeScene(width = widthDp * 2, height = heightDp * 2, density = Density(2f)) {
+                SlowDownerTheme(darkTheme = false) { content() }
+            }
+            single.render(0)
+            val png = requireNotNull(single.render(1_000_000_000L).encodeToData(EncodedImageFormat.PNG)).bytes
+            output.writeBytes(png)
+            bytes = png.size
+            single.close()
+        }
+        return bytes
+    }
+
+    /** Renders the app at the given size; [setup] runs on the Swing thread once the ViewModels exist. */
+    private fun render(
+        output: File,
+        widthDp: Int,
+        heightDp: Int,
+        scheme: ColorScheme = ColorScheme.Light,
+        actions: ActivityActions = noActions(),
+        afterFirstFrames: () -> Unit = {},
+        setup: (PlayerViewModel) -> Unit = {},
+    ): Int {
+        output.parentFile.mkdirs()
         var player: PlayerViewModel? = null
         // Compose and viewModelScope expect the Swing thread as the main thread. Frames are rendered in
         // separate turns, so the ViewModels' coroutines can run on that thread in between.
@@ -151,12 +267,12 @@ class ScreenRenderTest {
             val store = object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
             scene = ImageComposeScene(width = widthDp * 2, height = heightDp * 2, density = Density(2f)) {
                 CompositionLocalProvider(LocalLifecycleOwner provides lifecycle, LocalViewModelStoreOwner provides store) {
-                    SlowDownerTheme {
+                    SlowDownerTheme(darkTheme = scheme == ColorScheme.Dark) {
                         val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel(), koinViewModel())
                         player = viewModels.player
                         Column(modifier = Modifier.fillMaxSize()) {
                             UpdateBanner()
-                            Box(modifier = Modifier.weight(1f)) { SlowDownerApp(viewModels, noActions()) }
+                            Box(modifier = Modifier.weight(1f)) { SlowDownerApp(viewModels, actions) }
                         }
                         SupportPromptHost()
                         UpdateHost(onRestart = {})
@@ -168,7 +284,10 @@ class ScreenRenderTest {
         }
         repeat(10) { frame ->
             Thread.sleep(150)
-            SwingUtilities.invokeAndWait { scene.render((frame + 1) * 150_000_000L) }
+            SwingUtilities.invokeAndWait {
+                scene.render((frame + 1) * 150_000_000L)
+                if (frame == 4) afterFirstFrames()
+            }
         }
         var bytes = 0
         SwingUtilities.invokeAndWait {
@@ -180,13 +299,26 @@ class ScreenRenderTest {
         return bytes
     }
 
+    /**
+     * A rhythm: a quiet bed with a decaying hit every half second, louder towards the middle, so a
+     * waveform has something to show. Long ones use a low rate, to stay small.
+     */
+    private fun rhythmWav(seconds: Int = 10): ByteArray = wav(seconds, rate = if (seconds > 10) 8_000 else 44_100) { i, rate ->
+        val t = i.toDouble() / rate
+        val swell = 0.35 + 0.65 * sin(PI * t / seconds)
+        val hit = exp(-(t % 0.5) * 9)
+        (0.12 + 0.88 * hit) * swell * sin(2 * PI * 220 * t)
+    }
+
     /** 10 s stereo 16-bit tone, so the player has a real file to open. */
-    private fun toneWav(): ByteArray {
-        val rate = 44_100
-        val frames = 10 * rate
+    private fun toneWav(): ByteArray = wav(seconds = 10, rate = 44_100) { i, rate -> sin(2 * PI * 441 * i / rate) * 0.488 }
+
+    /** Stereo 16-bit, each sample [level] −1..1 of frame i at [rate]. */
+    private fun wav(seconds: Int, rate: Int, level: (Int, Int) -> Double): ByteArray {
+        val frames = seconds * rate
         val data = ByteBuffer.allocate(frames * 4).order(ByteOrder.LITTLE_ENDIAN)
         repeat(frames) { i ->
-            val sample = (sin(2 * PI * 441 * i / rate) * 16_000).toInt().toShort()
+            val sample = (level(i, rate) * 32_767).toInt().toShort()
             data.putShort(sample).putShort(sample)
         }
         val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN).apply {
@@ -204,8 +336,9 @@ class ScreenRenderTest {
             """- If you open Downstep while it is already running, the open window comes to the front.\n- Bug fixes and small improvements.\n\n---\n\nFor Mac with Apple silicon."}"""
     }
 
-    private fun noActions() = ActivityActions(
+    private fun noActions(hasSettings: Boolean = false) = ActivityActions(
         onPickFile = {}, onOpenSpotify = null, onPlayStop = {}, onPlaybackStarted = {},
         onShareExport = {}, onSaveExport = {}, onPickBackup = {}, onShareBackup = {}, onSaveBackup = {},
+        hasSettings = hasSettings,
     )
 }
