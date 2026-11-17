@@ -61,7 +61,7 @@
     <string name="quality_very_high">Max</string>
 
     <string name="export">Export</string>
-    <string name="export_running">Exporting to MP3… %1$d%%</string>
+    <string name="export_running">Exporting to MP3… %1$d%</string>
     <string name="export_ready_title">Export ready</string>
     <string name="export_ready_text">"%1$s" is ready. Speed, pitch and effects are applied.</string>
     <string name="export_share">Share</string>
@@ -259,7 +259,7 @@
     <string name="update_later">Later</string>
     <string name="update_cancel">Cancel</string>
     <string name="update_retry">Try again</string>
-    <string name="update_downloading">Downloading… %1$d%%</string>
+    <string name="update_downloading">Downloading… %1$d%</string>
     <string name="update_preparing">Installing…</string>
     <string name="update_restarting">Restarting…</string>
     <string name="update_ready">The update is ready. When you restart, Downstep closes and opens again by itself in a few seconds: do not open it yourself in the meantime.</string>
