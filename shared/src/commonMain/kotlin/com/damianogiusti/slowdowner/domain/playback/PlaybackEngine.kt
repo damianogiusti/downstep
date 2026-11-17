@@ -48,6 +48,13 @@ interface PlaybackEngine {
     fun shiftLoopForward()
     fun shiftLoopBackward()
 
+    /**
+     * Waveform of the open file for drawing: [buckets] peak levels 0..1, one per equal slice of
+     * [from]..[to] (fractions 0..1 of the file). Cheap, any thread. Empty when nothing is open, or
+     * on an engine that cannot outline its audio: the waveform then draws flat.
+     */
+    fun peaks(from: Float, to: Float, buckets: Int): FloatArray = FloatArray(0)
+
     companion object {
         const val SLIDER_MAX = 10_000
         // Full range of the engine sliders, measured on device.

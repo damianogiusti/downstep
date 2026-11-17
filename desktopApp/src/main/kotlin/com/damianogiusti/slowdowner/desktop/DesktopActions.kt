@@ -32,6 +32,7 @@ class DesktopActions(
         onSaveBackup = { file -> saveAs(file.name)?.let { viewModels.backup.onSaveTargetPicked(it.path) } },
         onDonate = { openDonation(DonateSource.LIBRARY_MENU, logger) },
         onContact = onContact,
+        hasSettings = true,
     )
 
     private fun importPicked(file: File) {

@@ -14,6 +14,14 @@ fun formatClock(seconds: Float): String {
     return "${total / 60}:${(total % 60).toString().padStart(2, '0')}"
 }
 
+/** "1:05.25": [formatClock] with hundredths, where A and B are placed precisely. */
+fun formatPreciseClock(seconds: Float, separator: String = "."): String {
+    val hundredths = (seconds * 100).roundToLong().coerceAtLeast(0)
+    val total = hundredths / 100
+    val fraction = (hundredths % 100).toString().padStart(2, '0')
+    return "${total / 60}:${(total % 60).toString().padStart(2, '0')}$separator$fraction"
+}
+
 /**
  * "2.4": one decimal. Compose Resources only fills `%1$s` and `%1$d`, so decimals are formatted
  * here, not in strings.xml. [separator] comes from `decimal_separator`, so Italian gets "2,4".

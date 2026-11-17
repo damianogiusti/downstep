@@ -156,6 +156,10 @@ double sd_engine_loudness_lufs(const SdEngine *engine) { return engine->player->
 
 double sd_engine_normalization_gain_db(const SdEngine *engine) { return engine->player->normalizationGainDb(); }
 
+int sd_engine_peaks(SdEngine *engine, double from, double to, float *out, int buckets) {
+    return engine->player->peaks(from, to, out, buckets);
+}
+
 unsigned sd_engine_take_events(SdEngine *engine) { return engine->player->takeEvents(); }
 
 int sd_engine_sample_rate(const SdEngine *engine) { return engine->player->outputRate(); }

@@ -4,11 +4,14 @@ import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
+import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
 import com.damianogiusti.slowdowner.domain.playback.OpenTrackUseCase
+import com.damianogiusti.slowdowner.domain.playback.ReadWaveformUseCase
 import com.damianogiusti.slowdowner.domain.playback.SliderCurves
 import com.damianogiusti.slowdowner.domain.player.ObservePlayerPreferencesUseCase
 import com.damianogiusti.slowdowner.domain.player.PlayerPreferences
+import com.damianogiusti.slowdowner.domain.player.SetLoopFineUseCase
 import com.damianogiusti.slowdowner.domain.player.SetPitchFineUseCase
 import com.damianogiusti.slowdowner.domain.practice.ApplyPresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.DeletePresetUseCase
@@ -42,6 +45,9 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.math.roundToInt
 import kotlin.test.assertTrue
 
@@ -188,6 +194,170 @@ class PlayerViewModelTest {
         assertTrue(viewModel.state.value.controls.isPitchFine)
     }
 
+    @Test
+    fun `when the waveform is off then the player has none`() = runTest {
+        openFile()
+        val viewModel = createViewModel()
+        runCurrent()
+
+        assertNull(viewModel.state.value.waveform)
+    }
+
+    @Test
+    fun `when the waveform is on then it is scaled to the loudest bar`() = runTest {
+        openFile()
+        preferences.preferences.value = PlayerPreferences(isWaveformShown = true)
+        val viewModel = createViewModel()
+        runCurrent()
+
+        val levels = assertNotNull(viewModel.state.value.waveform).levels
+        assertEquals(1f, levels.max())
+        assertEquals(0.25f, levels.first())
+    }
+
+    @Test
+    fun `when the engine cannot outline the file then there is no waveform`() = runTest {
+        openFile()
+        engine.outline = FloatArray(0)
+        preferences.preferences.value = PlayerPreferences(isWaveformShown = true)
+        val viewModel = createViewModel()
+        runCurrent()
+
+        assertNull(viewModel.state.value.waveform)
+    }
+
+    @Test
+    fun `when the waveform is turned off then it goes away`() = runTest {
+        openFile()
+        preferences.preferences.value = PlayerPreferences(isWaveformShown = true)
+        val viewModel = createViewModel()
+        runCurrent()
+
+        preferences.preferences.value = PlayerPreferences(isWaveformShown = false)
+        runCurrent()
+
+        assertNull(viewModel.state.value.waveform)
+    }
+
+    @Test
+    fun `when loop Fine is off then there is no zoom`() = runTest {
+        openFile(LoopRegion(0.4f, 0.5f, isOn = true))
+        preferences.preferences.value = PlayerPreferences(isWaveformShown = true)
+        val viewModel = createViewModel()
+        runCurrent()
+
+        assertNull(viewModel.state.value.loopZoom)
+    }
+
+    @Test
+    fun `when loop Fine is toggled then the preference is saved and the state follows`() = runTest {
+        openFile(LoopRegion(0.4f, 0.5f, isOn = true))
+        val viewModel = createViewModel()
+        runCurrent()
+
+        viewModel.onLoopFineToggled(true)
+        runCurrent()
+
+        assertTrue(preferences.preferences.value.isLoopFine)
+        assertTrue(viewModel.state.value.controls.isLoopFine)
+        assertNotNull(viewModel.state.value.loopZoom)
+    }
+
+    @Test
+    fun `with loop Fine the zoom covers the loop and some of each side`() = runTest {
+        openFile(LoopRegion(0.4f, 0.5f, isOn = true))
+        preferences.preferences.value = PlayerPreferences(isLoopFine = true)
+        val viewModel = createViewModel()
+        runCurrent()
+
+        val zoom = assertNotNull(viewModel.state.value.loopZoom)
+        assertEquals(0.365f, zoom.from, 0.001f)
+        assertEquals(0.535f, zoom.to, 0.001f)
+    }
+
+    @Test
+    fun `without the waveform the zoom is a plain track and reads no peaks`() = runTest {
+        openFile(LoopRegion(0.4f, 0.5f, isOn = true))
+        preferences.preferences.value = PlayerPreferences(isLoopFine = true)
+        val viewModel = createViewModel()
+        runCurrent()
+
+        assertNull(assertNotNull(viewModel.state.value.loopZoom).levels)
+        assertEquals(0, engine.peakReads)
+    }
+
+    @Test
+    fun `with the waveform the zoom draws its levels`() = runTest {
+        openFile(LoopRegion(0.4f, 0.5f, isOn = true))
+        preferences.preferences.value = PlayerPreferences(isLoopFine = true, isWaveformShown = true)
+        val viewModel = createViewModel()
+        runCurrent()
+
+        assertNotNull(assertNotNull(viewModel.state.value.loopZoom).levels)
+    }
+
+    @Test
+    fun `without A and B there is nothing to zoom on`() = runTest {
+        openFile()
+        preferences.preferences.value = PlayerPreferences(isLoopFine = true)
+        val viewModel = createViewModel()
+        runCurrent()
+
+        assertNull(viewModel.state.value.loopZoom)
+    }
+
+    @Test
+    fun `a control that leaves the loop alone reuses the waveform and the zoom`() = runTest {
+        openFile(LoopRegion(0.4f, 0.5f, isOn = true))
+        preferences.preferences.value = PlayerPreferences(isLoopFine = true, isWaveformShown = true)
+        val viewModel = createViewModel()
+        runCurrent()
+        val before = viewModel.state.value
+        val reads = engine.peakReads
+
+        viewModel.onSpeedReset()
+
+        assertSame(before.waveform, viewModel.state.value.waveform)
+        assertSame(before.loopZoom, viewModel.state.value.loopZoom)
+        assertEquals(reads, engine.peakReads)
+    }
+
+    @Test
+    fun `moving the loop reads only the new zoom`() = runTest {
+        openFile(LoopRegion(0.4f, 0.5f, isOn = true))
+        preferences.preferences.value = PlayerPreferences(isLoopFine = true, isWaveformShown = true)
+        val viewModel = createViewModel()
+        runCurrent()
+        val waveform = viewModel.state.value.waveform
+        val reads = engine.peakReads
+
+        viewModel.onLoopRegionChanged(0.6f, 0.7f)
+
+        assertSame(waveform, viewModel.state.value.waveform)
+        assertEquals(0.565f, assertNotNull(viewModel.state.value.loopZoom).from, 0.001f)
+        assertEquals(reads + 1, engine.peakReads)
+    }
+
+    @Test
+    fun `when the waveform is turned off then the zoom stays as a plain track`() = runTest {
+        openFile(LoopRegion(0.4f, 0.5f, isOn = true))
+        preferences.preferences.value = PlayerPreferences(isLoopFine = true, isWaveformShown = true)
+        val viewModel = createViewModel()
+        runCurrent()
+
+        preferences.preferences.value = PlayerPreferences(isLoopFine = true)
+        runCurrent()
+
+        assertNull(assertNotNull(viewModel.state.value.loopZoom).levels)
+    }
+
+    private fun openFile(loop: LoopRegion? = null) {
+        engine.isOpen = true
+        engine.durationSeconds = 100f
+        engine.outline = floatArrayOf(0.1f, 0.2f, 0.4f, 0.3f)
+        loop?.let(engine::setLoop)
+    }
+
     private fun kotlinx.coroutines.test.TestScope.selectTrack(): List<UiMessage> {
         val viewModel = createViewModel()
         val messages = mutableListOf<UiMessage>()
@@ -216,6 +386,7 @@ class PlayerViewModelTest {
                 StepPitchUseCase(engine),
                 ObservePlayerPreferencesUseCase(preferences),
                 SetPitchFineUseCase(preferences),
+                SetLoopFineUseCase(preferences),
                 SetLoopRegionUseCase(engine),
                 ObservePresetsUseCase(practiceRepository),
                 SavePresetUseCase(engine, nowPlaying, practiceRepository),
@@ -226,6 +397,7 @@ class PlayerViewModelTest {
                 ExportTrackUseCase(engine, nowPlaying, FakeExportRepository()),
                 SaveExportUseCase(FakeExportRepository()),
             ),
+            ReadWaveformUseCase(engine),
         )
     }
 }

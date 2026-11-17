@@ -12,6 +12,10 @@ data class PlayerUiState(
     val controls: PlayerControlsState = PlayerControlsState(),
     val presets: List<PracticePreset> = emptyList(),
     val export: ExportUiState = ExportUiState.Idle,
+    /** Null while the waveform is off in Settings, or when the engine cannot outline the file. */
+    val waveform: WaveformUiState? = null,
+    /** Null while loop Fine is off, or without A/B. */
+    val loopZoom: LoopZoomUiState? = null,
 ) {
     val isExporting get() = export is ExportUiState.Running
     /** Spotify tracks have no library entry and cannot be exported. */
@@ -30,6 +34,8 @@ data class PlayerControlsState(
     val pitchSemitones: Float = 0f,
     /** App-wide preference, not engine state. */
     val isPitchFine: Boolean = false,
+    /** App-wide preference, not engine state. */
+    val isLoopFine: Boolean = false,
     val isLoopOn: Boolean = false,
     val loopStart: Float = 0f,
     val loopEnd: Float = 1f,
@@ -38,6 +44,21 @@ data class PlayerControlsState(
     /** A/B are worth drawing: an active loop, or one parked while looping is off. */
     val hasLoopPoints get() = isLoopOn || loopStart > 0f || loopEnd < 1f
 }
+
+/**
+ * The whole file's waveform: bar levels 0..1, scaled to its loudest bar. Plain classes, not data
+ * classes: a new instance means new levels, which is all the UI compares.
+ */
+class WaveformUiState(val levels: FloatArray)
+
+/**
+ * The loop and a little around it, to place A and B precisely. */
+class LoopZoomUiState(
+    val from: Float,
+    val to: Float,
+    /** Bar levels across the window, scaled like the whole file's; null draws a plain track. */
+    val levels: FloatArray?,
+)
 
 sealed interface ExportUiState {
     data object Idle : ExportUiState

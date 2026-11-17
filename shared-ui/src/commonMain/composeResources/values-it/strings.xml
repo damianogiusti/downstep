@@ -141,7 +141,7 @@
     <string name="go_to_library">Vai alla libreria</string>
     <string name="external_track">Brano esterno</string>
     <string name="speed">Velocità</string>
-    <string name="pitch_fine">Fine</string>
+    <string name="fine">Fine</string>
     <string name="pitch">Intonazione</string>
     <string name="reset_value">Ripristina %1$s</string>
     <string name="loop_title">Loop A-B</string>
@@ -271,4 +271,10 @@
     <string name="whats_new_title">Novità</string>
     <string name="whats_new_version">Versione %1$s</string>
     <string name="whats_new_ok">Ok</string>
+    <!-- Impostazioni -->
+    <string name="settings">Impostazioni</string>
+    <string name="settings_waveform">Mostra la forma d'onda</string>
+    <string name="settings_waveform_summary">Disegna il brano nella timeline. Con Fine acceso nel loop A-B, lo disegna anche lo zoom sul loop.</string>
+    <!-- Zoom sul loop A-B -->
+    <string name="loop_zoom_description">Zoom sul loop, da %1$s a %2$s</string>
 </resources>

@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.di
 
+import com.damianogiusti.slowdowner.ui.settings.SettingsViewModel
 import com.damianogiusti.slowdowner.ui.backup.BackupUseCases
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
@@ -32,4 +33,5 @@ val uiModule = module {
     viewModelOf(::PlaylistViewModel)
     viewModelOf(::AddToPlaylistViewModel)
     viewModelOf(::EffectsViewModel)
+    viewModelOf(::SettingsViewModel)
 }

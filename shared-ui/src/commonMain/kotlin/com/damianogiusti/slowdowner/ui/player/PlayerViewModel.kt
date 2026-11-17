@@ -1,5 +1,9 @@
 package com.damianogiusti.slowdowner.ui.player
 
+import com.damianogiusti.slowdowner.domain.playback.ReadWaveformUseCase
+import com.damianogiusti.slowdowner.ui.player.components.timeline.loudnessGain
+import com.damianogiusti.slowdowner.ui.player.components.timeline.scaledBy
+import com.damianogiusti.slowdowner.ui.player.components.timeline.zoomWindow
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +15,8 @@ import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.playback.SliderCurves
 import com.damianogiusti.slowdowner.domain.player.ObservePlayerPreferencesUseCase
+import com.damianogiusti.slowdowner.domain.player.PlayerPreferences
+import com.damianogiusti.slowdowner.domain.player.SetLoopFineUseCase
 import com.damianogiusti.slowdowner.domain.player.SetPitchFineUseCase
 import com.damianogiusti.slowdowner.domain.practice.ApplyPresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.DeletePresetUseCase
@@ -53,6 +59,7 @@ class PlayerViewModel(
     observeNowPlaying: ObserveNowPlayingUseCase,
     private val practice: PracticeUseCases,
     private val export: ExportUseCases,
+    private val readWaveform: ReadWaveformUseCase,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PlayerUiState())
@@ -64,6 +71,10 @@ class PlayerViewModel(
     private val openMutex = Mutex()
     private var positionJob: Job? = null
     private var exportJob: Job? = null
+    private var preferences = PlayerPreferences()
+    // Read once per file, and once per zoom window: the position updates never touch them.
+    private var overview: OverviewWaveform? = null
+    private var zoom: CachedZoom? = null
 
     init {
         val nowPlaying = observeNowPlaying()
@@ -81,7 +92,8 @@ class PlayerViewModel(
         }
         viewModelScope.launch {
             practice.observePlayerPreferences().collect { preferences ->
-                _state.update { it.copy(controls = it.controls.copy(isPitchFine = preferences.isPitchFine)) }
+                this@PlayerViewModel.preferences = preferences
+                refreshPlayer()
             }
         }
         viewModelScope.launch {
@@ -131,6 +143,10 @@ class PlayerViewModel(
 
     fun onPitchFineToggled(isOn: Boolean) {
         viewModelScope.launch { practice.setPitchFine(isOn) }
+    }
+
+    fun onLoopFineToggled(isOn: Boolean) {
+        viewModelScope.launch { practice.setLoopFine(isOn) }
     }
 
     fun onSpeedStep(steps: Int) = control { practice.stepSpeed(steps) }
@@ -243,8 +259,39 @@ class PlayerViewModel(
     }
 
     private fun refreshPlayer() {
-        _state.update { it.copy(controls = readControls(it.controls.isPitchFine)) }
+        val controls = readControls()
+        val whole = overviewFor(controls, _state.value.track?.id)
+        val loopZoom = loopZoomFor(controls, whole)
+        _state.update { it.copy(controls = controls, waveform = whole?.state, loopZoom = loopZoom) }
         if (engine.isPlaying) startPositionUpdates()
+    }
+
+    /** The whole file's levels while the waveform is on: read once per file. */
+    private fun overviewFor(controls: PlayerControlsState, trackId: String?): OverviewWaveform? {
+        if (!preferences.isWaveformShown || !controls.isOpen) {
+            overview = null
+            return null
+        }
+        val key = OverviewKey(trackId, controls.durationSeconds)
+        overview?.takeIf { it.key == key }?.let { return it }
+        val read = readWaveform(0f, 1f, OVERVIEW_BARS) ?: return null
+        val gain = loudnessGain(read.levels)
+        return OverviewWaveform(key, WaveformUiState(read.levels.scaledBy(gain)), gain).also { overview = it }
+    }
+
+    /**
+     * The zoom on the loop while loop Fine is on: with the waveform's levels when it is shown, a plain
+     * track otherwise. The same instance while nothing changed, so it is not redrawn for an unrelated control.
+     */
+    private fun loopZoomFor(controls: PlayerControlsState, whole: OverviewWaveform?): LoopZoomUiState? {
+        if (!controls.isLoopFine || !controls.isOpen || !controls.hasLoopPoints) {
+            zoom = null
+            return null
+        }
+        val window = zoomWindow(controls.loopStart, controls.loopEnd, controls.durationSeconds)
+        zoom?.takeIf { it.overview === whole && it.state.from == window.from && it.state.to == window.to }?.let { return it.state }
+        val levels = whole?.let { readWaveform(window.from, window.to, ZOOM_BARS)?.levels?.scaledBy(it.gain) }
+        return LoopZoomUiState(window.from, window.to, levels).also { zoom = CachedZoom(whole, it) }
     }
 
     // The engine has no position callback during normal playback: poll it. Only the position:
@@ -257,11 +304,11 @@ class PlayerViewModel(
                 _state.update { it.copy(controls = it.controls.copy(position = position)) }
                 delay(POSITION_UPDATE_MS)
             }
-            _state.update { it.copy(controls = readControls(it.controls.isPitchFine)) }
+            _state.update { it.copy(controls = readControls()) }
         }
     }
 
-    private fun readControls(isPitchFine: Boolean) = PlayerControlsState(
+    private fun readControls() = PlayerControlsState(
         isOpen = engine.isOpen,
         isPlaying = engine.isPlaying,
         position = engine.position,
@@ -270,7 +317,8 @@ class PlayerViewModel(
         speedPercent = engine.speedPercent,
         pitchSlider = engine.pitchSliderPosition,
         pitchSemitones = engine.pitchSemitones,
-        isPitchFine = isPitchFine,
+        isPitchFine = preferences.isPitchFine,
+        isLoopFine = preferences.isLoopFine,
         isLoopOn = engine.isLoopOn,
         loopStart = engine.loopStart,
         loopEnd = engine.loopEnd,
@@ -279,8 +327,19 @@ class PlayerViewModel(
     private companion object {
         const val POSITION_UPDATE_MS = 100L
         const val DEFAULT_SPEED_PERCENT = 100f
+        // Enough bars for the widest player pane, few enough to stay bars and not a smear.
+        const val OVERVIEW_BARS = 220
+        const val ZOOM_BARS = 220
     }
 }
+
+/** Which file an overview belongs to: a track opened again has the same one. */
+private data class OverviewKey(val trackId: String?, val durationSeconds: Float)
+
+private class OverviewWaveform(val key: OverviewKey, val state: WaveformUiState, val gain: Float)
+
+/** A zoom and the overview its levels were scaled with: a new overview means new levels. */
+private class CachedZoom(val overview: OverviewWaveform?, val state: LoopZoomUiState)
 
 /** Practice use-cases of the player, grouped to keep the constructor readable. */
 class PracticeUseCases(
@@ -288,6 +347,7 @@ class PracticeUseCases(
     val stepPitch: StepPitchUseCase,
     val observePlayerPreferences: ObservePlayerPreferencesUseCase,
     val setPitchFine: SetPitchFineUseCase,
+    val setLoopFine: SetLoopFineUseCase,
     val setLoopRegion: SetLoopRegionUseCase,
     val observePresets: ObservePresetsUseCase,
     val savePreset: SavePresetUseCase,

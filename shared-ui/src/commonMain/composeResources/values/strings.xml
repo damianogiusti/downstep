@@ -143,7 +143,7 @@
     <string name="go_to_library">Go to library</string>
     <string name="external_track">External track</string>
     <string name="speed">Speed</string>
-    <string name="pitch_fine">Fine</string>
+    <string name="fine">Fine</string>
     <string name="pitch">Pitch</string>
     <string name="reset_value">Reset %1$s</string>
     <string name="loop_title">A-B loop</string>
@@ -273,4 +273,10 @@
     <string name="whats_new_title">What's new</string>
     <string name="whats_new_version">Version %1$s</string>
     <string name="whats_new_ok">OK</string>
+    <!-- Settings -->
+    <string name="settings">Settings</string>
+    <string name="settings_waveform">Show the waveform</string>
+    <string name="settings_waveform_summary">Draws the track in the timeline. With Fine on in the A-B loop, the zoom on the loop draws it too.</string>
+    <!-- Zoom on the A-B loop -->
+    <string name="loop_zoom_description">Zoom on the loop, from %1$s to %2$s</string>
 </resources>

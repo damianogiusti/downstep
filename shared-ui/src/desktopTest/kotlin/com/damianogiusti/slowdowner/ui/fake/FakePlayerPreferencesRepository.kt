@@ -5,9 +5,9 @@ import com.damianogiusti.slowdowner.domain.player.PlayerPreferencesRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
-class FakePlayerPreferencesRepository : PlayerPreferencesRepository {
+class FakePlayerPreferencesRepository(initial: PlayerPreferences = PlayerPreferences()) : PlayerPreferencesRepository {
 
-    val preferences = MutableStateFlow(PlayerPreferences())
+    val preferences = MutableStateFlow(initial)
 
     override fun observe(): Flow<PlayerPreferences> = preferences
 

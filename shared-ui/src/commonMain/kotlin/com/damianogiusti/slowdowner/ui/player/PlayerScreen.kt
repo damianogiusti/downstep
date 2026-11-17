@@ -49,8 +49,11 @@ import com.damianogiusti.slowdowner.ui.effects.EffectsSheet
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.player.components.ExportBanner
 import com.damianogiusti.slowdowner.ui.player.components.LoopActions
+import com.damianogiusti.slowdowner.ui.player.components.LoopCardState
 import com.damianogiusti.slowdowner.ui.player.components.LoopCard
 import com.damianogiusti.slowdowner.ui.player.components.LoopTimeline
+import com.damianogiusti.slowdowner.ui.player.components.LoopTimelineState
+import com.damianogiusti.slowdowner.ui.player.components.TimelineActions
 import com.damianogiusti.slowdowner.ui.player.components.PitchCard
 import com.damianogiusti.slowdowner.ui.player.components.PresetActions
 import com.damianogiusti.slowdowner.ui.player.components.PresetChips
@@ -75,6 +78,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, effects: EffectsViewModel, navigati
     var showSavePreset by rememberSaveable { mutableStateOf(false) }
     var presetToDelete by remember { mutableStateOf<PracticePreset?>(null) }
 
+    val timeline = TimelineActions(viewModel::onSeek, viewModel::onLoopRegionChanged)
     PlayerContent(
         state = state,
         actions = PlayerContentActions(
@@ -92,6 +96,8 @@ fun PlayerScreen(viewModel: PlayerViewModel, effects: EffectsViewModel, navigati
                 onHalve = viewModel::onHalveLoopClicked,
                 onDouble = viewModel::onDoubleLoopClicked,
                 onShiftForward = viewModel::onShiftLoopForwardClicked,
+                onFineToggle = viewModel::onLoopFineToggled,
+                timeline = timeline,
             ),
             speed = ValueCardActions(viewModel::onSpeedChanged, viewModel::onSpeedStep, viewModel::onSpeedReset),
             pitch = ValueCardActions(viewModel::onPitchChanged, viewModel::onPitchStep, viewModel::onPitchReset),
@@ -101,8 +107,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, effects: EffectsViewModel, navigati
                 onSelect = viewModel::onPresetSelected,
                 onDelete = { presetToDelete = it },
             ),
-            onSeek = viewModel::onSeek,
-            onLoopRegionChanged = viewModel::onLoopRegionChanged,
+            timeline = timeline,
             onCollapse = navigation.onCollapse,
             onShowEffects = { showEffects = true },
             onExport = viewModel::onExportClicked,
@@ -153,8 +158,8 @@ class PlayerContentActions(
     val pitch: ValueCardActions,
     val onPitchFineToggle: (Boolean) -> Unit,
     val presets: PresetActions,
-    val onSeek: (Float) -> Unit,
-    val onLoopRegionChanged: (Float, Float) -> Unit,
+    /** Seeking and moving the loop on the timeline. */
+    val timeline: TimelineActions,
     val onCollapse: (() -> Unit)?,
     val onShowEffects: () -> Unit,
     val onExport: () -> Unit,
@@ -245,15 +250,13 @@ fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions) {
                 ExportBanner(it.fraction, actions.onCancelExport, Modifier.padding(horizontal = 16.dp))
             }
             LoopTimeline(
-                controls = controls,
-                enabled = enabled,
-                onSeek = actions.onSeek,
-                onLoopRegionChanged = actions.onLoopRegionChanged,
+                state = LoopTimelineState(controls, state.waveform, isEnabled = enabled),
+                actions = actions.timeline,
                 modifier = Modifier.padding(horizontal = 24.dp),
             )
             TransportRow(controls.isPlaying, controls.isLoopOn, enabled, actions.transport)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
-                LoopCard(controls, actions.loop, enabled, Modifier.fillMaxWidth())
+                LoopCard(LoopCardState(controls, state.loopZoom, isEnabled = enabled), actions.loop, Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     SpeedCard(controls, actions.speed, enabled, Modifier.weight(1f))
                     PitchCard(controls, actions.pitch, actions.onPitchFineToggle, enabled, Modifier.weight(1f))
@@ -291,13 +294,12 @@ private fun PlayerContentPreview() {
             ),
             actions = PlayerContentActions(
                 transport = TransportActions({}, {}, {}, {}),
-                loop = LoopActions({}, {}, {}, {}, {}, {}, {}),
+                loop = LoopActions({}, {}, {}, {}, {}, {}, {}, {}, TimelineActions({}, { _, _ -> })),
                 speed = ValueCardActions({}, {}, {}),
                 pitch = ValueCardActions({}, {}, {}),
                 onPitchFineToggle = {},
                 presets = PresetActions({}, {}, {}),
-                onSeek = {},
-                onLoopRegionChanged = { _, _ -> },
+                timeline = TimelineActions({}, { _, _ -> }),
                 onCollapse = {},
                 onShowEffects = {},
                 onExport = {},

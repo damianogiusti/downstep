@@ -18,11 +18,14 @@ import com.damianogiusti.slowdowner.domain.library.ImportTrackFromUrlUseCase
 import com.damianogiusti.slowdowner.domain.library.ObserveLibraryUseCase
 import com.damianogiusti.slowdowner.domain.library.RemoveTrackUseCase
 import com.damianogiusti.slowdowner.domain.player.ObservePlayerPreferencesUseCase
+import com.damianogiusti.slowdowner.domain.player.SetLoopFineUseCase
 import com.damianogiusti.slowdowner.domain.player.SetPitchFineUseCase
+import com.damianogiusti.slowdowner.domain.player.SetWaveformShownUseCase
 import com.damianogiusti.slowdowner.domain.playback.CloseTrackUseCase
 import com.damianogiusti.slowdowner.domain.playback.HandleEndOfTrackUseCase
 import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
 import com.damianogiusti.slowdowner.domain.playback.OpenTrackUseCase
+import com.damianogiusti.slowdowner.domain.playback.ReadWaveformUseCase
 import com.damianogiusti.slowdowner.domain.playlists.AddTrackToPlaylistUseCase
 import com.damianogiusti.slowdowner.domain.playlists.CreatePlaylistUseCase
 import com.damianogiusti.slowdowner.domain.playlists.DeletePlaylistUseCase
@@ -66,6 +69,9 @@ val useCasesModule = module {
     factoryOf(::RestoreEffectsSettingsUseCase)
     factoryOf(::ObservePlayerPreferencesUseCase)
     factoryOf(::SetPitchFineUseCase)
+    factoryOf(::SetLoopFineUseCase)
+    factoryOf(::SetWaveformShownUseCase)
+    factoryOf(::ReadWaveformUseCase)
     factoryOf(::ExportTrackUseCase)
     factoryOf(::SaveExportUseCase)
     factoryOf(::SavePracticeStateUseCase)
