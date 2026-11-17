@@ -262,6 +262,7 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         val exportNext = function("sd_export_next", JAVA_DOUBLE, ADDRESS)
         val exportEnd = function("sd_export_end", JAVA_INT, ADDRESS)
         val pcmDecode = function("sd_pcm_decode", ADDRESS, ADDRESS, JAVA_LONG, ADDRESS)
+        val stemDecode = function("sd_stem_decode", ADDRESS, ADDRESS, JAVA_LONG, ADDRESS)
         val pcmSampleRate = function("sd_pcm_sample_rate", JAVA_INT, ADDRESS, critical = true)
         val pcmChannels = function("sd_pcm_channels", JAVA_INT, ADDRESS, critical = true)
         val pcmFrames = function("sd_pcm_frames", JAVA_LONG, ADDRESS, critical = true)

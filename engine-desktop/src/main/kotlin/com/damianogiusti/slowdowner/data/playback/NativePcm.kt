@@ -4,6 +4,7 @@ import java.lang.foreign.Arena
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout.JAVA_FLOAT
 import java.lang.foreign.ValueLayout.JAVA_INT
+import java.lang.invoke.MethodHandle
 import java.nio.file.Path
 
 /** Outcome of [NativePcm.decode], mapped from the `SD_PCM_*` codes of `sdengine.h`. */
@@ -63,12 +64,29 @@ class NativePcm private constructor(private val api: NativeEngine.Api, private v
          * Decodes the whole file with the platform decoder. Blocking: call it off the UI thread.
          * [memoryBudgetBytes] as in [NativeEngine.setMemoryBudget]: 0 = what the OS can give.
          */
-        fun decode(path: String, memoryBudgetBytes: Long = 0, library: Path = NativeEngine.defaultLibrary()): PcmDecodeResult {
+        fun decode(path: String, memoryBudgetBytes: Long = 0, library: Path = NativeEngine.defaultLibrary()): PcmDecodeResult =
+            decodeWith(path, memoryBudgetBytes, library) { it.pcmDecode }
+
+        /**
+         * Decodes an MP3 stem written by [NativeStemWriter] with the engine's own decoder (`sd_stem_decode`),
+         * the same on every platform: [frames] is exactly what was written and the audio is at the same place.
+         * Only for stems: any other file goes through [decode]. Same budget and results as [decode].
+         */
+        fun decodeStem(path: String, memoryBudgetBytes: Long = 0, library: Path = NativeEngine.defaultLibrary()): PcmDecodeResult =
+            decodeWith(path, memoryBudgetBytes, library) { it.stemDecode }
+
+        private fun decodeWith(
+            path: String,
+            memoryBudgetBytes: Long,
+            library: Path,
+            function: (NativeEngine.Api) -> MethodHandle,
+        ): PcmDecodeResult {
             val api = NativeEngine.Api.load(library)
+            val decode = function(api)
             return Arena.ofConfined().use { arena ->
                 val utf8Path: MemorySegment = arena.allocateFrom(path)
                 val status: MemorySegment = arena.allocate(JAVA_INT)
-                val handle = api.pcmDecode.invokeExact(utf8Path, memoryBudgetBytes, status) as MemorySegment
+                val handle = decode.invokeExact(utf8Path, memoryBudgetBytes, status) as MemorySegment
                 when {
                     handle != MemorySegment.NULL -> PcmDecodeResult.Decoded(NativePcm(api, handle))
                     status.get(JAVA_INT, 0) == PCM_TOO_LONG -> PcmDecodeResult.TooLong

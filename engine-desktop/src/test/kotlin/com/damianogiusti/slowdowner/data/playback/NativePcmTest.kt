@@ -134,7 +134,7 @@ class NativePcmTest {
             writer.close()
             assertTrue(writer.isComplete)
 
-            decode(stem).use { pcm ->
+            decodeStem(stem).use { pcm ->
                 assertEquals(channels, pcm.channels)
                 assertEquals(RATE, pcm.sampleRate)
                 assertEquals(frames.toLong(), pcm.frames, "frames of the decoded stem")
@@ -144,6 +144,24 @@ class NativePcmTest {
                 assertEquals(300, peakAt, "the click moved")
             }
         }
+    }
+
+    @Test
+    fun `when the file is not an mp3 then decodeStem fails`() {
+        val notAudio = tempFile(".mp3").apply { writeText("not an mp3 at all") }
+
+        assertIs<PcmDecodeResult.Failed>(NativePcm.decodeStem(notAudio.path))
+        assertIs<PcmDecodeResult.Failed>(NativePcm.decodeStem(File(notAudio.parentFile, "native-pcm-missing.mp3").path))
+    }
+
+    @Test
+    fun `when the budget is smaller than the decoded stem then decodeStem is too long`() {
+        val stem = tempFile(".mp3")
+        val writer = openWriter(stem, StemFormat(RATE, channels = 2))
+        assertTrue(writer.write(FloatArray(2 * 44_100)))
+        writer.close()
+
+        assertIs<PcmDecodeResult.TooLong>(NativePcm.decodeStem(stem.path, memoryBudgetBytes = 1_000))
     }
 
     @Test
@@ -159,7 +177,7 @@ class NativePcmTest {
         writer.close()
 
         assertTrue(writer.isComplete)
-        decode(stem).use { assertEquals(4_410L, it.frames) }
+        decodeStem(stem).use { assertEquals(4_410L, it.frames) }
     }
 
     @Test
@@ -194,6 +212,8 @@ class NativePcmTest {
         assertFailsWith<IllegalArgumentException> { writer.write(FloatArray(3)) }
         writer.close()
     }
+
+    private fun decodeStem(file: File): NativePcm = assertIs<PcmDecodeResult.Decoded>(NativePcm.decodeStem(file.path)).pcm
 
     private fun decode(file: File): NativePcm = assertIs<PcmDecodeResult.Decoded>(NativePcm.decode(file.path)).pcm
 
