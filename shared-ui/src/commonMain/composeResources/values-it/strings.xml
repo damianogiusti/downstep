@@ -138,6 +138,7 @@
     <string name="player_title">Stai studiando</string>
     <string name="collapse_player">Chiudi il player</string>
     <string name="no_track_hint">Scegli un brano dalla libreria per iniziare.</string>
+    <string name="opening_track">Apertura del brano…</string>
     <string name="go_to_library">Vai alla libreria</string>
     <string name="external_track">Brano esterno</string>
     <string name="speed">Velocità</string>
