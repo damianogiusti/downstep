@@ -13,7 +13,7 @@ Windows: Downstep\runtime\legal).
 Copyleft components
 -------------------
 
-NewPipe Extractor v0.26.5 (YouTube import)
+NewPipe Extractor v0.27.1 (YouTube import)
   License: GNU General Public License v3 or later (GPL-3.0.txt).
   Source: https://github.com/TeamNewPipe/NewPipeExtractor
   Because Downstep includes it, Downstep as a whole is distributed under the GPL v3.
@@ -240,7 +240,7 @@ PFFFT (FFT inside Bungee)
     CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH THE
     SOFTWARE.
 
-jsoup 1.22.2 (HTML parser, used by NewPipe Extractor)
+jsoup 1.24.1 (HTML parser, used by NewPipe Extractor)
 
     The MIT License
 
@@ -264,7 +264,7 @@ jsoup 1.22.2 (HTML parser, used by NewPipe Extractor)
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 
-Protocol Buffers Java Lite 4.35.1 (used by NewPipe Extractor)
+Protocol Buffers Java Lite 4.36.2 (used by NewPipe Extractor)
 
     Copyright 2008 Google Inc.  All rights reserved.
 
