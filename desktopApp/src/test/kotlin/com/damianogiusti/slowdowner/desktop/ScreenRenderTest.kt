@@ -182,6 +182,23 @@ class ScreenRenderTest {
     }
 
     @Test
+    fun `in a small laptop window the waveform and the zoom on the loop still fit`() {
+        // 1366x768 at 150% scaling, common on Windows laptops: about 910x510 dp, so two narrow panes.
+        playerPreferencesStore.stored = PlayerPreferencesDto(isLoopFine = true, isWaveformShown = true)
+        openWithLoop(rhythmWav(seconds = 240), loopStart = 0.5f, loopEnd = 0.50625f)
+        val top = render(File("build/screenshots/small-window.png"), widthDp = 910, heightDp = 510)
+        assertTrue(top > 10_000, "suspiciously small render: $top bytes")
+
+        val scrolled = render(File("build/screenshots/small-window-loop-card.png"), widthDp = 910, heightDp = 510,
+            afterFirstFrames = {
+                // The mouse wheel over the player pane, down to the loop card.
+                scene.sendPointerEvent(PointerEventType.Scroll, Offset(680 * 2f, 300 * 2f), scrollDelta = Offset(0f, 6f))
+            },
+        )
+        assertTrue(scrolled > 10_000, "suspiciously small render: $scrolled bytes")
+    }
+
+    @Test
     fun `with the waveform off a short loop shows A and B apart`() {
         openWithLoop(rhythmWav(seconds = 240), loopStart = 0.5f, loopEnd = 0.50625f)
         val bytes = render(File("build/screenshots/timeline-short-loop.png"), widthDp = 1280, heightDp = 820)
