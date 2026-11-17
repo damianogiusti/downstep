@@ -196,7 +196,8 @@ internal fun LibraryContent(   // stateless, previewable, no ViewModel
   `shared-ui/src/commonMain/composeResources`. `UiMessage` carries a `StringResource`.
 - In `strings.xml` write `"` and `'` as they are: Compose Resources does not unescape `\"` or `\'`
   like Android resources did, and would show the backslash.
-- Placeholders: only `%1$s`, `%1$d` and `%%`. Compose Resources leaves `%1$.1f` or `%1$+d` raw on
+- Placeholders: only `%1$s` and `%1$d`; a literal percent sign is a single `%` (`%1$d%`), since
+  Compose Resources shows `%%` as it is. It also leaves `%1$.1f` or `%1$+d` raw on
   screen: format numbers in Kotlin (`formatDecimal`, `formatSignedDecimal` in `ui/common`) and pass
   them as `%1$s`. `FormatsTest` fails the build otherwise.
 - No `android.*` imports in `commonMain`. No `java.*` either, iOS has no JVM.

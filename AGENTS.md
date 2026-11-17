@@ -99,7 +99,8 @@ A database change, once agreed, needs a Room migration, the exported schema in
 - No hardcoded user-visible strings. Add each string to every locale in
   `shared-ui/src/commonMain/composeResources` (today `values` and `values-it`). Italian text uses
   correct accents (`è`, `perché`, `più`), never `e'` or `piu`.
-- In `strings.xml`, no `\"` or `\'`. Placeholders: only `%1$s`, `%1$d`, `%%`.
+- In `strings.xml`, no `\"` or `\'`. Placeholders: only `%1$s`, `%1$d`. A literal percent sign
+  is a single `%`: Compose Resources shows `%%` as it is.
 
 ## Kotlin
 
