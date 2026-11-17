@@ -3,6 +3,17 @@
 What changes for people who use Downstep. The release takes the section of its version from here,
 and the app shows it before and after an update: keep it short, plain English, no technical details.
 
+## 1.4.0
+
+- Long songs open much faster, and Downstep shows when a song is opening.
+- Fine pitch: tune a song in steps of 5 cents, for recordings that are not tuned to A440.
+- Fine loop: zoom on the A-B loop to place A and B precisely. On a short loop, B no longer covers A.
+- The waveform can be shown under the loop. Turn it on in Settings, from the library menu.
+- On Windows, songs imported from YouTube that did not open now work.
+- Some YouTube imports refused by the server now work.
+- On Windows, Downstep now says when a security policy of the computer blocks it.
+- Bug fixes and small improvements.
+
 ## 1.3.1
 
 - YouTube links from a playlist or a mix now import the video.
