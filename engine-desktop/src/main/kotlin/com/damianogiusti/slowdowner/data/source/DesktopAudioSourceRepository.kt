@@ -56,7 +56,7 @@ class DesktopAudioSourceRepository(
             }
             // A file the decoder rejects: tells which formats need work, and the native text says why.
             is FileOpenResult.Failed -> {
-                val failure = properties + mapOf("reason" to "decoder", "detail" to result.detail)
+                val failure = properties + mapOf("reason" to "decoder", "detail" to result.detail) + videoLink(file)
                 logger.e("Cannot open track", properties = failure)
                 OpenResult.Failed
             }
@@ -65,9 +65,20 @@ class DesktopAudioSourceRepository(
 
     // Only derived from the name, never logged: the library names its own copies `yt_...` and `local_...`.
     private fun sourceOf(name: String) = when {
-        name.startsWith("yt_") -> "youtube"
+        name.startsWith(YOUTUBE_PREFIX) -> "youtube"
         name.startsWith("local_") -> "file"
         else -> "other"
+    }
+
+    /**
+     * A YouTube import the decoder rejects can only be studied with the same video. Its link is
+     * public, and the library names the copy after the video id (`yt_<id>`). A name that is not a
+     * video id gives no link, so the name of a user's own file never goes out.
+     */
+    private fun videoLink(file: File): Map<String, String> {
+        val id = file.nameWithoutExtension.removePrefix(YOUTUBE_PREFIX)
+        val isVideo = file.name.startsWith(YOUTUBE_PREFIX) && VIDEO_ID.matches(id)
+        return if (isVideo) mapOf("url" to "https://youtu.be/$id") else emptyMap()
     }
 
     private fun sizeBucket(bytes: Long) = when {
@@ -84,5 +95,7 @@ class DesktopAudioSourceRepository(
 
     private companion object {
         const val MEGABYTE = 1024L * 1024
+        const val YOUTUBE_PREFIX = "yt_"
+        val VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
     }
 }

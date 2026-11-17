@@ -4,6 +4,7 @@ import java.io.File
 import java.nio.file.Files
 import kotlin.math.abs
 import kotlin.test.AfterTest
+import kotlin.test.assertEquals
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -26,6 +27,27 @@ class AudioFormatsTest {
     /** YouTube's DASH audio, as the desktop keeps it after an import. */
     @Test
     fun `a fragmented DASH m4a decodes`() = assertPlays("fragmented-dash.m4a")
+
+    /**
+     * YouTube's audio as it really is (itag 140): the DASH file above plus an edit list that starts
+     * the track 1600 samples in, and its durations. Media Foundation decoded no audio from it ("no
+     * audio decoded", seen by users on Windows). Made from fragmented-dash.m4a by adding the edts box
+     * and the durations; the audio is the same.
+     */
+    @Test
+    fun `a fragmented m4a with YouTube's edit list decodes`() = assertPlays("youtube-edit-list.m4a")
+
+    /** On Windows the decoder reads a copy without the edit list: it must not stay behind. */
+    @Test
+    fun `decoding YouTube's edit list leaves no copy in the temp folder`() {
+        val temp = File(System.getProperty("java.io.tmpdir"))
+        fun copies() = temp.listFiles { file -> file.name.startsWith("sdengine-") && file.name.endsWith(".m4a") }.orEmpty().toSet()
+        val before = copies()
+
+        assertTrue(native.open(fixture("youtube-edit-list.m4a").path))
+
+        assertEquals(emptySet(), copies() - before)
+    }
 
     /** What Android's import writes, and what restored backups bring. */
     @Test

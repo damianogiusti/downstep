@@ -1,3 +1,4 @@
+#include "Mp4EditList.h"
 #include "Pcm.h"
 
 #ifndef NOMINMAX
@@ -12,9 +13,14 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <new>
+#include <optional>
+#include <string>
+#include <vector>
 
 using Microsoft::WRL::ComPtr;
 
@@ -93,6 +99,112 @@ uint64_t availableMemoryBytes() {
     return commit > kMemoryMarginBytes ? commit - kMemoryMarginBytes : 0;
 }
 
+/** Whether the file starts as an MP4 does (an ftyp box), without reading the rest. */
+bool startsLikeMp4(const std::string &path) {
+    FILE *file = openFileUtf8(path, "rb");
+    if (!file) return false;
+    char header[8];
+    const bool isMp4 = std::fread(header, 1, sizeof(header), file) == sizeof(header) && std::memcmp(header + 4, "ftyp", 4) == 0;
+    std::fclose(file);
+    return isMp4;
+}
+
+/**
+ * Media Foundation decodes no audio from a fragmented MP4 whose sound track has an edit list that
+ * starts past 0, as YouTube's audio does (Mp4EditList.h). For such a file, [make] copies it to the
+ * temp folder with the edts box renamed to "free": same size, so no offset in the file moves, and
+ * Media Foundation skips it as padding. The decoder reads that copy, and applies the edit itself.
+ * A file, not a stream in memory: MinGW's headers lack MFCreateMFByteStreamOnStream. The copy is
+ * deleted with this object; one left by a crash stays in the temp folder for the system to clean.
+ */
+class EditListHiddenCopy {
+public:
+    EditListHiddenCopy() = default;
+    EditListHiddenCopy(const EditListHiddenCopy &) = delete;
+    EditListHiddenCopy &operator=(const EditListHiddenCopy &) = delete;
+    ~EditListHiddenCopy() {
+        if (!path_.empty()) DeleteFileW(path_.c_str());
+    }
+
+    /** The edit of [path], with [path()] to read instead; nothing for every other file, or if the copy fails. */
+    std::optional<FragmentedEditList> make(const std::string &path) {
+        if (!startsLikeMp4(path)) return std::nullopt;
+        const std::vector<uint8_t> head = readUpToMoov(path);
+        const auto edit = findFragmentedEditList(head.data(), head.size());
+        if (!edit) return std::nullopt;
+        std::wstring target = tempName();
+        if (target.empty() || !copyWithoutEdit(widen(path), target, edit->edtsOffset)) return std::nullopt;
+        path_ = std::move(target);
+        return edit;
+    }
+
+    const std::wstring &path() const { return path_; }
+
+private:
+    /**
+     * The file from its start to the end of its moov box: all the edit list needs, a few KB for
+     * YouTube's audio. Empty if there is no moov, or one too large to be a fragmented file's (those
+     * have no sample tables), so a long video is never read whole.
+     */
+    static std::vector<uint8_t> readUpToMoov(const std::string &path) {
+        constexpr uint64_t kMaxMoovEnd = 16ull * 1024 * 1024;
+        constexpr int kMaxBoxes = 64;
+        FILE *file = openFileUtf8(path, "rb");
+        if (!file) return {};
+        std::vector<uint8_t> head;
+        uint64_t at = 0;
+        for (int box = 0; box < kMaxBoxes && head.empty(); ++box) {
+            uint8_t header[16];
+            if (_fseeki64(file, int64_t(at), SEEK_SET) != 0 || std::fread(header, 1, 8, file) != 8) break;
+            uint64_t size = uint64_t(header[0]) << 24 | uint64_t(header[1]) << 16 | uint64_t(header[2]) << 8 | header[3];
+            if (size == 1) {
+                if (std::fread(header + 8, 1, 8, file) != 8) break;
+                size = 0;
+                for (int i = 8; i < 16; ++i) size = size << 8 | header[i];
+            }
+            if (size < 8) break; // 0 (to the end of the file) or corrupt: no moov after it
+            if (std::memcmp(header + 4, "moov", 4) == 0) {
+                if (size > kMaxMoovEnd || at > kMaxMoovEnd - size) break;
+                head.resize(size_t(at + size));
+                const bool isRead = _fseeki64(file, 0, SEEK_SET) == 0 && std::fread(head.data(), 1, head.size(), file) == head.size();
+                if (!isRead) head.clear();
+                break;
+            }
+            at += size;
+        }
+        std::fclose(file);
+        return head;
+    }
+
+    /** In the temp folder, with the .m4a extension Media Foundation picks the container by. */
+    static std::wstring tempName() {
+        static std::atomic<unsigned> counter{0};
+        wchar_t folder[MAX_PATH + 1];
+        const DWORD length = GetTempPathW(MAX_PATH + 1, folder);
+        if (length == 0 || length > MAX_PATH) return {};
+        return std::wstring(folder) + L"sdengine-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
+               std::to_wstring(GetTickCount64()) + L"-" + std::to_wstring(counter++) + L".m4a";
+    }
+
+    /** Copies [source] to [target] (never over an existing file) and renames its edts box to "free". */
+    static bool copyWithoutEdit(const std::wstring &source, const std::wstring &target, size_t edtsOffset) {
+        if (!CopyFileW(source.c_str(), target.c_str(), TRUE)) return false;
+        HANDLE handle = CreateFileW(target.c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_TEMPORARY, nullptr);
+        bool isPatched = false;
+        if (handle != INVALID_HANDLE_VALUE) {
+            LARGE_INTEGER type;
+            type.QuadPart = LONGLONG(edtsOffset + 4);
+            DWORD written = 0;
+            isPatched = SetFilePointerEx(handle, type, nullptr, FILE_BEGIN) && WriteFile(handle, "free", 4, &written, nullptr) && written == 4;
+            CloseHandle(handle);
+        }
+        if (!isPatched) DeleteFileW(target.c_str());
+        return isPatched;
+    }
+
+    std::wstring path_;
+};
+
 } // namespace
 
 DecodeStatus decodeFile(const std::string &path, PcmBuffer &out, std::string &error, int64_t memoryBudgetBytes) {
@@ -102,8 +214,12 @@ DecodeStatus decodeFile(const std::string &path, PcmBuffer &out, std::string &er
         return DecodeStatus::Failed;
     }
 
+    const uint64_t size = fileBytes(path);
+    // Before the reader: it lets go of the copy before the copy is deleted.
+    EditListHiddenCopy copy;
+    const std::optional<FragmentedEditList> edit = copy.make(path);
     ComPtr<IMFSourceReader> reader;
-    HRESULT hr = MFCreateSourceReaderFromURL(widen(path).c_str(), nullptr, &reader);
+    HRESULT hr = MFCreateSourceReaderFromURL((edit ? copy.path() : widen(path)).c_str(), nullptr, &reader);
     if (FAILED(hr)) {
         error = hresultText("MFCreateSourceReaderFromURL", hr);
         return DecodeStatus::Failed;
@@ -153,7 +269,6 @@ DecodeStatus decodeFile(const std::string &path, PcmBuffer &out, std::string &er
     // The duration is only a hint: a missing or short one falls back to the vector's own growth, and
     // an absurd one is capped (reservePcm).
     const int64_t expected = expectedFrames(reader.Get(), sampleRate);
-    const uint64_t size = fileBytes(path);
     const uint64_t budget = memoryBudgetBytes > 0 ? uint64_t(memoryBudgetBytes) : availableMemoryBytes();
     if (!pcmFitsInMemory(expected, int(channels), size, budget)) {
         out = PcmBuffer{};
@@ -208,6 +323,12 @@ DecodeStatus decodeFile(const std::string &path, PcmBuffer &out, std::string &er
             buffer->Unlock();
         }
         if (flags & MF_SOURCE_READERF_ENDOFSTREAM) break;
+    }
+    if (edit) {
+        // The edit starts the track after the encoder's delay: what comes before it is not the song.
+        const double seconds = double(edit->mediaTime) / edit->timescale;
+        const auto skip = size_t(std::min<double>(seconds * sampleRate, double(out.data[0].size())));
+        for (auto &channel : out.data) channel.erase(channel.begin(), channel.begin() + std::ptrdiff_t(skip));
     }
     out.frames = int64_t(out.data[0].size());
     // An overstated duration would keep its excess for as long as the file is open.

@@ -6,7 +6,8 @@ package com.damianogiusti.slowdowner.logging
  * progress step.
  *
  * Properties must have few possible values (format, source, stage) and no personal data: no
- * titles, no file names, no paths. The only exception is the YouTube link of a failed import.
+ * titles, no file names, no paths. The only exception is the YouTube link of a failed import, or
+ * of an imported video that does not decode.
  */
 interface Logger {
     /** Development only: never leaves the computer. */
