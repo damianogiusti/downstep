@@ -12,7 +12,6 @@ and the app shows it before and after an update: keep it short, plain English, n
 - On Windows, songs imported from YouTube that did not open now work.
 - Some YouTube imports refused by the server now work.
 - On Windows, Downstep now says when a security policy of the computer blocks it.
-- Progress percentages show a single % sign.
 - Bug fixes and small improvements.
 
 ## 1.3.1
