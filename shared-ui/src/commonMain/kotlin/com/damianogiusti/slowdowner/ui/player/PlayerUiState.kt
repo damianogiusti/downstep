@@ -16,6 +16,8 @@ data class PlayerUiState(
     val waveform: WaveformUiState? = null,
     /** Null while loop Fine is off, or without A/B. */
     val loopZoom: LoopZoomUiState? = null,
+    /** A track is being decoded: nothing is open meanwhile, and a long recording takes seconds. */
+    val isOpening: Boolean = false,
 ) {
     val isExporting get() = export is ExportUiState.Running
     /** Spotify tracks have no library entry and cannot be exported. */

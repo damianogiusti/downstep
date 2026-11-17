@@ -69,6 +69,8 @@ class PlayerViewModel(
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
     private val openMutex = Mutex()
+    // Opens queue on openMutex: the indicator stays on until the last one is done.
+    private var pendingOpens = 0
     private var positionJob: Job? = null
     private var exportJob: Job? = null
     private var preferences = PlayerPreferences()
@@ -106,14 +108,22 @@ class PlayerViewModel(
     fun onTrackSelected(track: LibraryTrack) {
         if (_state.value.isExporting) return
         viewModelScope.launch {
-            // One open at a time: each one saves the outgoing track first, so order matters.
-            val message = when (openMutex.withLock { openTrack(track) }) {
-                OpenResult.Opened -> null
-                OpenResult.TooLong -> Res.string.error_track_too_long
-                OpenResult.Failed -> Res.string.error_cannot_open
+            // The decode of a long recording takes seconds: say so instead of showing an empty player.
+            pendingOpens++
+            _state.update { it.copy(isOpening = true) }
+            try {
+                // One open at a time: each one saves the outgoing track first, so order matters.
+                val message = when (openMutex.withLock { openTrack(track) }) {
+                    OpenResult.Opened -> null
+                    OpenResult.TooLong -> Res.string.error_track_too_long
+                    OpenResult.Failed -> Res.string.error_cannot_open
+                }
+                if (message != null) _messages.trySend(UiMessage(message, listOf(track.title)))
+                refreshPlayer()
+            } finally {
+                pendingOpens--
+                _state.update { it.copy(isOpening = pendingOpens > 0) }
             }
-            if (message != null) _messages.trySend(UiMessage(message, listOf(track.title)))
-            refreshPlayer()
         }
     }
 

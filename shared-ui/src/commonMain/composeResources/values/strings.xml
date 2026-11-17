@@ -140,6 +140,7 @@
     <string name="player_title">Practicing</string>
     <string name="collapse_player">Close the player</string>
     <string name="no_track_hint">Pick a track from the library to start.</string>
+    <string name="opening_track">Opening the track…</string>
     <string name="go_to_library">Go to library</string>
     <string name="external_track">External track</string>
     <string name="speed">Speed</string>

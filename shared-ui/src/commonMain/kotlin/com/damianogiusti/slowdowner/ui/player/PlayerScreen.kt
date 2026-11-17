@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -205,6 +206,15 @@ fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions) {
             )
         },
     ) { padding ->
+        // Before the closed check: the outgoing file is already closed while the new one decodes.
+        if (state.isOpening) {
+            OpeningIndicator(
+                Modifier
+                    .padding(padding)
+                    .fillMaxSize(),
+            )
+            return@Scaffold
+        }
         if (!controls.isOpen) {
             EmptyState(
                 icon = Res.drawable.ic_music_note,
@@ -265,6 +275,22 @@ fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions) {
             PresetChips(state.presets, state.activePresetId, enabled && state.track != null, actions.presets)
             Spacer(Modifier.height(16.dp))
         }
+    }
+}
+
+@Composable
+private fun OpeningIndicator(modifier: Modifier = Modifier) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier,
+    ) {
+        CircularProgressIndicator()
+        Text(
+            stringResource(Res.string.opening_track),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

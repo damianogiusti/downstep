@@ -32,6 +32,7 @@ import com.damianogiusti.slowdowner.ui.fake.FakePracticeRepository
 import com.damianogiusti.slowdowner.ui.resources.Res
 import com.damianogiusti.slowdowner.ui.resources.error_cannot_open
 import com.damianogiusti.slowdowner.ui.resources.error_track_too_long
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -87,6 +88,72 @@ class PlayerViewModelTest {
     @Test
     fun `when the track opens then there is no message`() = runTest {
         assertTrue(selectTrack().isEmpty())
+    }
+
+    @Test
+    fun `when a track is decoding then the state says it is opening`() = runTest {
+        sources.decode = CompletableDeferred()
+        val viewModel = createViewModel()
+        runCurrent()
+
+        viewModel.onTrackSelected(track)
+        runCurrent()
+
+        assertTrue(viewModel.state.value.isOpening)
+    }
+
+    @Test
+    fun `when the decode ends then the state is no longer opening`() = runTest {
+        val decode = CompletableDeferred<Unit>()
+        sources.decode = decode
+        val viewModel = createViewModel()
+        runCurrent()
+        viewModel.onTrackSelected(track)
+        runCurrent()
+
+        decode.complete(Unit)
+        runCurrent()
+
+        assertFalse(viewModel.state.value.isOpening)
+    }
+
+    @Test
+    fun `when the open fails then the state is no longer opening`() = runTest {
+        sources.result = OpenResult.Failed
+        val decode = CompletableDeferred<Unit>()
+        sources.decode = decode
+        val viewModel = createViewModel()
+        runCurrent()
+        viewModel.onTrackSelected(track)
+        runCurrent()
+
+        decode.complete(Unit)
+        runCurrent()
+
+        assertFalse(viewModel.state.value.isOpening)
+    }
+
+    @Test
+    fun `when two tracks are picked quickly then it stays opening until the second is open`() = runTest {
+        val first = CompletableDeferred<Unit>()
+        sources.decode = first
+        val viewModel = createViewModel()
+        runCurrent()
+        viewModel.onTrackSelected(track)
+        runCurrent()
+        val second = CompletableDeferred<Unit>()
+        sources.decode = second
+        viewModel.onTrackSelected(track)
+        runCurrent()
+
+        first.complete(Unit)
+        runCurrent()
+        val isOpeningBetween = viewModel.state.value.isOpening
+        second.complete(Unit)
+        runCurrent()
+
+        assertTrue(isOpeningBetween)
+        assertFalse(viewModel.state.value.isOpening)
     }
 
     @Test
