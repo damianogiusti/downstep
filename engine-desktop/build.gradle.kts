@@ -42,11 +42,18 @@ val buildNativeEngine = tasks.register<Exec>("buildNativeEngine") {
     commandLine(cmake.get(), "--build", engineBuildDir.get().asFile.path, "--config", "Release", "--target", "sdengine", "-j", jobs)
 }
 
+apply(from = "openvino-runtime.gradle.kts")
+val openVinoRuntimeDir = layout.buildDirectory.dir("openvino/runtime")
+
 tasks.test {
     // No decoder for other systems yet: there `check` stays green.
     enabled = hasEngine
-    dependsOn(buildNativeEngine)
+    dependsOn(buildNativeEngine, "fetchOpenVinoRuntime")
     systemProperty("slowdowner.engine.library", engineLibrary.get().asFile.path)
+    systemProperty("slowdowner.openvino.dir", openVinoRuntimeDir.get().asFile.path)
+    // The real model is optional (74 MB, downloaded by the app): -Dslowdowner.stemModelBin=<.bin> runs its test.
+    System.getProperty("slowdowner.stemModelBin")?.let { systemProperty("slowdowner.stemModelBin", it) }
+    systemProperty("slowdowner.stemModelXml", rootProject.layout.projectDirectory.file("desktopApp/models/htdemucs_6s_fixed.xml").asFile.path)
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 
