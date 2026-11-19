@@ -5,7 +5,8 @@ Downstep is free software under the GNU General Public License v3 (GPL-3.0.txt).
 Its complete source code is at https://github.com/damianogiusti/downstep
 
 Downstep uses the third-party components below. The full license texts are in this folder:
-GPL-3.0.txt, LGPL-2.0.txt, MPL-2.0.txt, Apache-2.0.txt and FONTS-OFL.txt. The Java runtime keeps
+GPL-3.0.txt, LGPL-2.0.txt, MPL-2.0.txt, Apache-2.0.txt and FONTS-OFL.txt, and the notices of OpenVINO
+(OpenVINO-*.txt). The Java runtime keeps
 its own notices in its "legal" folder (macOS: Downstep.app/Contents/runtime/Contents/Home/legal,
 Windows: Downstep\runtime\legal).
 
@@ -113,6 +114,15 @@ Apache License 2.0 components (Apache-2.0.txt)
 - Koin, OkHttp, Okio, Reorderable, Stately, JSpecify, JSR 305 annotations, JetBrains Runtime API
 - nanojson (TeamNewPipe fork), Copyright 2011 The nanojson Authors
 - Material Design icons by Google (https://github.com/google/material-design-icons)
+- OpenVINO 2026.4.1 (2025.4.1 on Intel Macs), the runtime that separates a track into stems, and oneTBB
+  2021.13.1 (libtbb 12, which OpenVINO needs). Copyright Intel Corporation. Source:
+  https://github.com/openvinotoolkit/openvino , https://github.com/uxlfoundation/oneTBB
+  Downstep ships five unmodified libraries of Intel's official wheel (https://pypi.org/project/openvino/):
+  the C API, the core, the IR reader, the CPU plugin and oneTBB, in the folder "openvino" of the app's
+  resources. The third-party notices that the wheel carries for the code inside them (oneDNN, Arm
+  Compute Library, xbyak, pugixml, rapidjson and others) are in this folder, copied from the wheel:
+  OpenVINO-runtime-third-party-programs.txt, OpenVINO-oneTBB-third-party-programs.txt and
+  OpenVINO-oneDNN-third-party-programs.txt.
 
 
 Other permissive components
@@ -298,3 +308,36 @@ Protocol Buffers Java Lite 4.36.2 (used by NewPipe Extractor)
     of the input file used when generating it.  This code is not
     standalone and requires a support library to be linked with it.  This
     support library is itself covered by the above license.
+
+Stem separation model: Hybrid Transformer Demucs (htdemucs_6s), OpenVINO conversion by Intel
+  License: MIT. The network is Demucs by Meta Platforms, Inc. and affiliates and Alexandre Défossez
+  (https://github.com/adefossez/demucs). Intel converted it to OpenVINO and published it as
+  Intel/demucs-openvino on Hugging Face (https://huggingface.co/Intel/demucs-openvino), tagged MIT.
+  Downstep ships only a graph file, models/htdemucs_6s_fixed.xml in the app's resources. It is derived
+  from Intel's htdemucs_v4_6s graph: one change in the time decoder (four 1-D transposed convolutions
+  rewritten, because OpenVINO on Apple silicon computed them wrongly) and no weights of its own. It
+  reads the weights from Intel's htdemucs_fwd.bin, which is NOT shipped: the app downloads it when
+  the user asks for stem separation, from Intel's repository on Hugging Face, at that user's request.
+  The license of Demucs:
+
+    MIT License
+
+    Copyright (c) Meta Platforms, Inc. and affiliates.
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.

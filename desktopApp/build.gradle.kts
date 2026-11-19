@@ -41,6 +41,8 @@ val osName: String = System.getProperty("os.name")
 val isWindows = osName.startsWith("Windows")
 val engineBuildDir = rootProject.layout.projectDirectory.dir("engine-desktop/build/native")
 
+val openVinoDir = rootProject.layout.projectDirectory.dir("engine-desktop/build/openvino")
+
 tasks.test {
     dependsOn(":engine-desktop:buildNativeEngine")
     systemProperty("slowdowner.engine.library", engineBuildDir.file(System.mapLibraryName("sdengine")).asFile.path)
@@ -54,10 +56,14 @@ tasks.test {
 }
 
 // The C engine travels inside the app, in Compose's per-OS resources folder. On Windows LAME is
-// a DLL of its own (LGPL), next to the engine.
+// a DLL of its own (LGPL), next to the engine. The OpenVINO libraries (downloaded from the official
+// wheel by :engine-desktop:fetchOpenVinoRuntime) go in the openvino folder beside it: the stem
+// separation finds them at app/resources/openvino. It is the same task, as two Sync tasks on one
+// folder would delete each other's files.
 val appResources = layout.buildDirectory.dir("appResources")
 val syncEngineLibrary = tasks.register<Sync>("syncEngineLibrary") {
-    dependsOn(":engine-desktop:buildNativeEngine")
+    dependsOn(":engine-desktop:buildNativeEngine", ":engine-desktop:fetchOpenVinoRuntime")
+    into("openvino") { from(openVinoDir.dir("runtime")) }
     if (isWindows) {
         from(engineBuildDir.file("sdengine.dll"), engineBuildDir.file("mp3lame.dll"))
         into(appResources.map { it.dir("windows-x64") })
@@ -74,8 +80,17 @@ val syncEngineLibrary = tasks.register<Sync>("syncEngineLibrary") {
 // The licenses travel inside the app on every OS (Compose's "common" resources): the DMG has no
 // other place for them. The font license stays beside the fonts in shared-ui.
 val syncLicenses = tasks.register<Sync>("syncLicenses") {
+    // OpenVINO's own notices come from its wheel, so they always match the version that ships.
+    dependsOn(":engine-desktop:fetchOpenVinoRuntime")
     from(layout.projectDirectory.dir("licenses"), rootProject.layout.projectDirectory.file("shared-ui/FONTS-OFL.txt"))
+    from(openVinoDir.dir("licenses"))
     into(appResources.map { it.dir("common/licenses") })
+}
+// The stem separation model's graph (not its weights, which the app downloads). Derived from Intel's
+// conversion of Demucs: see THIRD-PARTY-NOTICES.txt.
+val syncModels = tasks.register<Sync>("syncModels") {
+    from(layout.projectDirectory.dir("models"))
+    into(appResources.map { it.dir("common/models") })
 }
 // The changelog travels inside the app too: the What's new popup shows it after an update. The same
 // file the release notes come from, so there is one text to keep.
@@ -83,7 +98,7 @@ val syncChangelog = tasks.register<Copy>("syncChangelog") {
     from(layout.projectDirectory.file("CHANGELOG.txt"))
     into(appResources.map { it.dir("common") })
 }
-tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(syncEngineLibrary, syncLicenses, syncChangelog) }
+tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(syncEngineLibrary, syncLicenses, syncModels, syncChangelog) }
 
 // CI passes -PappVersion=1.0.<run number>: the band reports it from the window title or the log.
 val appVersion = providers.gradleProperty("appVersion").getOrElse("1.0.0")
