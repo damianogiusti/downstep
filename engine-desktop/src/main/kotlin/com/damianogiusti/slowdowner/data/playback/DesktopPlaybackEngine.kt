@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.data.playback
 
+import com.damianogiusti.slowdowner.data.stems.demucs.StemHeadroom
 import com.damianogiusti.slowdowner.domain.effects.EffectsEngine
 import com.damianogiusti.slowdowner.domain.effects.ProcessingQuality
 import com.damianogiusti.slowdowner.domain.playback.LoopEditing
@@ -88,6 +89,13 @@ class DesktopPlaybackEngine(
         private set
     override val canNormalizeVolume = true
 
+    // Stem mode: the gain of each stem as the caller sees it, 0..1 with 1 = the original level. The engine
+    // resets its gains on every open, and so does this list, so the caller applies its own after an open.
+    // Empty for a single file. Replaced, never changed, so another thread reads a whole list.
+    @Volatile
+    var stemGains: List<Float> = emptyList()
+        private set
+
     // Calls from other threads can be halfway through native code when close() runs: a poll, the
     // waveform's peaks, a decode on the IO dispatcher. Freeing the engine then would crash the process
     // (it did, when the app quit). They share the read side, so a long decode blocks neither the poll
@@ -134,9 +142,25 @@ class DesktopPlaybackEngine(
      * previous file; speed, pitch and effects carry over until the caller applies the track's own.
      * [FileOpenResult.Failed] once the engine is closed.
      */
-    fun openFile(path: String): FileOpenResult = lifecycle.read {
+    fun openFile(path: String): FileOpenResult = openSource(stemCount = 0) { engine.open(path) }
+
+    /**
+     * Same for the stems of a track: [paths] are the stem files in the order of [setStemGain]'s index, played
+     * together. The memory budget covers all of them. Every stem starts at gain 1, which gives the original
+     * level back (see [setStemGain]): the caller applies the gains it wants after this returns. A failed
+     * open leaves what was open.
+     */
+    fun openStems(paths: List<String>): FileOpenResult =
+        openSource(stemCount = paths.size) { engine.openStems(paths) }
+
+    private inline fun openSource(stemCount: Int, open: () -> Boolean): FileOpenResult = lifecycle.read {
         if (isClosed) return@read FileOpenResult.Failed("the engine is closed")
-        if (engine.open(path)) {
+        if (open()) {
+            // The engine resets its gains to 1, which is -3 dB here: give every stem its headroom back.
+            stemGains = List(stemCount) { index ->
+                engine.setStemGain(index, engineGain(1f))
+                1f
+            }
             applyLoop(LoopRegion.WHOLE_FILE)
             publishPosition()
             _events.tryEmit(PlaybackEvent.ControlsChanged)
@@ -148,9 +172,26 @@ class DesktopPlaybackEngine(
         }
     }
 
+    /**
+     * Gain of stem [index] from 0 (muted) to 1 (the original level of the track, as the stems were cut), kept
+     * and sent to the engine, which ramps to it. The stem files carry [StemHeadroom] (-3 dB) so that loud masters
+     * do not clip; the engine does not know that, so it gets `gain / headroom` and six stems at 1 sound like the
+     * original. Ignored when no stems are open or [index] is not one of them.
+     */
+    fun setStemGain(index: Int, gain: Float) {
+        val gains = stemGains
+        if (index !in gains.indices) return
+        val clamped = gain.coerceIn(0f, 1f)
+        stemGains = gains.toMutableList().also { it[index] = clamped }
+        engine.setStemGain(index, engineGain(clamped))
+    }
+
+    private fun engineGain(gain: Float): Double = (gain / StemHeadroom.GAIN).toDouble()
+
     fun closeFile() = lifecycle.read {
         if (isClosed) return@read
         engine.closeFile()
+        stemGains = emptyList()
         publishPosition()
         _events.tryEmit(PlaybackEvent.PlayStateChanged)
     }
@@ -292,7 +333,7 @@ class DesktopPlaybackEngine(
     }
 }
 
-/** What [DesktopPlaybackEngine.openFile] reports. */
+/** What [DesktopPlaybackEngine.openFile] and [DesktopPlaybackEngine.openStems] report. */
 sealed interface FileOpenResult {
     data object Opened : FileOpenResult
     data object TooLong : FileOpenResult
