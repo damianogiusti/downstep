@@ -68,6 +68,17 @@
     <string name="error_export_save">Impossibile salvare "%1$s".</string>
     <string name="error_export_nothing_open">Apri un brano della libreria per esportarlo.</string>
     <string name="error_export">Export fallito: %1$s</string>
+    <string name="export_whole_track">Esporta il brano intero</string>
+    <string name="export_loop">Esporta solo il loop</string>
+    <string name="loop_track_new">Nuovo brano dal loop</string>
+    <string name="loop_track_text">Il loop diventa un nuovo brano della libreria, con il suono originale. Parte con la velocità e il pitch attuali.</string>
+    <string name="loop_track_create">Crea</string>
+    <string name="loop_track_running">Creo il brano… %1$d%</string>
+    <string name="loop_track_running_hint">Ritaglio il loop dall'audio originale</string>
+    <string name="loop_track_created">"%1$s" è nella libreria.</string>
+    <string name="loop_track_open">Apri</string>
+    <string name="error_export_no_loop">Attiva il loop per usare solo quella parte.</string>
+    <string name="error_loop_track">Impossibile creare il brano: %1$s</string>
 
     <string name="notification_channel_playback">Riproduzione</string>
 

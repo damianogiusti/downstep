@@ -148,6 +148,40 @@ class NativeEngineTest {
     }
 
     @Test
+    fun `an export of a part runs to the end and is shorter`() {
+        NativeEngine.manual(RATE).use { native ->
+            assertTrue(native.open(file.path))
+            val whole = File.createTempFile("native-export-whole", ".mp3")
+            val part = File.createTempFile("native-export-part", ".mp3")
+            exportAll(assertNotNull(native.beginExport(whole.path)))
+            val partExport = native.beginExportPart(
+                part.path,
+                NativeEngine.ExportPart(0.25, 0.5, NativeEngine.EXPORT_SOUND_ORIGINAL),
+            )
+            exportAll(assertNotNull(partExport))
+            val ratio = part.length().toDouble() / whole.length()
+            assertTrue(ratio in 0.2..0.3, "part/whole $ratio")
+            whole.delete()
+            part.delete()
+        }
+    }
+
+    @Test
+    fun `an invalid part exports nothing`() {
+        NativeEngine.manual(RATE).use { native ->
+            assertTrue(native.open(file.path))
+            val output = File.createTempFile("native-export", ".mp3").apply { deleteOnExit() }
+            val reversed = NativeEngine.ExportPart(0.5, 0.25, NativeEngine.EXPORT_SOUND_CURRENT)
+            assertNull(native.beginExportPart(output.path, reversed))
+        }
+    }
+
+    private fun exportAll(export: NativeEngine.NativeExport) {
+        while (export.next() != null) Unit
+        assertTrue(export.finish())
+    }
+
+    @Test
     fun `nothing open exports nothing`() {
         NativeEngine.manual(RATE).use { native ->
             assertNull(native.beginExport(File.createTempFile("native-export", ".mp3").apply { deleteOnExit() }.path))

@@ -1,5 +1,9 @@
 package com.damianogiusti.slowdowner.ui.navigation
 
+import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.getString
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarDuration
 import com.damianogiusti.slowdowner.ui.settings.SettingsScreen
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.compose.animation.AnimatedVisibility
@@ -129,6 +133,17 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
         }
         val currentOpenTrack by rememberUpdatedState(openTrack)
         LaunchedEffect(importViewModel) { importViewModel.importedTracks.collect { currentOpenTrack(it) } }
+        LaunchedEffect(playerViewModel) {
+            playerViewModel.loopTracks.collect { track ->
+                val text = getString(Res.string.loop_track_created, track.title)
+                val open = getString(Res.string.loop_track_open)
+                // Launched: a snackbar waits for its timeout, the next track must not.
+                launch {
+                    val result = snackbarHostState.showSnackbar(text, actionLabel = open, duration = SnackbarDuration.Long)
+                    if (result == SnackbarResult.ActionPerformed) currentOpenTrack(track)
+                }
+            }
+        }
         // The window got wide while the player page was open: the pane takes over.
         LaunchedEffect(isWide, isOnPlayer) { if (isWide && isOnPlayer) navController.popBackStack() }
 

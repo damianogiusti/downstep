@@ -49,6 +49,9 @@ import com.damianogiusti.slowdowner.ui.common.formatPitch
 import com.damianogiusti.slowdowner.ui.effects.EffectsSheet
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.player.components.ExportBanner
+import com.damianogiusti.slowdowner.ui.player.components.ExportButton
+import com.damianogiusti.slowdowner.ui.player.components.ExportButtonState
+import com.damianogiusti.slowdowner.ui.player.components.ExportMenuActions
 import com.damianogiusti.slowdowner.ui.player.components.LoopActions
 import com.damianogiusti.slowdowner.ui.player.components.LoopCardState
 import com.damianogiusti.slowdowner.ui.player.components.LoopCard
@@ -111,7 +114,11 @@ fun PlayerScreen(viewModel: PlayerViewModel, effects: EffectsViewModel, navigati
             timeline = timeline,
             onCollapse = navigation.onCollapse,
             onShowEffects = { showEffects = true },
-            onExport = viewModel::onExportClicked,
+            export = ExportMenuActions(
+                onExportWholeTrack = viewModel::onExportClicked,
+                onExportLoop = viewModel::onExportLoopClicked,
+                onNewTrackFromLoop = viewModel::onNewTrackFromLoopClicked,
+            ),
             onCancelExport = viewModel::onExportCancelClicked,
             onAddToPlaylist = navigation.onAddToPlaylist,
         ),
@@ -133,6 +140,19 @@ fun PlayerScreen(viewModel: PlayerViewModel, effects: EffectsViewModel, navigati
                 showSavePreset = false
             },
             onDismiss = { showSavePreset = false },
+        )
+    }
+    (state.export as? ExportUiState.NamingLoopTrack)?.let { naming ->
+        TextInputDialog(
+            texts = TextInputDialogTexts(
+                title = stringResource(Res.string.loop_track_new),
+                label = stringResource(Res.string.name),
+                confirm = stringResource(Res.string.loop_track_create),
+                message = stringResource(Res.string.loop_track_text),
+            ),
+            initialText = naming.suggestedTitle,
+            onConfirm = viewModel::onLoopTrackTitleConfirmed,
+            onDismiss = viewModel::onLoopTrackNamingDismissed,
         )
     }
     presetToDelete?.let { preset ->
@@ -163,7 +183,7 @@ class PlayerContentActions(
     val timeline: TimelineActions,
     val onCollapse: (() -> Unit)?,
     val onShowEffects: () -> Unit,
-    val onExport: () -> Unit,
+    val export: ExportMenuActions,
     val onCancelExport: () -> Unit,
     val onAddToPlaylist: (LibraryTrack) -> Unit,
 )
@@ -198,9 +218,7 @@ fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions) {
                     IconButton(onClick = actions.onShowEffects, enabled = !state.isExporting) {
                         Icon(painterResource(Res.drawable.ic_tune), stringResource(Res.string.effects))
                     }
-                    IconButton(onClick = actions.onExport, enabled = state.canExport) {
-                        Icon(painterResource(Res.drawable.ic_share), stringResource(Res.string.export))
-                    }
+                    ExportButton(ExportButtonState(state.canExport, state.canExportLoop), actions.export)
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
@@ -257,7 +275,7 @@ fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions) {
                 }
             }
             (state.export as? ExportUiState.Running)?.let {
-                ExportBanner(it.fraction, actions.onCancelExport, Modifier.padding(horizontal = 16.dp))
+                ExportBanner(it.fraction, it.target, actions.onCancelExport, Modifier.padding(horizontal = 16.dp))
             }
             LoopTimeline(
                 state = LoopTimelineState(controls, state.waveform, isEnabled = enabled),
@@ -328,7 +346,7 @@ private fun PlayerContentPreview() {
                 timeline = TimelineActions({}, { _, _ -> }),
                 onCollapse = {},
                 onShowEffects = {},
-                onExport = {},
+                export = ExportMenuActions({}, {}, {}),
                 onCancelExport = {},
                 onAddToPlaylist = {},
             ),

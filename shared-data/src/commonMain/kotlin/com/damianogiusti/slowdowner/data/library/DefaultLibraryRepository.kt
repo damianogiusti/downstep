@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.data.library
 
 import com.damianogiusti.slowdowner.data.logging.failure
+import com.damianogiusti.slowdowner.domain.export.ExportedFile
 import com.damianogiusti.slowdowner.domain.library.ImportProgress
 import com.damianogiusti.slowdowner.domain.library.ImportResult
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
@@ -66,6 +67,34 @@ class DefaultLibraryRepository(
             val target = store.fileFor(id, name.substringAfterLast('.', DEFAULT_EXTENSION))
             withPlayableFile(target) { copy -> documents.copy(contentUri, copy) }
             LibraryTrackDto(id, name.substringBeforeLast('.'), target.path, null, now()).also { store.add(it) }
+        }
+    }
+
+    override suspend fun addRenderedTrack(file: ExportedFile, title: String): ImportResult = withContext(dispatcher) {
+        mapErrors(onIoError = ImportResult.Failure(IOException("Cannot add the track")), source = SOURCE_RENDER, url = null) {
+            val rendered = File(file.path)
+            val id = "local_${newId()}"
+            val target = store.fileFor(id, rendered.extension.ifEmpty { DEFAULT_EXTENSION })
+            // Same volume (both app-private) in practice; a copy covers the case where it is not.
+            if (!rendered.renameTo(target)) {
+                try {
+                    rendered.copyTo(target, overwrite = true)
+                } catch (e: IOException) {
+                    // A copy cut short by a full disk: nothing may point to it.
+                    target.delete()
+                    throw e
+                }
+                rendered.delete()
+            }
+            val track = LibraryTrackDto(id, title, target.path, null, now())
+            try {
+                store.add(track)
+            } catch (e: Exception) {
+                // No row points to the file: it would never be removed.
+                target.delete()
+                throw e
+            }
+            track
         }
     }
 
@@ -148,6 +177,7 @@ class DefaultLibraryRepository(
     private companion object {
         const val SOURCE_YOUTUBE = "youtube"
         const val SOURCE_FILE = "file"
+        const val SOURCE_RENDER = "render"
         const val HTTP_SERVER_ERROR = 500
         const val DEFAULT_NAME = "audio"
         const val DEFAULT_EXTENSION = "bin"

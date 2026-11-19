@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.domain.library
 
+import com.damianogiusti.slowdowner.domain.export.ExportedFile
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.domain.playback.CloseTrackUseCase
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
@@ -50,5 +51,6 @@ class RemoveTrackUseCaseTest {
         override suspend fun importFromUrl(url: String, onProgress: (ImportProgress) -> Unit) =
             error("unused")
         override suspend fun importDocument(contentUri: String) = error("unused")
+        override suspend fun addRenderedTrack(file: ExportedFile, title: String) = error("unused")
     }
 }

@@ -10,8 +10,10 @@ import com.damianogiusti.slowdowner.domain.effects.ApplyEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.effects.ObserveEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.effects.RestoreEffectsSettingsUseCase
 import com.damianogiusti.slowdowner.domain.effects.UpdateEffectsSettingsUseCase
+import com.damianogiusti.slowdowner.domain.export.CreateTrackFromLoopUseCase
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
+import com.damianogiusti.slowdowner.domain.export.SuggestLoopTrackTitleUseCase
 import com.damianogiusti.slowdowner.domain.library.FindImportableUrlUseCase
 import com.damianogiusti.slowdowner.domain.library.ImportDocumentUseCase
 import com.damianogiusti.slowdowner.domain.library.ImportTrackFromUrlUseCase
@@ -74,6 +76,8 @@ val useCasesModule = module {
     factoryOf(::ReadWaveformUseCase)
     factoryOf(::ExportTrackUseCase)
     factoryOf(::SaveExportUseCase)
+    factoryOf(::SuggestLoopTrackTitleUseCase)
+    factoryOf(::CreateTrackFromLoopUseCase)
     factoryOf(::SavePracticeStateUseCase)
     factoryOf(::OpenTrackForPracticeUseCase)
     factoryOf(::AutoSavePracticeStateUseCase)

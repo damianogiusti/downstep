@@ -10,26 +10,37 @@ class ExportTrackUseCase(
     private val nowPlaying: NowPlayingRepository,
     private val repository: ExportRepository,
 ) {
-    suspend operator fun invoke(onProgress: (Float) -> Unit): ExportResult {
+    suspend operator fun invoke(part: ExportPart, onProgress: (Float) -> Unit): ExportResult {
         // Spotify tracks have no library entry and cannot be rendered offline.
         val track = nowPlaying.observe().value
         if (track == null || !engine.isOpen) return ExportResult.NothingOpen
+        if (part == ExportPart.LOOP && !engine.hasRenderableLoop()) return ExportResult.NoLoop
         // The offline render drives the same native player: never run it under live playback.
         if (engine.isPlaying) engine.stop()
-        val name = fileName(track.title, engine.speedPercent, engine.pitchSemitones)
-        return repository.exportOpenTrack(name, onProgress)
+        val range = if (part == ExportPart.LOOP) RenderRange(engine.loopStart, engine.loopEnd) else RenderRange.WHOLE_FILE
+        val wholeName = fileName(track.title, engine.speedPercent, engine.pitchSemitones)
+        val name = if (part == ExportPart.LOOP) loopFileName(wholeName, range, engine.durationSeconds) else wholeName
+        return repository.exportOpenTrack(name, range, onProgress)
     }
 
     internal companion object {
+
         private val UNSAFE_CHARS = Regex("""[\\/:*?"<>|\x00-\x1F\x7F]""")
         private const val MAX_TITLE_LENGTH = 80
+        private const val EXTENSION = ".mp3"
+
+        /** "Title 75% loop 0m42s-1m13s.mp3" from "Title 75%.mp3": the loop's place in the track. */
+        fun loopFileName(fileName: String, range: RenderRange, durationSeconds: Float): String {
+            val span = LoopClock.fileSpan(range.start * durationSeconds, range.end * durationSeconds)
+            return "${fileName.removeSuffix(EXTENSION)} loop $span$EXTENSION"
+        }
 
         /** "Title 75%.mp3", plus the pitch when it is not zero: "Title 75% -2st.mp3". */
         fun fileName(title: String, speedPercent: Float, pitchSemitones: Float): String {
             val safeTitle = title.replace(UNSAFE_CHARS, "_").trim().take(MAX_TITLE_LENGTH).ifEmpty { "audio" }
             val speed = "${speedPercent.roundToInt()}%"
             val pitch = pitchSuffix(pitchSemitones)
-            return "$safeTitle $speed$pitch.mp3"
+            return "$safeTitle $speed$pitch$EXTENSION"
         }
 
         // Whole semitones as before (" +2st"); with cents, two decimals (" +2.15st"). ASCII only, for file names.

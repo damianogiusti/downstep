@@ -220,6 +220,129 @@ void exportsTheWholeFileAtTheCurrentSpeed(const std::string &path) {
     sd_engine_destroy(e);
 }
 
+/** Exports `start`..`end` with `sound` and returns the decoded MP3; empty if the export failed. */
+PcmBuffer exportPart(SdEngine *e, double start, double end, int sound) {
+    const auto output = (std::filesystem::temp_directory_path() / "sdengine-export-part.mp3").string();
+    SdExport *exporter = sd_export_begin_part(e, output.c_str(), 192, start, end, sound);
+    CHECK(exporter != nullptr, "cannot start the part export");
+    if (!exporter) return {};
+    double progress = 0, last = 0;
+    while ((progress = sd_export_next(exporter)) >= 0) {
+        CHECK(progress >= last - 1e-9 && progress <= 1.0, "progress %f after %f", progress, last);
+        last = progress;
+    }
+    CHECK(last > 0.9, "progress stopped at %f", last);
+    CHECK(sd_export_end(exporter) == 1, "part export incomplete");
+    PcmBuffer decoded;
+    std::string error;
+    CHECK(decodeFile(output, decoded, error, 0) == DecodeStatus::Ok, "cannot read the MP3: %s", error.c_str());
+    std::filesystem::remove(output);
+    return decoded;
+}
+
+void exportsAPartAtTheCurrentSpeed(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    sd_engine_set_speed(e, 0.5);
+    const PcmBuffer decoded = exportPart(e, 0.2, 0.5, SD_EXPORT_SOUND_CURRENT);
+    // 3 s of the file at half speed, plus the encoder's padding.
+    CHECK(std::fabs(decoded.seconds() - 6.0) < 0.15, "MP3 lasts %f s", decoded.seconds());
+    sd_engine_destroy(e);
+}
+
+void exportsAPartWithTheOriginalSound(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    sd_engine_set_speed(e, 0.5);
+    sd_engine_set_mix(e, 1.0); // right channel (silent) on both sides
+    const PcmBuffer decoded = exportPart(e, 0.5, 0.8, SD_EXPORT_SOUND_ORIGINAL);
+    CHECK(std::fabs(decoded.seconds() - 3.0) < 0.15, "MP3 lasts %f s", decoded.seconds());
+    // The tone is on the left only: a centered mix keeps it there.
+    if (decoded.channels == 2 && decoded.frames > 2 * kRate) {
+        const std::vector<float> left(decoded.data[0].begin() + kRate / 2, decoded.data[0].begin() + 2 * kRate);
+        CHECK(rms(left) > 0.2, "left rms %f", rms(left));
+    }
+    sd_engine_destroy(e);
+}
+
+void aPartUpToTheEndOfTheFileIsComplete(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    const PcmBuffer decoded = exportPart(e, 0.7, 1.0, SD_EXPORT_SOUND_CURRENT);
+    CHECK(std::fabs(decoded.seconds() - 3.0) < 0.15, "MP3 lasts %f s", decoded.seconds());
+    sd_engine_destroy(e);
+}
+
+/** Frequency of a pure tone from its zero crossings over `frames` frames from `from`. */
+double toneHz(const std::vector<float> &x, size_t from, size_t frames) {
+    int crossings = 0;
+    for (size_t i = from + 1; i < from + frames && i < x.size(); ++i)
+        if ((x[i - 1] < 0) != (x[i] < 0)) ++crossings;
+    return crossings / 2.0 / (double(frames) / kRate);
+}
+
+/** First and last frame above a whisper. */
+struct Audible {
+    size_t first = 0, last = 0;
+};
+
+Audible audible(const std::vector<float> &x) {
+    Audible a;
+    while (a.first < x.size() && std::fabs(x[a.first]) < 0.01f) ++a.first;
+    a.last = x.size();
+    while (a.last > a.first && std::fabs(x[a.last - 1]) < 0.01f) --a.last;
+    return a;
+}
+
+void aPartEndsWhereItsEndIs() {
+    // 441 Hz for 5 s, then 882 Hz: the end of the part at 0.5 is where the tone changes.
+    PcmBuffer pcm;
+    pcm.sampleRate = kRate;
+    pcm.channels = 2;
+    pcm.frames = 10 * kRate;
+    pcm.data.assign(2, std::vector<float>(size_t(pcm.frames), 0.f));
+    for (int64_t i = 0; i < pcm.frames; ++i) {
+        const double hz = i < 5 * kRate ? 441 : 882;
+        pcm.data[0][size_t(i)] = pcm.data[1][size_t(i)] = float(0.5 * std::sin(2 * M_PI * hz * double(i) / kRate));
+    }
+    const auto path = (std::filesystem::temp_directory_path() / "sdengine-two-tones.wav").string();
+    std::string error;
+    CHECK(writeWavFloat(path, pcm, error), "cannot write: %s", error.c_str());
+    const size_t window = size_t(kRate * 0.04);
+    const size_t fade = size_t(kRate * 0.012); // the 10 ms fades, and a little more
+    for (const double speed : {0.5, 1.0, 2.0}) {
+        SdEngine *e = openEngine(path);
+        sd_engine_set_speed(e, speed);
+        const PcmBuffer before = exportPart(e, 0.2, 0.5, SD_EXPORT_SOUND_CURRENT);
+        const PcmBuffer after = exportPart(e, 0.5, 0.8, SD_EXPORT_SOUND_CURRENT);
+        sd_engine_destroy(e);
+        const Audible part = audible(before.data.empty() ? std::vector<float>{} : before.data[0]);
+        const Audible next = audible(after.data.empty() ? std::vector<float>{} : after.data[0]);
+        if (part.last < part.first + kRate || next.last < next.first + kRate) {
+            CHECK(false, "parts too short at speed %f", speed);
+            continue;
+        }
+        // The MP3 adds silence before and after (encoder delay and padding): measure the sound.
+        const double seconds = double(part.last - part.first) / kRate;
+        CHECK(std::fabs(seconds - 3.0 / speed) < 0.03, "speed %f: part sounds for %f s", speed, seconds);
+        const double headHz = toneHz(before.data[0], part.first + fade, window);
+        CHECK(std::fabs(headHz - 441) < 30, "speed %f: the part starts on %f Hz", speed, headHz);
+        const double tailHz = toneHz(before.data[0], part.last - fade - window, window);
+        CHECK(std::fabs(tailHz - 441) < 30, "speed %f: the part ends on %f Hz", speed, tailHz);
+        const double nextHz = toneHz(after.data[0], next.first + fade, window);
+        CHECK(std::fabs(nextHz - 882) < 30, "speed %f: the next part starts on %f Hz", speed, nextHz);
+    }
+    std::filesystem::remove(path);
+}
+
+void anInvalidPartIsRefused(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    const auto output = (std::filesystem::temp_directory_path() / "sdengine-export-invalid.mp3").string();
+    CHECK(sd_export_begin_part(e, output.c_str(), 192, 0.5, 0.5, SD_EXPORT_SOUND_CURRENT) == nullptr, "empty part");
+    CHECK(sd_export_begin_part(e, output.c_str(), 192, 0.6, 0.4, SD_EXPORT_SOUND_CURRENT) == nullptr, "reversed part");
+    CHECK(sd_export_begin_part(e, output.c_str(), 192, -0.1, 0.4, SD_EXPORT_SOUND_CURRENT) == nullptr, "before 0");
+    CHECK(sd_export_begin_part(e, output.c_str(), 192, 0.1, 1.1, SD_EXPORT_SOUND_CURRENT) == nullptr, "after 1");
+    std::filesystem::remove(output);
+    sd_engine_destroy(e);
+}
+
 void loopStaysInside(const std::string &path) {
     SdEngine *e = openEngine(path);
     sd_engine_set_loop(e, 0.2, 0.3, 1);
@@ -1089,6 +1212,11 @@ int main() {
         {"position never goes back after a seek", [&] { positionNeverGoesBackAfterSeek(path); }},
         {"loop and seek land together", [&] { loopAndSeekLandTogether(path); }},
         {"exports the whole file at the current speed", [&] { exportsTheWholeFileAtTheCurrentSpeed(path); }},
+        {"exports a part at the current speed", [&] { exportsAPartAtTheCurrentSpeed(path); }},
+        {"exports a part with the original sound", [&] { exportsAPartWithTheOriginalSound(path); }},
+        {"a part up to the end of the file is complete", [&] { aPartUpToTheEndOfTheFileIsComplete(path); }},
+        {"a part ends where its end is", [] { aPartEndsWhereItsEndIs(); }},
+        {"an invalid part is refused", [&] { anInvalidPartIsRefused(path); }},
         {"loop stays inside its points", [&] { loopStaysInside(path); }},
         {"reaches the end with the loop off", [&] { reachesEndWithLoopOff(path); }},
         {"too long for the budget is reported", [] { tooLongForTheBudgetIsReportedWithoutDecoding(); }},
