@@ -69,6 +69,7 @@ import com.damianogiusti.slowdowner.domain.playlists.PlaylistRepository
 import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
 import com.damianogiusti.slowdowner.domain.stems.StemModelRepository
+import com.damianogiusti.slowdowner.domain.stems.StemPlatform
 import com.damianogiusti.slowdowner.domain.stems.StemSeparationRepository
 import com.damianogiusti.slowdowner.domain.stems.StemsRepository
 import com.damianogiusti.slowdowner.domain.support.DismissSupportPromptUseCase
@@ -121,6 +122,7 @@ fun desktopModule(
     whatsNew: WhatsNewSettings = WhatsNewSettings(),
     // The app's resources folder: the model graph and the OpenVINO libraries sit in it. Null outside a Gradle run or an install.
     resources: File? = System.getProperty("compose.application.resources.dir")?.let(::File),
+    stemPlatform: StemPlatform = detectStemPlatform(),
 ) = module {
     single { directories }
     single { logger }
@@ -188,6 +190,7 @@ fun desktopModule(
     }
     // The same instance under its interface: the quit path needs shutdown(), which the interface does not have.
     single<StemSeparationRepository> { get<DefaultStemSeparationRepository>() }
+    single { stemPlatform }
     single { get<SlowDownerDatabase>().backupDao() }
     single { BackupArchive() }
     single<BackupRepository> {

@@ -9,6 +9,7 @@ import com.damianogiusti.slowdowner.domain.stems.CancelStemSeparationUseCase
 import com.damianogiusti.slowdowner.domain.stems.ObserveStemSeparationUseCase
 import com.damianogiusti.slowdowner.domain.stems.StartStemSeparationUseCase
 import com.damianogiusti.slowdowner.domain.stems.AcknowledgeStemSeparationUseCase
+import com.damianogiusti.slowdowner.domain.stems.StemPlatform
 import com.damianogiusti.slowdowner.domain.stems.StemSeparationRepository
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
@@ -72,5 +73,10 @@ class DesktopModuleTest {
         assertNotNull(koin.get<ObserveStemSeparationUseCase>())
         assertNotNull(koin.get<AcknowledgeStemSeparationUseCase>())
         assertSame(koin.get<DefaultStemSeparationRepository>(), koin.get<StemSeparationRepository>())
+    }
+
+    @Test
+    fun `the stem platform resolves`() {
+        assertNotNull(koin.get<StemPlatform>())
     }
 }
