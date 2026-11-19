@@ -55,6 +55,8 @@ tasks.test {
     System.getProperty("slowdowner.stemModelBin")?.let { systemProperty("slowdowner.stemModelBin", it) }
     // The parity test of the pipeline also needs a folder made by the PyTorch reference script (see DemucsPipelineParityTest).
     System.getProperty("slowdowner.stemReference")?.let { systemProperty("slowdowner.stemReference", it) }
+    // Optional: a 4-5 minute WAV for the timing and memory report of DemucsPipelinePerformanceTest.
+    System.getProperty("slowdowner.stemFullTrack")?.let { systemProperty("slowdowner.stemFullTrack", it) }
     systemProperty("slowdowner.stemModelXml", rootProject.layout.projectDirectory.file("desktopApp/models/htdemucs_6s_fixed.xml").asFile.path)
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
