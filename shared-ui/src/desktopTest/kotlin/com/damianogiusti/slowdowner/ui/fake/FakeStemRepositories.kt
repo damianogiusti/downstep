@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.ui.fake
 
 import com.damianogiusti.slowdowner.domain.stems.ModelDownloadResult
+import com.damianogiusti.slowdowner.domain.stems.PlayableStems
 import com.damianogiusti.slowdowner.domain.stems.SeparationJobState
 import com.damianogiusti.slowdowner.domain.stems.SeparationResult
 import com.damianogiusti.slowdowner.domain.stems.SeparationStart
@@ -23,6 +24,7 @@ class FakeStemsRepository : StemsRepository {
     val deleted = mutableListOf<String>()
 
     override fun observe(trackId: String): Flow<TrackStems?> = flowOf(null)
+    override suspend fun playableStems(trackId: String): PlayableStems? = null
     override fun observeSeparatedTrackIds(): Flow<Set<String>> = separatedIds
     override suspend fun setMode(trackId: String, mode: TrackMode) = Unit
     override suspend fun setGain(trackId: String, stem: StemKind, gain: Float) = Unit

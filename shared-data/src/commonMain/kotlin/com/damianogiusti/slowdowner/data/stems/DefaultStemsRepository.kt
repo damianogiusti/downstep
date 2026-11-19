@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.data.stems
 
+import com.damianogiusti.slowdowner.domain.stems.PlayableStems
 import com.damianogiusti.slowdowner.domain.stems.StemKind
 import com.damianogiusti.slowdowner.domain.stems.StemsRepository
 import com.damianogiusti.slowdowner.domain.stems.TrackMode
@@ -7,23 +8,38 @@ import com.damianogiusti.slowdowner.domain.stems.TrackStems
 import com.damianogiusti.slowdowner.logging.Logger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 class DefaultStemsRepository(
     private val store: StemsStore,
     private val dispatcher: CoroutineDispatcher, // injected (IO); swap in tests
-    logger: Logger,
+    private val logger: Logger,
 ) : StemsRepository {
 
     private val mapper = TrackStemsMapper(logger)
+    private val hasLoggedMissing = AtomicBoolean(false)
 
     override fun observe(trackId: String): Flow<TrackStems?> =
         store.observe(trackId).map { it?.let(mapper::toDomain) }.flowOn(dispatcher)
 
     override fun observeSeparatedTrackIds(): Flow<Set<String>> =
         store.observeSeparatedTrackIds().map { it.toSet() }.flowOn(dispatcher)
+
+    override suspend fun playableStems(trackId: String): PlayableStems? = withContext(dispatcher) {
+        val dto = store.observe(trackId).first() ?: return@withContext null
+        val playable = mapper.toPlayable(dto, store.dirFor(trackId)) ?: return@withContext null
+        if (playable.stems.any { !File(it.path).isFile }) {
+            // Cleared by the user or dropped by a sync tool: not a bug, but seen once is enough.
+            if (hasLoggedMissing.compareAndSet(false, true)) logger.w("Stem files are missing, the track plays as the original")
+            return@withContext null
+        }
+        playable
+    }
 
     override suspend fun setMode(trackId: String, mode: TrackMode) =
         withContext(dispatcher) { store.setMode(trackId, mode.name) }

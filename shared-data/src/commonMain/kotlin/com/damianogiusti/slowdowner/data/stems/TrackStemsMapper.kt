@@ -1,10 +1,13 @@
 package com.damianogiusti.slowdowner.data.stems
 
+import com.damianogiusti.slowdowner.domain.stems.PlayableStem
+import com.damianogiusti.slowdowner.domain.stems.PlayableStems
 import com.damianogiusti.slowdowner.domain.stems.StemKind
 import com.damianogiusti.slowdowner.domain.stems.StemMix
 import com.damianogiusti.slowdowner.domain.stems.TrackMode
 import com.damianogiusti.slowdowner.domain.stems.TrackStems
 import com.damianogiusti.slowdowner.logging.Logger
+import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -22,6 +25,19 @@ class TrackStemsMapper(private val logger: Logger) {
             stem.stem.toEnumOrNull<StemKind>()?.let { it to stem.gain } ?: unknown()
         }
         return TrackStems(dto.trackId, dto.model, mode, StemMix(gains.toMap()))
+    }
+
+    /**
+     * The files to play, in the order of [StemKind]. Null when the mode is unknown or no stem is known.
+     * Only builds the paths: whether the files exist is the repository's call.
+     */
+    fun toPlayable(dto: TrackStemsDto, dir: File): PlayableStems? {
+        val mode = dto.mode.toEnumOrNull<TrackMode>() ?: return unknown()
+        val stems = dto.stems.mapNotNull { stem ->
+            val kind = stem.stem.toEnumOrNull<StemKind>() ?: return@mapNotNull unknown()
+            PlayableStem(kind, File(dir, stem.fileName).path, stem.gain)
+        }.sortedBy { it.kind.ordinal }
+        return if (stems.isEmpty()) null else PlayableStems(mode, stems)
     }
 
     private inline fun <reified E : Enum<E>> String.toEnumOrNull(): E? = enumValues<E>().firstOrNull { it.name == this }

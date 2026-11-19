@@ -9,6 +9,12 @@ interface StemsRepository {
     /** Ids of the tracks that have stems, for a badge in the library. */
     fun observeSeparatedTrackIds(): Flow<Set<String>>
 
+    /**
+     * The stem files of the track with their saved gains, for playing. Null when the track is not separated or
+     * a stem file is missing on disk: the track then plays as the original.
+     */
+    suspend fun playableStems(trackId: String): PlayableStems?
+
     /** Does nothing when the track is not separated. */
     suspend fun setMode(trackId: String, mode: TrackMode)
 
