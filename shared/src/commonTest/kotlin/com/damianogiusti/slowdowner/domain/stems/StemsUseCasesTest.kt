@@ -1,5 +1,8 @@
 package com.damianogiusti.slowdowner.domain.stems
 
+import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
+import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
+import com.damianogiusti.slowdowner.fake.FakeStemMixer
 import com.damianogiusti.slowdowner.fake.FakeStemsRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -16,6 +19,7 @@ class StemsUseCasesTest {
         mix = StemMix(mapOf(StemKind.VOCALS to 1f, StemKind.DRUMS to 0.5f)),
     )
     private val repository = FakeStemsRepository(listOf(song))
+    private val setGain = SetStemGainUseCase(repository, FakeStemMixer(), FakeAudioSourceRepository(), InMemoryNowPlayingRepository())
 
     @Test
     fun `observing a separated track gives its stems`() = runTest {
@@ -48,14 +52,14 @@ class StemsUseCasesTest {
 
     @Test
     fun `setting a gain changes only that stem`() = runTest {
-        SetStemGainUseCase(repository)("a", StemKind.DRUMS, 0.25f)
+        setGain("a", StemKind.DRUMS, 0.25f)
 
         assertEquals(mapOf(StemKind.VOCALS to 1f, StemKind.DRUMS to 0.25f), repository.stems.value["a"]?.mix?.gains)
     }
 
     @Test
     fun `setting the gain of a stem the track lacks does nothing`() = runTest {
-        SetStemGainUseCase(repository)("a", StemKind.PIANO, 0.25f)
+        setGain("a", StemKind.PIANO, 0.25f)
 
         assertEquals(song, repository.stems.value["a"])
     }
