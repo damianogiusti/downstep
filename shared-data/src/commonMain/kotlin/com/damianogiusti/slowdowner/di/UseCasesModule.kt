@@ -46,7 +46,10 @@ import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.SetLoopRegionUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
+import com.damianogiusti.slowdowner.domain.stems.DeleteStemModelUseCase
 import com.damianogiusti.slowdowner.domain.stems.DeleteTrackStemsUseCase
+import com.damianogiusti.slowdowner.domain.stems.DownloadStemModelUseCase
+import com.damianogiusti.slowdowner.domain.stems.ObserveStemModelUseCase
 import com.damianogiusti.slowdowner.domain.stems.ObserveSeparatedTracksUseCase
 import com.damianogiusti.slowdowner.domain.stems.ObserveTrackStemsUseCase
 import com.damianogiusti.slowdowner.domain.stems.SetStemGainUseCase
@@ -104,6 +107,9 @@ val useCasesModule = module {
     factoryOf(::SetTrackModeUseCase)
     factoryOf(::SetStemGainUseCase)
     factoryOf(::DeleteTrackStemsUseCase)
+    factoryOf(::ObserveStemModelUseCase)
+    factoryOf(::DownloadStemModelUseCase)
+    factoryOf(::DeleteStemModelUseCase)
     // Explicit lambdas: the clock parameter keeps its default.
     factory { ExportTrackBackupUseCase(get()) }
     factory { ExportLibraryBackupUseCase(get()) }
