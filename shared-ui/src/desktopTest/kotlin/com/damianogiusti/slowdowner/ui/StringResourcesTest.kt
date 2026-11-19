@@ -4,6 +4,8 @@ import com.damianogiusti.slowdowner.ui.resources.Res
 import com.damianogiusti.slowdowner.ui.resources.backup_restored_tracks
 import com.damianogiusti.slowdowner.ui.resources.export_running
 import com.damianogiusti.slowdowner.ui.resources.import_link_description
+import com.damianogiusti.slowdowner.ui.resources.instruments_mute
+import com.damianogiusti.slowdowner.ui.resources.instruments_volume_format
 import com.damianogiusti.slowdowner.ui.resources.remove_confirm
 import com.damianogiusti.slowdowner.ui.resources.stems_delete_confirm
 import com.damianogiusti.slowdowner.ui.resources.stems_downloading
@@ -66,6 +68,16 @@ class StringResourcesTest {
             "Eliminare gli strumenti separati di \"Autumn Leaves\"? Potrai separare di nuovo il brano.",
             getString(Res.string.stems_delete_confirm, "Autumn Leaves"),
         )
+    }
+
+    @Test
+    fun `the instruments texts show the percent and the stem name once`() = runTest {
+        Locale.setDefault(Locale.ENGLISH)
+        assertEquals("65%", getString(Res.string.instruments_volume_format, 65))
+        assertEquals("Mute Drums", getString(Res.string.instruments_mute, "Drums"))
+        Locale.setDefault(Locale.ITALIAN)
+        assertEquals("65%", getString(Res.string.instruments_volume_format, 65))
+        assertEquals("Silenzia Batteria", getString(Res.string.instruments_mute, "Batteria"))
     }
 
     @Test

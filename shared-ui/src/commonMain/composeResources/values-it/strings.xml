@@ -303,4 +303,19 @@
     <string name="stems_download_error_network">Non è stato possibile scaricare il modello. Controlla la connessione e riprova più tardi.</string>
     <string name="stems_download_error_corrupted">Il file scaricato non è quello atteso ed è stato scartato. Riprova.</string>
     <string name="stems_download_error_generic">Il download del modello è fallito. Riprova.</string>
+    <string name="instruments">Strumenti</string>
+    <string name="instruments_subtitle">Scegli cosa suona e bilancia gli strumenti di questo brano. Velocità, tonalità e loop valgono per entrambi.</string>
+    <string name="instruments_mode_full_track">Brano intero</string>
+    <string name="instruments_mode_stems">Strumenti</string>
+    <string name="instruments_full_track_hint">Sta suonando il file originale. Scegli Strumenti per cambiare il mix.</string>
+    <string name="instruments_switching">Riapro il brano…</string>
+    <string name="instruments_mute">Silenzia %1$s</string>
+    <string name="instruments_unmute">Riattiva %1$s</string>
+    <string name="instruments_volume_format">%1$d%</string>
+    <string name="stem_vocals">Voce</string>
+    <string name="stem_drums">Batteria</string>
+    <string name="stem_bass">Basso</string>
+    <string name="stem_guitar">Chitarra</string>
+    <string name="stem_piano">Piano</string>
+    <string name="stem_other">Altro</string>
 </resources>
