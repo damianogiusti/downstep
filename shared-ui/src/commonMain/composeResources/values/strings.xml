@@ -308,6 +308,7 @@
     <string name="instruments_mode_full_track">Full track</string>
     <string name="instruments_mode_stems">Instruments</string>
     <string name="instruments_switching">Reopening the track…</string>
+    <string name="instruments_mute_label">Mute</string>
     <string name="instruments_mute">Mute %1$s</string>
     <string name="instruments_unmute">Unmute %1$s</string>
     <string name="instruments_solo">Solo</string>

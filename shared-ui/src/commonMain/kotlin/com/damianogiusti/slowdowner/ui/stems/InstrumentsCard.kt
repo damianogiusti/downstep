@@ -9,10 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
@@ -37,7 +34,6 @@ import com.damianogiusti.slowdowner.ui.common.ValueSlider
 import com.damianogiusti.slowdowner.ui.resources.*
 import com.damianogiusti.slowdowner.ui.theme.SlowDownerTheme
 import com.damianogiusti.slowdowner.ui.theme.tabular
-import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -111,25 +107,25 @@ private fun StemRow(row: InstrumentRow, isEnabled: Boolean, actions: Instruments
     // A silent stem, muted or silenced by another's solo, is drawn quieter; only its slider keeps working.
     val textColor = if (row.isSilent) MaterialTheme.colorScheme.onSurface.copy(alpha = SILENT_ALPHA) else MaterialTheme.colorScheme.onSurface
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(ROW_HEIGHT)) {
-        IconToggleButton(
-            checked = row.isMuted,
-            onCheckedChange = { actions.onMuteToggled(row.kind) },
-            enabled = isEnabled,
-            modifier = Modifier.size(MUTE_BUTTON_SIZE),
-        ) {
-            Icon(
-                painter = painterResource(if (row.isMuted) Res.drawable.ic_volume_off else Res.drawable.ic_volume_up),
-                contentDescription = stringResource(if (row.isMuted) Res.string.instruments_unmute else Res.string.instruments_mute, name),
-                modifier = Modifier.size(20.dp),
-                tint = when {
-                    !isEnabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
-                    row.isMuted -> MaterialTheme.colorScheme.onSurfaceVariant
-                    row.isSilencedBySolo -> MaterialTheme.colorScheme.primary.copy(alpha = SILENT_ALPHA)
-                    else -> MaterialTheme.colorScheme.primary
-                },
-            )
-        }
-        SoloToggle(row, name, isEnabled, onToggled = { actions.onSoloToggled(row.kind) })
+        TextToggle(
+            label = stringResource(Res.string.instruments_mute_label),
+            description = stringResource(if (row.isMuted) Res.string.instruments_unmute else Res.string.instruments_mute, name),
+            isOn = row.isMuted,
+            onColor = MaterialTheme.colorScheme.secondary,
+            onContentColor = MaterialTheme.colorScheme.onSecondary,
+            isEnabled = isEnabled,
+            onToggled = { actions.onMuteToggled(row.kind) },
+        )
+        TextToggle(
+            label = stringResource(Res.string.instruments_solo),
+            description = stringResource(if (row.isSoloed) Res.string.instruments_unsolo else Res.string.instruments_solo_stem, name),
+            isOn = row.isSoloed,
+            onColor = MaterialTheme.colorScheme.primary,
+            onContentColor = MaterialTheme.colorScheme.onPrimary,
+            isEnabled = isEnabled,
+            onToggled = { actions.onSoloToggled(row.kind) },
+            modifier = Modifier.padding(start = 4.dp),
+        )
         Text(
             text = name,
             style = MaterialTheme.typography.bodyMedium,
@@ -161,26 +157,36 @@ private fun StemRow(row: InstrumentRow, isEnabled: Boolean, actions: Instruments
     }
 }
 
-/** A small toggle that reads "Solo": filled with the primary color while the stem is soloed, outlined otherwise. */
+/**
+ * A small toggle with a word on it, like a mixer's M and S buttons: filled with [onColor] while on, outlined
+ * otherwise. The word is visual; [description] names the stem and the action for screen readers.
+ */
 @Composable
-private fun SoloToggle(row: InstrumentRow, name: String, isEnabled: Boolean, onToggled: () -> Unit) {
-    val description = stringResource(if (row.isSoloed) Res.string.instruments_unsolo else Res.string.instruments_solo_stem, name)
+private fun TextToggle(
+    label: String,
+    description: String,
+    isOn: Boolean,
+    onColor: Color,
+    onContentColor: Color,
+    isEnabled: Boolean,
+    onToggled: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(
-        checked = row.isSoloed,
+        checked = isOn,
         onCheckedChange = { onToggled() },
         enabled = isEnabled,
         shape = MaterialTheme.shapes.small,
-        color = if (row.isSoloed) MaterialTheme.colorScheme.primary else Color.Transparent,
-        contentColor = if (row.isSoloed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-        border = if (row.isSoloed) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier
-            .padding(start = 2.dp)
-            .height(SOLO_HEIGHT)
+        color = if (isOn) onColor else Color.Transparent,
+        contentColor = if (isOn) onContentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+        border = if (isOn) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = modifier
+            .height(TOGGLE_HEIGHT)
             .semantics { contentDescription = description },
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
             Text(
-                text = stringResource(Res.string.instruments_solo),
+                text = label,
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 modifier = Modifier.clearAndSetSemantics {},
@@ -197,8 +203,7 @@ private fun silentSliderColors() = SliderDefaults.colors(
 )
 
 private val ROW_HEIGHT = 36.dp
-private val MUTE_BUTTON_SIZE = 36.dp
-private val SOLO_HEIGHT = 26.dp
+private val TOGGLE_HEIGHT = 26.dp
 private val STEM_NAME_WIDTH = 64.dp
 private val PERCENT_WIDTH = 44.dp
 private const val MAX_PERCENT = 100

@@ -306,6 +306,7 @@
     <string name="instruments_mode_full_track">Brano intero</string>
     <string name="instruments_mode_stems">Strumenti</string>
     <string name="instruments_switching">Riapro il brano…</string>
+    <string name="instruments_mute_label">Muto</string>
     <string name="instruments_mute">Silenzia %1$s</string>
     <string name="instruments_unmute">Riattiva %1$s</string>
     <string name="instruments_solo">Solo</string>
