@@ -67,6 +67,28 @@ class RoomStemsStoreTest {
     }
 
     @Test
+    fun `when mute and solo are set then only that stem changes and the level stays`() = runTest {
+        store.add(song)
+
+        store.setMuted("a", "DRUMS", true)
+        store.setSoloed("a", "VOCALS", true)
+
+        val stems = store.observe("a").first()?.stems?.associateBy { it.stem }
+        assertEquals(StemFileDto("DRUMS", "drums.wav", 0.5f, isMuted = true), stems?.get("DRUMS"))
+        assertEquals(StemFileDto("VOCALS", "vocals.wav", 1f, isSoloed = true), stems?.get("VOCALS"))
+    }
+
+    @Test
+    fun `when stems are added with flags then they are stored with them`() = runTest {
+        store.add(song.copy(stems = listOf(StemFileDto("VOCALS", "vocals.wav", 0.4f, isMuted = true, isSoloed = true))))
+
+        assertEquals(
+            StemFileDto("VOCALS", "vocals.wav", 0.4f, isMuted = true, isSoloed = true),
+            store.observe("a").first()?.stems?.single(),
+        )
+    }
+
+    @Test
     fun `when stems are deleted then the rows and the files go`() = runTest {
         store.add(song)
         val dir = store.dirFor("a")

@@ -50,5 +50,11 @@ class DefaultStemsRepository(
         withContext(dispatcher) { store.setGain(trackId, stem.name, gain.coerceIn(0f, 1f)) }
     }
 
+    override suspend fun setMuted(trackId: String, stem: StemKind, isMuted: Boolean) =
+        withContext(dispatcher) { store.setMuted(trackId, stem.name, isMuted) }
+
+    override suspend fun setSoloed(trackId: String, stem: StemKind, isSoloed: Boolean) =
+        withContext(dispatcher) { store.setSoloed(trackId, stem.name, isSoloed) }
+
     override suspend fun delete(trackId: String) = withContext(dispatcher) { store.delete(trackId) }
 }

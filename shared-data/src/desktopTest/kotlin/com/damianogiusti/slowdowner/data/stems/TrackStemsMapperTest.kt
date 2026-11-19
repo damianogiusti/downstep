@@ -29,6 +29,34 @@ class TrackStemsMapperTest {
     }
 
     @Test
+    fun `when stems are muted or soloed then the mix has the flags and the levels`() {
+        val dto = TrackStemsDto(
+            "a", "model", "STEMS",
+            listOf(
+                StemFileDto("VOCALS", "v.wav", 0.25f, isMuted = true),
+                StemFileDto("DRUMS", "d.wav", 0.5f, isSoloed = true),
+                StemFileDto("BASS", "b.wav", 1f),
+            ),
+        )
+
+        assertEquals(
+            StemMix(
+                mapOf(StemKind.VOCALS to 0.25f, StemKind.DRUMS to 0.5f, StemKind.BASS to 1f),
+                mutedStems = setOf(StemKind.VOCALS),
+                soloedStems = setOf(StemKind.DRUMS),
+            ),
+            mapper.toDomain(dto)?.mix,
+        )
+    }
+
+    @Test
+    fun `when a flagged stem name is unknown then its flags are dropped with it`() {
+        val dto = TrackStemsDto("a", "model", "STEMS", listOf(StemFileDto("KAZOO", "k.wav", 1f, isSoloed = true), StemFileDto("BASS", "b.wav", 0.5f)))
+
+        assertEquals(StemMix(mapOf(StemKind.BASS to 0.5f)), mapper.toDomain(dto)?.mix)
+    }
+
+    @Test
     fun `when a stem name is unknown then that stem is skipped and logged`() {
         val dto = TrackStemsDto("a", "model", "STEMS", listOf(StemFileDto("KAZOO", "k.wav", 1f), StemFileDto("BASS", "b.wav", 0.5f)))
 

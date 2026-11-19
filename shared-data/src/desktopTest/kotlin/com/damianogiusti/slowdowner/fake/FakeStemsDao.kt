@@ -31,6 +31,12 @@ class FakeStemsDao : StemsDao {
     override suspend fun updateGain(trackId: String, stem: String, gain: Float) =
         stems.update { all -> all.map { if (it.trackId == trackId && it.stem == stem) it.copy(gain = gain) else it } }
 
+    override suspend fun updateMuted(trackId: String, stem: String, isMuted: Boolean) =
+        stems.update { all -> all.map { if (it.trackId == trackId && it.stem == stem) it.copy(isMuted = isMuted) else it } }
+
+    override suspend fun updateSoloed(trackId: String, stem: String, isSoloed: Boolean) =
+        stems.update { all -> all.map { if (it.trackId == trackId && it.stem == stem) it.copy(isSoloed = isSoloed) else it } }
+
     override suspend fun delete(trackId: String) {
         states.update { all -> all.filterNot { it.trackId == trackId } }
         stems.update { all -> all.filterNot { it.trackId == trackId } }

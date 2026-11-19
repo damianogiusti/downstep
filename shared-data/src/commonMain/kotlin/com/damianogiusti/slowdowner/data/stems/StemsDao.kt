@@ -28,6 +28,14 @@ interface StemsDao {
     @Query("UPDATE track_stems SET gain = :gain WHERE track_id = :trackId AND stem = :stem")
     suspend fun updateGain(trackId: String, stem: String, gain: Float)
 
+    /** Does nothing when the track does not have the stem. */
+    @Query("UPDATE track_stems SET is_muted = :isMuted WHERE track_id = :trackId AND stem = :stem")
+    suspend fun updateMuted(trackId: String, stem: String, isMuted: Boolean)
+
+    /** Does nothing when the track does not have the stem. */
+    @Query("UPDATE track_stems SET is_soloed = :isSoloed WHERE track_id = :trackId AND stem = :stem")
+    suspend fun updateSoloed(trackId: String, stem: String, isSoloed: Boolean)
+
     /** The stems go with it (cascade). */
     @Query("DELETE FROM track_stem_state WHERE track_id = :trackId")
     suspend fun delete(trackId: String)

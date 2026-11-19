@@ -310,6 +310,9 @@
     <string name="instruments_switching">Reopening the track…</string>
     <string name="instruments_mute">Mute %1$s</string>
     <string name="instruments_unmute">Unmute %1$s</string>
+    <string name="instruments_solo">Solo</string>
+    <string name="instruments_solo_stem">Solo %1$s</string>
+    <string name="instruments_unsolo">Remove the solo from %1$s</string>
     <string name="instruments_volume_format">%1$d%</string>
     <string name="stem_vocals">Vocals</string>
     <string name="stem_drums">Drums</string>

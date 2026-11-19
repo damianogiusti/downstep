@@ -30,6 +30,16 @@ class FakeStemsStore(initial: List<TrackStemsDto> = emptyList(), private val roo
         all + (trackId to current.copy(stems = current.stems.map { if (it.stem == stem) it.copy(gain = gain) else it }))
     }
 
+    override suspend fun setMuted(trackId: String, stem: String, isMuted: Boolean) = tracks.update { all ->
+        val current = all[trackId] ?: return@update all
+        all + (trackId to current.copy(stems = current.stems.map { if (it.stem == stem) it.copy(isMuted = isMuted) else it }))
+    }
+
+    override suspend fun setSoloed(trackId: String, stem: String, isSoloed: Boolean) = tracks.update { all ->
+        val current = all[trackId] ?: return@update all
+        all + (trackId to current.copy(stems = current.stems.map { if (it.stem == stem) it.copy(isSoloed = isSoloed) else it }))
+    }
+
     override suspend fun add(stems: TrackStemsDto) {
         addError?.let { throw it }
         tracks.update { it + (stems.trackId to stems) }

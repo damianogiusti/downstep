@@ -17,7 +17,7 @@ import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
 
-/** Version 1 to 2 adds the stem tables: the library of a user who updates must come through untouched. */
+/** Version 1 to 2 adds the stem tables (with the mute and solo flags of each stem): the library of a user who updates must come through untouched. */
 class SlowDownerDatabaseMigrationTest {
 
     // The helper rule needs its path when it is created, before a TemporaryFolder rule would be ready.
@@ -60,6 +60,21 @@ class SlowDownerDatabaseMigrationTest {
     }
 
     @Test
+    fun `when a stem row is inserted without the flags then mute and solo default to false`() {
+        helper.createDatabase(1).use { connection ->
+            connection.execSQL("INSERT INTO tracks (id, title, file_path, source_url, added_at) VALUES ('t1', 'Song', '/a.m4a', NULL, 7)")
+        }
+
+        helper.runMigrationsAndValidate(2, emptyList()).use { connection ->
+            connection.execSQL("INSERT INTO track_stem_state (track_id, model, mode) VALUES ('t1', 'model', 'STEMS')")
+            connection.execSQL("INSERT INTO track_stems (track_id, stem, file_name, gain) VALUES ('t1', 'VOCALS', 'v.wav', 0.7)")
+            assertEquals("0", connection.text("SELECT is_muted FROM track_stems WHERE track_id = 't1'"))
+            assertEquals("0", connection.text("SELECT is_soloed FROM track_stems WHERE track_id = 't1'"))
+            assertEquals("0.7", connection.text("SELECT gain FROM track_stems WHERE track_id = 't1'"))
+        }
+    }
+
+    @Test
     fun `when a migrated database is opened then the stem tables work and cascade from the track`() = runTest {
         helper.createDatabase(1).use { connection ->
             connection.execSQL("INSERT INTO tracks (id, title, file_path, source_url, added_at) VALUES ('t1', 'Song', '/a.m4a', NULL, 7)")
@@ -87,6 +102,8 @@ class SlowDownerDatabaseMigrationTest {
             assertNull(dao.observe("t1").first())
             assertEquals(emptyList<Any>(), dao.findStems("t1"))
             assertEquals(2, dao.findStems("t2").size)
+            // Mute and solo are columns of the version-2 table itself, which the migration creates.
+            assertEquals(listOf(false, false), dao.findStems("t2").map { it.isMuted })
             assertNotNull(dao.observe("t2").first())
 
             // State -> stems, without the track going away.

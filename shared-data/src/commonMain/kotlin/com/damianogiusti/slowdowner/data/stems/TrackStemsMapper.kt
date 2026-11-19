@@ -21,10 +21,16 @@ class TrackStemsMapper(private val logger: Logger) {
 
     fun toDomain(dto: TrackStemsDto): TrackStems? {
         val mode = dto.mode.toEnumOrNull<TrackMode>() ?: return unknown()
-        val gains = dto.stems.mapNotNull { stem ->
-            stem.stem.toEnumOrNull<StemKind>()?.let { it to stem.gain } ?: unknown()
+        val known = dto.stems.mapNotNull { stem ->
+            val kind = stem.stem.toEnumOrNull<StemKind>() ?: return@mapNotNull unknown()
+            kind to stem
         }
-        return TrackStems(dto.trackId, dto.model, mode, StemMix(gains.toMap()))
+        val mix = StemMix(
+            gains = known.associate { (kind, stem) -> kind to stem.gain },
+            mutedStems = known.filter { (_, stem) -> stem.isMuted }.map { (kind, _) -> kind }.toSet(),
+            soloedStems = known.filter { (_, stem) -> stem.isSoloed }.map { (kind, _) -> kind }.toSet(),
+        )
+        return TrackStems(dto.trackId, dto.model, mode, mix)
     }
 
     /**
@@ -35,7 +41,7 @@ class TrackStemsMapper(private val logger: Logger) {
         val mode = dto.mode.toEnumOrNull<TrackMode>() ?: return unknown()
         val stems = dto.stems.mapNotNull { stem ->
             val kind = stem.stem.toEnumOrNull<StemKind>() ?: return@mapNotNull unknown()
-            PlayableStem(kind, File(dir, stem.fileName).path, stem.gain)
+            PlayableStem(kind, File(dir, stem.fileName).path, stem.gain, stem.isMuted, stem.isSoloed)
         }.sortedBy { it.kind.ordinal }
         return if (stems.isEmpty()) null else PlayableStems(mode, stems)
     }

@@ -9,6 +9,8 @@ interface StemsStore {
     fun observeSeparatedTrackIds(): Flow<List<String>>
     suspend fun setMode(trackId: String, mode: String)
     suspend fun setGain(trackId: String, stem: String, gain: Float)
+    suspend fun setMuted(trackId: String, stem: String, isMuted: Boolean)
+    suspend fun setSoloed(trackId: String, stem: String, isSoloed: Boolean)
 
     /** Saves the state and the stems of a track together, replacing an earlier separation. */
     suspend fun add(stems: TrackStemsDto)

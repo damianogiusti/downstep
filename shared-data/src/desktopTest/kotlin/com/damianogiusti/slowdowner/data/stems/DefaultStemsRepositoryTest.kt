@@ -63,6 +63,33 @@ class DefaultStemsRepositoryTest {
     }
 
     @Test
+    fun `when a stem is muted then the flag is observed and the level is kept`() = runTest {
+        repository.setMuted("a", StemKind.DRUMS, true)
+
+        val mix = repository.observe("a").first()?.mix
+        assertEquals(setOf(StemKind.DRUMS), mix?.mutedStems)
+        assertEquals(0.5f, mix?.gains?.get(StemKind.DRUMS))
+        assertEquals(0f, mix?.effectiveGain(StemKind.DRUMS))
+    }
+
+    @Test
+    fun `when a stem is soloed and then not then the flag is observed`() = runTest {
+        repository.setSoloed("a", StemKind.VOCALS, true)
+        assertEquals(setOf(StemKind.VOCALS), repository.observe("a").first()?.mix?.soloedStems)
+
+        repository.setSoloed("a", StemKind.VOCALS, false)
+        assertEquals(emptySet<StemKind>(), repository.observe("a").first()?.mix?.soloedStems)
+    }
+
+    @Test
+    fun `when the track is not separated then mute and solo do nothing`() = runTest {
+        repository.setMuted("b", StemKind.DRUMS, true)
+        repository.setSoloed("b", StemKind.DRUMS, true)
+
+        assertNull(repository.observe("b").first())
+    }
+
+    @Test
     fun `when a gain is out of range then it is clamped`() = runTest {
         repository.setGain("a", StemKind.DRUMS, 1.7f)
         assertEquals(1f, repository.observe("a").first()?.mix?.gains?.get(StemKind.DRUMS))

@@ -6,6 +6,9 @@ import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
 import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.domain.stems.ObserveTrackStemsUseCase
 import com.damianogiusti.slowdowner.domain.stems.SetStemGainUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetStemMutedUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetStemSoloedUseCase
+import com.damianogiusti.slowdowner.domain.stems.StemMix
 import com.damianogiusti.slowdowner.domain.stems.StemKind
 import com.damianogiusti.slowdowner.domain.stems.SwitchTrackModeUseCase
 import com.damianogiusti.slowdowner.domain.stems.TrackMode
@@ -40,9 +43,8 @@ import org.jetbrains.compose.resources.StringResource
  * Window-scoped like the player, which shows the panel's action only while [state] is
  * [InstrumentsUiState.Ready]. Only apps that bind the stem repositories create it.
  *
- * Mute is not a saved flag: it saves gain 0, which is what plays, and keeps the previous gain here, in
- * memory, to give it back on unmute. After a restart a muted stem unmutes to 100 %: a second saved value
- * would be a schema change for a convenience.
+ * Mute and solo are saved flags beside the level, so a muted stem keeps its level and comes back at it, also
+ * after a restart.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class InstrumentsViewModel(private val useCases: InstrumentsUseCases) : ViewModel() {
@@ -59,7 +61,6 @@ class InstrumentsViewModel(private val useCases: InstrumentsUseCases) : ViewMode
     // to the old saved value for the moment between the end of the drag and the saved one arriving.
     private val pendingGains = MutableStateFlow<Map<StemKind, Float>>(emptyMap())
     private val gainJobs = mutableMapOf<StemKind, Job>()
-    private val gainsBeforeMute = mutableMapOf<StemKind, Float>()
 
     val state: StateFlow<InstrumentsUiState> = combine(separatedTrack(), isSwitching, pendingGains) { separated, isSwitching, pending ->
         if (separated == null) {
@@ -71,7 +72,7 @@ class InstrumentsViewModel(private val useCases: InstrumentsUseCases) : ViewMode
                 isSwitching = isSwitching,
                 stems = separated.stems.mix.gains.entries
                     .sortedBy { it.key.ordinal }
-                    .map { (kind, saved) -> InstrumentRow(kind, kind.label, pending[kind] ?: saved) },
+                    .map { (kind, saved) -> separated.stems.mix.toRow(kind, pending[kind] ?: saved) },
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), InstrumentsUiState.Unavailable)
@@ -126,12 +127,14 @@ class InstrumentsViewModel(private val useCases: InstrumentsUseCases) : ViewMode
         val ready = state.value as? InstrumentsUiState.Ready ?: return
         if (!ready.areStemControlsEnabled) return
         val row = ready.stems.firstOrNull { it.kind == stem } ?: return
-        if (row.isMuted) {
-            applyGain(ready.trackId, stem, gainsBeforeMute.remove(stem) ?: 1f)
-        } else {
-            gainsBeforeMute[stem] = row.gain
-            applyGain(ready.trackId, stem, 0f)
-        }
+        viewModelScope.launch { useCases.setMuted(ready.trackId, stem, !row.isMuted) }
+    }
+
+    fun onSoloToggled(stem: StemKind) {
+        val ready = state.value as? InstrumentsUiState.Ready ?: return
+        if (!ready.areStemControlsEnabled) return
+        val row = ready.stems.firstOrNull { it.kind == stem } ?: return
+        viewModelScope.launch { useCases.setSoloed(ready.trackId, stem, !row.isSoloed) }
     }
 
     // A drag makes a burst of values: a newer one replaces the one still being saved, and the last always
@@ -145,7 +148,6 @@ class InstrumentsViewModel(private val useCases: InstrumentsUseCases) : ViewMode
     private fun resetForNewTrack() {
         gainJobs.values.forEach(Job::cancel)
         gainJobs.clear()
-        gainsBeforeMute.clear()
         pendingGains.value = emptyMap()
     }
 
@@ -161,6 +163,15 @@ class InstrumentsViewModel(private val useCases: InstrumentsUseCases) : ViewMode
         const val PERCENT = 100
     }
 }
+
+private fun StemMix.toRow(kind: StemKind, level: Float) = InstrumentRow(
+    kind = kind,
+    name = kind.label,
+    gain = level,
+    isMuted = kind in mutedStems,
+    isSoloed = kind in soloedStems,
+    isSilencedBySolo = isSilencedBySolo(kind),
+)
 
 private val StemKind.label: StringResource
     get() = when (this) {
@@ -178,4 +189,6 @@ class InstrumentsUseCases(
     val observeStems: ObserveTrackStemsUseCase,
     val switchMode: SwitchTrackModeUseCase,
     val setGain: SetStemGainUseCase,
+    val setMuted: SetStemMutedUseCase,
+    val setSoloed: SetStemSoloedUseCase,
 )

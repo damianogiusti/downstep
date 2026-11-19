@@ -23,10 +23,21 @@ sealed interface InstrumentsUiState {
     }
 }
 
-/** [gain] is what plays (0..1): the dragged value until it is saved, then the saved one. */
-data class InstrumentRow(val kind: StemKind, val name: StringResource, val gain: Float) {
+/**
+ * [gain] is the level of the slider (0..1): the dragged value until it is saved, then the saved one. It is not
+ * what plays when the stem is [isMuted] or [isSilencedBySolo]: the mix says that.
+ */
+data class InstrumentRow(
+    val kind: StemKind,
+    val name: StringResource,
+    val gain: Float,
+    val isMuted: Boolean = false,
+    val isSoloed: Boolean = false,
+    /** Silent only because another stem is soloed: the row looks inactive, its slider still works. */
+    val isSilencedBySolo: Boolean = false,
+) {
     val percent: Int get() = (gain * PERCENT).roundToInt()
-    val isMuted: Boolean get() = percent == 0
+    val isSilent: Boolean get() = isMuted || isSilencedBySolo
 
     private companion object {
         const val PERCENT = 100

@@ -67,6 +67,41 @@ class StemsDaoTest {
     }
 
     @Test
+    fun `when a new stem is inserted then it is neither muted nor soloed`() = runTest {
+        track("a")
+        dao.replace(state("a"), stems("a"))
+
+        assertTrue(dao.findStems("a").none { it.isMuted || it.isSoloed })
+    }
+
+    @Test
+    fun `when mute and solo are updated then only that stem changes and its gain stays`() = runTest {
+        track("a")
+        dao.replace(state("a"), stems("a"))
+
+        dao.updateMuted("a", "DRUMS", true)
+        dao.updateSoloed("a", "VOCALS", true)
+
+        val stems = dao.findStems("a").associateBy { it.stem }
+        assertEquals(TrackStemEntity("a", "DRUMS", "d.wav", 0.5f, isMuted = true), stems["DRUMS"])
+        assertEquals(TrackStemEntity("a", "VOCALS", "v.wav", 1f, isSoloed = true), stems["VOCALS"])
+
+        dao.updateMuted("a", "DRUMS", false)
+        assertEquals(TrackStemEntity("a", "DRUMS", "d.wav", 0.5f), dao.findStems("a").first { it.stem == "DRUMS" })
+    }
+
+    @Test
+    fun `when the stem is absent then mute and solo change nothing`() = runTest {
+        track("a")
+        dao.replace(state("a"), stems("a"))
+
+        dao.updateMuted("a", "PIANO", true)
+        dao.updateSoloed("ghost", "DRUMS", true)
+
+        assertEquals(stems("a").toSet(), dao.findStems("a").toSet())
+    }
+
+    @Test
     fun `when the track is absent then updates change nothing`() = runTest {
         dao.updateMode("ghost", "FULL_TRACK")
         dao.updateGain("ghost", "DRUMS", 0.9f)

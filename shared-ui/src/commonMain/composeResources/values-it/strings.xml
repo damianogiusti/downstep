@@ -308,6 +308,9 @@
     <string name="instruments_switching">Riapro il brano…</string>
     <string name="instruments_mute">Silenzia %1$s</string>
     <string name="instruments_unmute">Riattiva %1$s</string>
+    <string name="instruments_solo">Solo</string>
+    <string name="instruments_solo_stem">Assolo %1$s</string>
+    <string name="instruments_unsolo">Togli l'assolo da %1$s</string>
     <string name="instruments_volume_format">%1$d%</string>
     <string name="stem_vocals">Voce</string>
     <string name="stem_drums">Batteria</string>

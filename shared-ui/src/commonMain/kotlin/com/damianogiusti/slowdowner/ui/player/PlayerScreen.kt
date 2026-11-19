@@ -124,7 +124,7 @@ fun PlayerScreen(
             timeline = timeline,
             onCollapse = navigation.onCollapse,
             onShowEffects = { showEffects = true },
-            instruments = instruments?.let { InstrumentsActions(it::onModeSelected, it::onGainChanged, it::onMuteToggled) },
+            instruments = instruments?.let { InstrumentsActions(it::onModeSelected, it::onGainChanged, it::onMuteToggled, it::onSoloToggled) },
             onExport = viewModel::onExportClicked,
             onCancelExport = viewModel::onExportCancelClicked,
             onAddToPlaylist = navigation.onAddToPlaylist,

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 2,
-    "identityHash": "a72da21277ff69038fdb45bc07facacc",
+    "identityHash": "c5edb5d8b4fb1ed368aa6ad273d30552",
     "entities": [
       {
         "tableName": "tracks",
@@ -361,7 +361,7 @@
       },
       {
         "tableName": "track_stems",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`track_id` TEXT NOT NULL, `stem` TEXT NOT NULL, `file_name` TEXT NOT NULL, `gain` REAL NOT NULL, PRIMARY KEY(`track_id`, `stem`), FOREIGN KEY(`track_id`) REFERENCES `track_stem_state`(`track_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`track_id` TEXT NOT NULL, `stem` TEXT NOT NULL, `file_name` TEXT NOT NULL, `gain` REAL NOT NULL, `is_muted` INTEGER NOT NULL DEFAULT 0, `is_soloed` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`track_id`, `stem`), FOREIGN KEY(`track_id`) REFERENCES `track_stem_state`(`track_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "trackId",
@@ -386,6 +386,20 @@
             "columnName": "gain",
             "affinity": "REAL",
             "notNull": true
+          },
+          {
+            "fieldPath": "isMuted",
+            "columnName": "is_muted",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "isSoloed",
+            "columnName": "is_soloed",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -412,7 +426,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a72da21277ff69038fdb45bc07facacc')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c5edb5d8b4fb1ed368aa6ad273d30552')"
     ]
   }
 }

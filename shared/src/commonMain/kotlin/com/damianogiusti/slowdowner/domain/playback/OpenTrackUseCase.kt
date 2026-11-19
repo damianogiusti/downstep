@@ -7,6 +7,7 @@ import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.domain.source.StemSource
 import com.damianogiusti.slowdowner.domain.stems.PlayableStems
 import com.damianogiusti.slowdowner.domain.stems.StemMixer
+import com.damianogiusti.slowdowner.domain.stems.applyMix
 import com.damianogiusti.slowdowner.domain.stems.StemsRepository
 import com.damianogiusti.slowdowner.domain.stems.TrackMode
 import com.damianogiusti.slowdowner.logging.Logger
@@ -18,7 +19,7 @@ import com.damianogiusti.slowdowner.logging.Logger
  * in between.
  *
  * A track opens as its stems when it is separated and saved in [TrackMode.STEMS], else as the original file.
- * The stems are looked up before marking the track as playing, and their saved gains are applied right after
+ * The stems are looked up before marking the track as playing, and their saved mix (levels, mutes and solos, as effective gains) is applied right after
  * the mark: [StemMixer.setGain] does not suspend, so the invariant above holds with stems too.
  */
 class OpenTrackUseCase(
@@ -53,7 +54,7 @@ class OpenTrackUseCase(
         }
         nowPlaying.set(track)
         // No suspension from the mark above to here, nor to the caller's next statement.
-        for (stem in playable.stems) mixer.setGain(stem.kind, stem.gain)
+        mixer.applyMix(playable.mix)
         return true
     }
 }

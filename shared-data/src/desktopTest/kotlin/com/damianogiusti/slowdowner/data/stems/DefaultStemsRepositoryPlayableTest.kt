@@ -48,6 +48,32 @@ class DefaultStemsRepositoryPlayableTest {
     }
 
     @Test
+    fun `when stems are muted or soloed then the playable stems carry the flags`() = runTest {
+        val root = folder.newFolder()
+        val store = FakeStemsStore(
+            listOf(
+                TrackStemsDto(
+                    "a", "model", "STEMS",
+                    listOf(StemFileDto("VOCALS", "vocals.wav", 0.4f, isMuted = true), StemFileDto("DRUMS", "drums.wav", 1f, isSoloed = true)),
+                ),
+            ),
+            root,
+        )
+        files(store, "a", "vocals.wav", "drums.wav")
+
+        val playable = repository(store).playableStems("a")
+
+        assertEquals(
+            listOf(
+                PlayableStem(StemKind.VOCALS, File(root, "a/vocals.wav").path, 0.4f, isMuted = true),
+                PlayableStem(StemKind.DRUMS, File(root, "a/drums.wav").path, 1f, isSoloed = true),
+            ),
+            playable?.stems,
+        )
+        assertEquals(0f, playable?.mix?.effectiveGain(StemKind.VOCALS))
+    }
+
+    @Test
     fun `when the track is in full track mode then the stems are still playable with that mode`() = runTest {
         val store = FakeStemsStore(listOf(TrackStemsDto("a", "model", "FULL_TRACK", listOf(stem("VOCALS")))), folder.newFolder())
         files(store, "a", "vocals.wav")

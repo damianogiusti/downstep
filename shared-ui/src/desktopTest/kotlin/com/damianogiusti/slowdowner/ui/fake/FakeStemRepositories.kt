@@ -59,7 +59,12 @@ class FakeStemsRepository : StemsRepository {
 
     override suspend fun playableStems(trackId: String): PlayableStems? {
         val stems = tracks.value[trackId] ?: return null
-        return PlayableStems(stems.mode, stems.mix.gains.map { (kind, gain) -> PlayableStem(kind, "/stems/$trackId/$kind.wav", gain) })
+        return PlayableStems(
+            stems.mode,
+            stems.mix.gains.map { (kind, gain) ->
+                PlayableStem(kind, "/stems/$trackId/$kind.wav", gain, kind in stems.mix.mutedStems, kind in stems.mix.soloedStems)
+            },
+        )
     }
 
     override fun observeSeparatedTrackIds(): Flow<Set<String>> = separatedIds
@@ -73,7 +78,28 @@ class FakeStemsRepository : StemsRepository {
         savedGains += Triple(trackId, stem, gain)
         tracks.update { all ->
             val current = all[trackId] ?: return@update all
-            all + (trackId to current.copy(mix = StemMix(current.mix.gains + (stem to gain))))
+            all + (trackId to current.copy(mix = current.mix.withGain(stem, gain)))
+        }
+    }
+
+    /** Every mute and solo saved, in order, as "MUTE"/"SOLO" with the stem and the new flag. */
+    val savedFlags = mutableListOf<Triple<String, StemKind, Boolean>>()
+
+    override suspend fun setMuted(trackId: String, stem: StemKind, isMuted: Boolean) {
+        saveGate?.await()
+        savedFlags += Triple("MUTE", stem, isMuted)
+        tracks.update { all ->
+            val current = all[trackId] ?: return@update all
+            all + (trackId to current.copy(mix = current.mix.withMuted(stem, isMuted)))
+        }
+    }
+
+    override suspend fun setSoloed(trackId: String, stem: StemKind, isSoloed: Boolean) {
+        saveGate?.await()
+        savedFlags += Triple("SOLO", stem, isSoloed)
+        tracks.update { all ->
+            val current = all[trackId] ?: return@update all
+            all + (trackId to current.copy(mix = current.mix.withSoloed(stem, isSoloed)))
         }
     }
 

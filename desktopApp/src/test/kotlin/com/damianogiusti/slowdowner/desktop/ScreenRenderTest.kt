@@ -329,13 +329,23 @@ class ScreenRenderTest {
         )
         val rows = listOf(
             InstrumentRow(StemKind.VOCALS, Res.string.stem_vocals, 0.8f),
-            InstrumentRow(StemKind.DRUMS, Res.string.stem_drums, 0f),
+            InstrumentRow(StemKind.DRUMS, Res.string.stem_drums, 0.5f, isMuted = true),
             InstrumentRow(StemKind.BASS, Res.string.stem_bass, 1f),
             InstrumentRow(StemKind.GUITAR, Res.string.stem_guitar, 0.35f),
             InstrumentRow(StemKind.PIANO, Res.string.stem_piano, 0.6f),
             InstrumentRow(StemKind.OTHER, Res.string.stem_other, 0.5f),
         )
+        // Vocals soloed: the others are silenced by it, and the muted drums stay muted.
+        val soloRows = listOf(
+            InstrumentRow(StemKind.VOCALS, Res.string.stem_vocals, 0.8f, isSoloed = true),
+            InstrumentRow(StemKind.DRUMS, Res.string.stem_drums, 0.5f, isMuted = true),
+            InstrumentRow(StemKind.BASS, Res.string.stem_bass, 1f, isSilencedBySolo = true),
+            InstrumentRow(StemKind.GUITAR, Res.string.stem_guitar, 0.35f, isSilencedBySolo = true),
+            InstrumentRow(StemKind.PIANO, Res.string.stem_piano, 0.6f, isSoloed = true),
+            InstrumentRow(StemKind.OTHER, Res.string.stem_other, 0.5f, isSilencedBySolo = true),
+        )
         val instrumentStates = listOf(
+            "solo" to InstrumentsUiState.Ready("1", TrackMode.STEMS, isSwitching = false, stems = soloRows),
             "stems" to InstrumentsUiState.Ready("1", TrackMode.STEMS, isSwitching = false, stems = rows),
             "full-track" to InstrumentsUiState.Ready("1", TrackMode.FULL_TRACK, isSwitching = false, stems = rows),
             "switching" to InstrumentsUiState.Ready("1", TrackMode.FULL_TRACK, isSwitching = true, stems = rows),
@@ -382,7 +392,7 @@ class ScreenRenderTest {
         timeline = TimelineActions({}, { _, _ -> }),
         onCollapse = {},
         onShowEffects = {},
-        instruments = InstrumentsActions({}, { _, _ -> }, {}),
+        instruments = InstrumentsActions({}, { _, _ -> }, {}, {}),
         onExport = {},
         onCancelExport = {},
         onAddToPlaylist = {},

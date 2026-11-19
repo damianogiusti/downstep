@@ -69,6 +69,25 @@ class OpenTrackByModeTest {
     }
 
     @Test
+    fun `when stems open then a muted stem is applied silent and its level is kept`() = runTest {
+        stems.setMuted("1", StemKind.DRUMS, true)
+
+        open()(track)
+
+        assertEquals(listOf(StemKind.VOCALS to 0.5f, StemKind.DRUMS to 0f), mixer.calls)
+        assertEquals(1f, stems.stems.value["1"]?.mix?.gains?.get(StemKind.DRUMS))
+    }
+
+    @Test
+    fun `when stems open with a solo then the others are applied silent`() = runTest {
+        stems.setSoloed("1", StemKind.DRUMS, true)
+
+        open()(track)
+
+        assertEquals(listOf(StemKind.VOCALS to 0f, StemKind.DRUMS to 1f), mixer.calls)
+    }
+
+    @Test
     fun `the gains are applied after the track is marked as playing with no suspension in between`() = runTest {
         var playingWhenApplied: LibraryTrack? = null
         val checking = object : StemMixer {

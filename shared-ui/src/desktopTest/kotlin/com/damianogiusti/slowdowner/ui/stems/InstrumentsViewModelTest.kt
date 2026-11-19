@@ -11,6 +11,10 @@ import com.damianogiusti.slowdowner.domain.source.AudioSource
 import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.domain.stems.ObserveTrackStemsUseCase
 import com.damianogiusti.slowdowner.domain.stems.SetStemGainUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetStemMutedUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetStemSoloedUseCase
+import com.damianogiusti.slowdowner.domain.stems.StemMix
+import com.damianogiusti.slowdowner.domain.stems.TrackStems
 import com.damianogiusti.slowdowner.domain.stems.StemKind
 import com.damianogiusti.slowdowner.domain.stems.SwitchTrackModeUseCase
 import com.damianogiusti.slowdowner.domain.stems.TrackMode
@@ -83,6 +87,8 @@ class InstrumentsViewModelTest {
             observeStems = ObserveTrackStemsUseCase(stems),
             switchMode = SwitchTrackModeUseCase(stems, nowPlaying, sources, engine, openForPractice, InMemoryModeSwitchRepository()),
             setGain = SetStemGainUseCase(stems, mixer, sources, nowPlaying),
+            setMuted = SetStemMutedUseCase(stems, mixer, sources, nowPlaying),
+            setSoloed = SetStemSoloedUseCase(stems, mixer, sources, nowPlaying),
         ),
     )
 
@@ -151,6 +157,7 @@ class InstrumentsViewModelTest {
         runCurrent()
 
         assertTrue(stems.savedGains.isEmpty())
+        assertTrue(stems.savedFlags.isEmpty())
         assertTrue(mixer.calls.filter { it.second != 0.5f }.isEmpty())
     }
 
@@ -337,55 +344,156 @@ class InstrumentsViewModelTest {
         assertTrue(stems.savedGains.isEmpty())
     }
 
+    private fun InstrumentsUiState.Ready.row(stem: StemKind) = stems.first { it.kind == stem }
+
     @Test
-    fun `mute saves a gain of zero and the row is muted`() = runTest {
+    fun `mute saves the flag and keeps the level of the row`() = runTest {
         val (viewModel, observer) = opened()
 
         viewModel.onMuteToggled(StemKind.BASS)
         runCurrent()
 
-        assertEquals(Triple("1", StemKind.BASS, 0f), stems.savedGains.last())
-        val bass = observer.ready.stems.first { it.kind == StemKind.BASS }
+        assertEquals(Triple("MUTE", StemKind.BASS, true), stems.savedFlags.last())
+        assertTrue(stems.savedGains.isEmpty())
+        val bass = observer.ready.row(StemKind.BASS)
         assertTrue(bass.isMuted)
-        assertEquals(0, bass.percent)
+        assertEquals(80, bass.percent)
     }
 
     @Test
-    fun `unmute gives back the gain from before the mute`() = runTest {
-        val (viewModel, observer) = opened()
-        viewModel.onMuteToggled(StemKind.BASS)
-        runCurrent()
+    fun `mute silences the stem live without changing the level`() = runTest {
+        val (viewModel, _) = opened()
+        mixer.calls.clear()
 
         viewModel.onMuteToggled(StemKind.BASS)
         runCurrent()
 
-        assertEquals(Triple("1", StemKind.BASS, 0.8f), stems.savedGains.last())
-        assertFalse(observer.ready.stems.first { it.kind == StemKind.BASS }.isMuted)
+        assertEquals(listOf(StemKind.VOCALS to 0.5f, StemKind.DRUMS to 1f, StemKind.BASS to 0f), mixer.calls)
     }
 
     @Test
-    fun `unmute of a stem that was already silent goes to the full level`() = runTest {
-        stems.add("1", TrackMode.STEMS, mapOf(StemKind.VOCALS to 0f, StemKind.DRUMS to 1f))
+    fun `unmute clears the flag and the stem plays at its level again`() = runTest {
         val (viewModel, observer) = opened()
-        assertTrue(observer.ready.stems.first { it.kind == StemKind.VOCALS }.isMuted)
+        viewModel.onMuteToggled(StemKind.BASS)
+        runCurrent()
+        mixer.calls.clear()
+
+        viewModel.onMuteToggled(StemKind.BASS)
+        runCurrent()
+
+        assertEquals(Triple("MUTE", StemKind.BASS, false), stems.savedFlags.last())
+        assertFalse(observer.ready.row(StemKind.BASS).isMuted)
+        assertEquals(StemKind.BASS to 0.8f, mixer.calls.last())
+    }
+
+    @Test
+    fun `a stem saved as muted shows muted at its level after a restart`() = runTest {
+        stems.tracks.value += "1" to TrackStems(
+            "1", "model", TrackMode.STEMS,
+            StemMix(mapOf(StemKind.VOCALS to 0.6f, StemKind.DRUMS to 1f), mutedStems = setOf(StemKind.VOCALS)),
+        )
+
+        val (_, observer) = opened()
+
+        val vocals = observer.ready.row(StemKind.VOCALS)
+        assertTrue(vocals.isMuted)
+        assertEquals(60, vocals.percent)
+    }
+
+    @Test
+    fun `a stem dragged to zero is not muted by that`() = runTest {
+        val (viewModel, observer) = opened()
+        viewModel.onGainChanged(StemKind.DRUMS, 0)
+        runCurrent()
+
+        assertFalse(observer.ready.row(StemKind.DRUMS).isMuted)
+        assertEquals(0, observer.ready.row(StemKind.DRUMS).percent)
+    }
+
+    @Test
+    fun `solo saves the flag, marks the row and silences the others`() = runTest {
+        val (viewModel, observer) = opened()
+
+        viewModel.onSoloToggled(StemKind.VOCALS)
+        runCurrent()
+
+        assertEquals(Triple("SOLO", StemKind.VOCALS, true), stems.savedFlags.last())
+        val ready = observer.ready
+        assertTrue(ready.row(StemKind.VOCALS).isSoloed)
+        assertFalse(ready.row(StemKind.VOCALS).isSilencedBySolo)
+        assertTrue(ready.row(StemKind.DRUMS).isSilencedBySolo)
+        assertTrue(ready.row(StemKind.BASS).isSilencedBySolo)
+        // Their levels are still there for the sliders.
+        assertEquals(listOf(50, 100, 80), ready.stems.map { it.percent })
+    }
+
+    @Test
+    fun `solo applies the effective gains of all the stems live`() = runTest {
+        val (viewModel, _) = opened()
+        mixer.calls.clear()
+
+        viewModel.onSoloToggled(StemKind.VOCALS)
+        runCurrent()
+
+        assertEquals(listOf(StemKind.VOCALS to 0.5f, StemKind.DRUMS to 0f, StemKind.BASS to 0f), mixer.calls)
+    }
+
+    @Test
+    fun `a muted soloed stem is silent and the others stay silenced`() = runTest {
+        val (viewModel, observer) = opened()
+        viewModel.onSoloToggled(StemKind.VOCALS)
+        runCurrent()
+        mixer.calls.clear()
 
         viewModel.onMuteToggled(StemKind.VOCALS)
         runCurrent()
 
-        assertEquals(Triple("1", StemKind.VOCALS, 1f), stems.savedGains.last())
+        assertEquals(listOf(StemKind.VOCALS to 0f, StemKind.DRUMS to 0f, StemKind.BASS to 0f), mixer.calls)
+        assertTrue(observer.ready.row(StemKind.VOCALS).isMuted)
+        assertTrue(observer.ready.row(StemKind.VOCALS).isSoloed)
     }
 
     @Test
-    fun `a stem dragged to zero is muted and a toggle unmutes it`() = runTest {
+    fun `removing the last solo gives every stem back its level`() = runTest {
         val (viewModel, observer) = opened()
-        viewModel.onGainChanged(StemKind.DRUMS, 0)
+        viewModel.onSoloToggled(StemKind.VOCALS)
         runCurrent()
-        assertTrue(observer.ready.stems.first { it.kind == StemKind.DRUMS }.isMuted)
+        mixer.calls.clear()
 
-        viewModel.onMuteToggled(StemKind.DRUMS)
+        viewModel.onSoloToggled(StemKind.VOCALS)
         runCurrent()
 
-        assertFalse(observer.ready.stems.first { it.kind == StemKind.DRUMS }.isMuted)
+        assertEquals(listOf(StemKind.VOCALS to 0.5f, StemKind.DRUMS to 1f, StemKind.BASS to 0.8f), mixer.calls)
+        assertTrue(observer.ready.stems.none { it.isSoloed || it.isSilencedBySolo })
+    }
+
+    @Test
+    fun `the slider of a silenced stem still saves its level and keeps it silent`() = runTest {
+        val (viewModel, observer) = opened()
+        viewModel.onSoloToggled(StemKind.VOCALS)
+        runCurrent()
+        mixer.calls.clear()
+
+        viewModel.onGainChanged(StemKind.DRUMS, 30)
+        runCurrent()
+
+        assertEquals(Triple("1", StemKind.DRUMS, 0.3f), stems.savedGains.last())
+        assertEquals(listOf(StemKind.DRUMS to 0f), mixer.calls)
+        assertEquals(30, observer.ready.row(StemKind.DRUMS).percent)
+        assertTrue(observer.ready.row(StemKind.DRUMS).isSilencedBySolo)
+    }
+
+    @Test
+    fun `in the full track mode mute and solo do nothing`() = runTest {
+        val (viewModel, _) = opened()
+        viewModel.onModeSelected(TrackMode.FULL_TRACK)
+        runCurrent()
+
+        viewModel.onMuteToggled(StemKind.VOCALS)
+        viewModel.onSoloToggled(StemKind.VOCALS)
+        runCurrent()
+
+        assertTrue(stems.savedFlags.isEmpty())
     }
 
     @Test
@@ -412,20 +520,15 @@ class InstrumentsViewModelTest {
     }
 
     @Test
-    fun `the gain before a mute is forgotten when the track changes`() = runTest {
-        val (viewModel, _) = opened()
+    fun `a mute of the first track is not shown on the second`() = runTest {
+        val (viewModel, observer) = opened()
         viewModel.onMuteToggled(StemKind.VOCALS)
         runCurrent()
+
         openForPractice(other)
         runCurrent()
-        openForPractice(song)
-        runCurrent()
 
-        // Track 1 is muted in the database, and what it was before is not remembered any more.
-        viewModel.onMuteToggled(StemKind.VOCALS)
-        runCurrent()
-
-        assertEquals(Triple("1", StemKind.VOCALS, 1f), stems.savedGains.last())
+        assertFalse(observer.ready.stems.single().isMuted)
     }
 
     @Test

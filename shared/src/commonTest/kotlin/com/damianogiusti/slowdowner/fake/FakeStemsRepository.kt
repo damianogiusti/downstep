@@ -26,7 +26,9 @@ class FakeStemsRepository(initial: List<TrackStems> = emptyList()) : StemsReposi
         if (trackId in missingFiles) return null
         return PlayableStems(
             track.mode,
-            track.mix.gains.map { (kind, gain) -> PlayableStem(kind, "/stems/$trackId/${kind.name}.mp3", gain) },
+            track.mix.gains.map { (kind, gain) ->
+                PlayableStem(kind, "/stems/$trackId/${kind.name}.mp3", gain, kind in track.mix.mutedStems, kind in track.mix.soloedStems)
+            },
         )
     }
 
@@ -40,7 +42,19 @@ class FakeStemsRepository(initial: List<TrackStems> = emptyList()) : StemsReposi
     override suspend fun setGain(trackId: String, stem: StemKind, gain: Float) = stems.update { all ->
         val current = all[trackId] ?: return@update all
         if (stem !in current.mix.gains) return@update all
-        all + (trackId to current.copy(mix = StemMix(current.mix.gains + (stem to gain.coerceIn(0f, 1f)))))
+        all + (trackId to current.copy(mix = current.mix.withGain(stem, gain.coerceIn(0f, 1f))))
+    }
+
+    override suspend fun setMuted(trackId: String, stem: StemKind, isMuted: Boolean) = stems.update { all ->
+        val current = all[trackId] ?: return@update all
+        if (stem !in current.mix.gains) return@update all
+        all + (trackId to current.copy(mix = current.mix.withMuted(stem, isMuted)))
+    }
+
+    override suspend fun setSoloed(trackId: String, stem: StemKind, isSoloed: Boolean) = stems.update { all ->
+        val current = all[trackId] ?: return@update all
+        if (stem !in current.mix.gains) return@update all
+        all + (trackId to current.copy(mix = current.mix.withSoloed(stem, isSoloed)))
     }
 
     override suspend fun delete(trackId: String) {

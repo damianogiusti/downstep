@@ -29,7 +29,10 @@ data class TrackStemStateEntity(
     val mode: String,
 )
 
-/** One stem of a track: a file inside the track's stem folder and its gain. */
+/**
+ * One stem of a track: a file inside the track's stem folder, its level ([gain], 0..1) and whether it is muted or
+ * soloed. Mute and solo are flags, so muting never loses the level.
+ */
 @Entity(
     tableName = "track_stems",
     primaryKeys = ["track_id", "stem"],
@@ -47,6 +50,8 @@ data class TrackStemEntity(
     val stem: String,
     @ColumnInfo(name = "file_name") val fileName: String,
     val gain: Float,
+    @ColumnInfo(name = "is_muted", defaultValue = "0") val isMuted: Boolean = false,
+    @ColumnInfo(name = "is_soloed", defaultValue = "0") val isSoloed: Boolean = false,
 )
 
 /** The state and all its stems, read in one transaction so an observer never sees them half written. */

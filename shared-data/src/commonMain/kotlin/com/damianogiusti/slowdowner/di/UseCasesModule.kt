@@ -56,6 +56,8 @@ import com.damianogiusti.slowdowner.domain.stems.ObserveSeparatedTracksUseCase
 import com.damianogiusti.slowdowner.domain.stems.ObserveTrackStemsUseCase
 import com.damianogiusti.slowdowner.domain.stems.ObserveStemSeparationUseCase
 import com.damianogiusti.slowdowner.domain.stems.SetStemGainUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetStemMutedUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetStemSoloedUseCase
 import com.damianogiusti.slowdowner.domain.stems.SetTrackModeUseCase
 import com.damianogiusti.slowdowner.domain.stems.SwitchTrackModeUseCase
 import com.damianogiusti.slowdowner.domain.stems.ModeSwitchRepository
@@ -120,6 +122,8 @@ val useCasesModule = module {
     factoryOf(::ObserveModeSwitchUseCase)
     factoryOf(::SwitchTrackModeUseCase)
     factoryOf(::SetStemGainUseCase)
+    factoryOf(::SetStemMutedUseCase)
+    factoryOf(::SetStemSoloedUseCase)
     factoryOf(::DeleteTrackStemsUseCase)
     factoryOf(::ObserveStemModelUseCase)
     factoryOf(::DownloadStemModelUseCase)

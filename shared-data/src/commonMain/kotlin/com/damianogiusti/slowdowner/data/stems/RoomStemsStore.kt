@@ -22,7 +22,7 @@ class RoomStemsStore(
                     trackId = it.state.trackId,
                     model = it.state.model,
                     mode = it.state.mode,
-                    stems = it.stems.map { stem -> StemFileDto(stem.stem, stem.fileName, stem.gain) },
+                    stems = it.stems.map { stem -> StemFileDto(stem.stem, stem.fileName, stem.gain, stem.isMuted, stem.isSoloed) },
                 )
             }
         }
@@ -33,9 +33,13 @@ class RoomStemsStore(
 
     override suspend fun setGain(trackId: String, stem: String, gain: Float) = dao.updateGain(trackId, stem, gain)
 
+    override suspend fun setMuted(trackId: String, stem: String, isMuted: Boolean) = dao.updateMuted(trackId, stem, isMuted)
+
+    override suspend fun setSoloed(trackId: String, stem: String, isSoloed: Boolean) = dao.updateSoloed(trackId, stem, isSoloed)
+
     override suspend fun add(stems: TrackStemsDto) = dao.replace(
         state = TrackStemStateEntity(stems.trackId, stems.model, stems.mode),
-        stems = stems.stems.map { TrackStemEntity(stems.trackId, it.stem, it.fileName, it.gain) },
+        stems = stems.stems.map { TrackStemEntity(stems.trackId, it.stem, it.fileName, it.gain, it.isMuted, it.isSoloed) },
     )
 
     override suspend fun delete(trackId: String) {
