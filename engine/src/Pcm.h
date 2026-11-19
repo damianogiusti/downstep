@@ -76,11 +76,23 @@ inline bool pcmFitsInMemory(int64_t expectedFrames, int channels, uint64_t fileB
 }
 
 /**
+ * What the process can still allocate for decoded audio, minus kMemoryMarginBytes (per OS, in the
+ * decoder source). The budget of a decode that is given 0.
+ */
+uint64_t availableMemoryBytes();
+
+/**
  * Only the decoder depends on the OS: AudioToolbox on macOS, Media Foundation on Windows.
  * [memoryBudgetBytes] bounds the decoded PCM: 0 = what the OS can still give, minus a margin. On
  * TooLong or Failed, [error] says why, without the path.
  */
 DecodeStatus decodeFile(const std::string &path, PcmBuffer &out, std::string &error, int64_t memoryBudgetBytes);
+
+/**
+ * Decodes an MP3 stem written by the stem writer with miniaudio's decoder (same on every OS), to the
+ * frames that were written. Same budget and statuses as decodeFile.
+ */
+DecodeStatus decodeStemMp3(const std::string &path, PcmBuffer &out, std::string &error, int64_t memoryBudgetBytes);
 
 /** fopen for a UTF-8 path: on Windows the narrow fopen reads paths in the ANSI code page. */
 FILE *openFileUtf8(const std::string &path, const char *mode);

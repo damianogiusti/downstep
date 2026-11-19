@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -1078,6 +1079,203 @@ void peaksOutlineTheOpenFile() {
     std::filesystem::remove(path);
 }
 
+/** Writes `pcm` (planar) through the stem writer in blocks of `blockFrames`, like the pipeline will. */
+bool writeStem(const std::string &path, const PcmBuffer &pcm, int bitrateKbps, int64_t blockFrames) {
+    int status = -1;
+    SdStemWriter *writer = sd_stem_writer_open(path.c_str(), pcm.sampleRate, pcm.channels, bitrateKbps, &status);
+    if (!writer) {
+        std::printf("  cannot open the stem writer: status %d\n", status);
+        return false;
+    }
+    std::vector<float> block(size_t(blockFrames) * size_t(pcm.channels));
+    bool isOk = true;
+    for (int64_t start = 0; start < pcm.frames && isOk; start += blockFrames) {
+        const int64_t n = std::min(blockFrames, pcm.frames - start);
+        for (int64_t i = 0; i < n; ++i)
+            for (int c = 0; c < pcm.channels; ++c) block[size_t(i * pcm.channels + c)] = pcm.data[size_t(c)][size_t(start + i)];
+        isOk = sd_stem_writer_write(writer, block.data(), n) == SD_STEM_OK;
+    }
+    return sd_stem_writer_close(writer) == 1 && isOk;
+}
+
+/** Decodes a stem the way the app does: with the engine's own decoder, not the OS one. */
+PcmBuffer decodeStemOrFail(const std::string &path) {
+    PcmBuffer decoded;
+    std::string error;
+    const DecodeStatus status = decodeStemMp3(path, decoded, error, 0);
+    CHECK(status == DecodeStatus::Ok, "cannot decode the stem: %s", error.c_str());
+    return decoded;
+}
+
+/**
+ * The format decision for stems: an MP3 written by the stem writer must decode, with the engine's own
+ * decoder (dr_mp3, the same on every platform), to exactly the frames written and with the audio at the
+ * same place. dr_mp3 honours the Xing/LAME tag; the OS decoders do not all (Media Foundation ignores it),
+ * which is why stems do not go through them. Without the tag every decoder returns padding and delay.
+ */
+void stemMp3DecodesToTheSameFramesAtTheSamePlace() {
+    constexpr int64_t kFrames = 20 * int64_t(kRate) + 777; // not a multiple of 1152
+    PcmBuffer pcm;
+    pcm.sampleRate = kRate;
+    pcm.channels = 2;
+    pcm.frames = kFrames;
+    pcm.data.assign(2, std::vector<float>(size_t(kFrames), 0.f));
+    const int64_t clicks[] = {kRate, 5 * int64_t(kRate) + 123, 12 * int64_t(kRate) + 1000, kFrames - 5000};
+    for (const int64_t click : clicks) pcm.data[0][size_t(click)] = pcm.data[1][size_t(click)] = 0.8f;
+
+    const auto path = tempPath("sdengine-stem-align.mp3");
+    CHECK(writeStem(path, pcm, 192, 5000), "cannot write the stem");
+    {
+        // Informational only, never fails: the OS decoder is not what stems use and differs per platform.
+        PcmBuffer os;
+        std::string osError;
+        if (decodeFile(path, os, osError, 0) == DecodeStatus::Ok)
+            std::printf("     (info) the OS decoder returns %lld frames for %lld written\n", (long long)os.frames, (long long)kFrames);
+    }
+    const PcmBuffer decoded = decodeStemOrFail(path);
+    std::filesystem::remove(path);
+    std::printf("     decoded %lld frames, wrote %lld\n", (long long)decoded.frames, (long long)kFrames);
+    CHECK(decoded.channels == 2 && decoded.sampleRate == kRate, "%d channels at %d Hz", decoded.channels, decoded.sampleRate);
+    CHECK(decoded.frames == kFrames,
+          "the stem decoder returned %lld frames for %lld written: the Xing/LAME tag was not honoured",
+          (long long)decoded.frames, (long long)kFrames);
+    if (decoded.channels != 2) return;
+    for (const int64_t click : clicks) {
+        // The loudest sample within 300 frames of where the click was written.
+        int64_t peakAt = -1;
+        float peak = 0.f;
+        for (int64_t i = std::max<int64_t>(0, click - 300); i < std::min(decoded.frames, click + 300); ++i) {
+            const float value = std::fabs(decoded.data[0][size_t(i)]);
+            if (value > peak) {
+                peak = value;
+                peakAt = i;
+            }
+        }
+        std::printf("     click at %lld: peak %.3f at offset %lld\n", (long long)click, peak, (long long)(peakAt - click));
+        CHECK(peak > 0.3f, "no click found near %lld", (long long)click);
+        CHECK(peakAt == click, "the click at %lld came back at offset %lld: the decoded audio is not aligned",
+              (long long)click, (long long)(peakAt - click));
+    }
+}
+
+void stemWriterTakesMonoAnyRateAndAnyBlockSize() {
+    PcmBuffer pcm;
+    pcm.sampleRate = 48000;
+    pcm.channels = 1;
+    pcm.frames = 3 * 48000 + 101;
+    pcm.data.assign(1, std::vector<float>(size_t(pcm.frames)));
+    for (int64_t i = 0; i < pcm.frames; ++i) pcm.data[0][size_t(i)] = float(0.4 * std::sin(2 * M_PI * 440 * double(i) / 48000));
+    const auto path = tempPath("sdengine-stem-mono.mp3");
+    // A block bigger than the writer's internal chunk, and one that is not a divisor of the length.
+    CHECK(writeStem(path, pcm, 128, 40000), "cannot write the stem");
+    const PcmBuffer decoded = decodeStemOrFail(path);
+    std::filesystem::remove(path);
+    CHECK(decoded.channels == 1 && decoded.sampleRate == 48000, "%d channels at %d Hz", decoded.channels, decoded.sampleRate);
+    CHECK(decoded.frames == pcm.frames, "%lld frames, wrote %lld", (long long)decoded.frames, (long long)pcm.frames);
+}
+
+void stemWriterReportsItsErrorsAsStatusCodes() {
+    int status = -1;
+    const auto path = tempPath("sdengine-stem-bad.mp3");
+    CHECK(sd_stem_writer_open(path.c_str(), 44100, 3, 192, &status) == nullptr && status == SD_STEM_BAD_FORMAT, "3 channels: %d", status);
+    CHECK(sd_stem_writer_open(path.c_str(), 44100, 0, 192, &status) == nullptr && status == SD_STEM_BAD_FORMAT, "0 channels: %d", status);
+    CHECK(sd_stem_writer_open(path.c_str(), 96000, 2, 192, &status) == nullptr && status == SD_STEM_BAD_FORMAT, "96 kHz: %d", status);
+    CHECK(sd_stem_writer_open(path.c_str(), 44100, 2, 0, &status) == nullptr && status == SD_STEM_BAD_FORMAT, "0 kbps: %d", status);
+    CHECK(!std::filesystem::exists(path), "a rejected format created a file");
+    const auto missing = (std::filesystem::temp_directory_path() / "sdengine-no-such-folder" / "stem.mp3").string();
+    CHECK(sd_stem_writer_open(missing.c_str(), 44100, 2, 192, &status) == nullptr && status == SD_STEM_OPEN_FAILED, "no folder: %d", status);
+    CHECK(sd_stem_writer_open(missing.c_str(), 44100, 2, 192, nullptr) == nullptr, "a NULL status crashed or opened");
+    // Nothing written: closing still gives a valid, empty file and reports it complete.
+    SdStemWriter *writer = sd_stem_writer_open(path.c_str(), 44100, 2, 192, &status);
+    CHECK(writer != nullptr && status == SD_STEM_OK, "open: %d", status);
+    if (writer) {
+        const float silence[8] = {};
+        CHECK(sd_stem_writer_write(writer, silence, 0) == SD_STEM_OK, "zero frames");
+        CHECK(sd_stem_writer_close(writer) == 1, "an empty stem did not close");
+    }
+    std::filesystem::remove(path);
+}
+
+void stemDecodeReportsItsErrorsAndTheBudget() {
+    int status = -1;
+    CHECK(sd_stem_decode("/no/such/folder/stem.mp3", 0, &status) == nullptr && status == SD_PCM_FAILED, "missing file: %d", status);
+    CHECK(sd_stem_decode("/no/such/folder/stem.mp3", 0, nullptr) == nullptr, "a NULL status crashed or decoded");
+    const auto text = tempPath("sdengine-stem-notmp3.mp3");
+    if (FILE *f = openFileUtf8(text, "wb")) {
+        std::fputs("this is not an MP3 file, only text", f);
+        std::fclose(f);
+    }
+    CHECK(sd_stem_decode(text.c_str(), 0, &status) == nullptr && status == SD_PCM_FAILED, "text file: %d", status);
+    std::filesystem::remove(text);
+
+    const PcmBuffer pcm = rampBuffer(2, 3.3);
+    const auto path = tempPath("sdengine-stem-budget.mp3");
+    CHECK(writeStem(path, pcm, 128, 4096), "cannot write the stem");
+    SdPcm *tooBig = sd_stem_decode(path.c_str(), 1000, &status);
+    CHECK(tooBig == nullptr && status == SD_PCM_TOO_LONG, "a 1000-byte budget: %d", status);
+    SdPcm *decoded = sd_stem_decode(path.c_str(), 0, &status);
+    std::filesystem::remove(path);
+    CHECK(decoded != nullptr && status == SD_PCM_OK, "status %d", status);
+    if (decoded) {
+        CHECK(sd_pcm_frames(decoded) == pcm.frames, "%lld frames, wrote %lld", (long long)sd_pcm_frames(decoded), (long long)pcm.frames);
+        sd_pcm_free(decoded);
+    }
+}
+
+void pcmDecodeGivesTheFramesAndCopiesRanges() {
+    for (const int channels : {2, 1}) {
+        const PcmBuffer written = rampBuffer(channels, 3.3);
+        const auto path = tempPath("sdengine-pcm-api.wav");
+        std::string error;
+        CHECK(writeWavFloat(path, written, error), "cannot write: %s", error.c_str());
+        int status = -1;
+        SdPcm *pcm = sd_pcm_decode(path.c_str(), 0, &status);
+        std::filesystem::remove(path);
+        CHECK(pcm != nullptr && status == SD_PCM_OK, "status %d", status);
+        if (!pcm) continue;
+        CHECK(sd_pcm_sample_rate(pcm) == kRate, "rate %d", sd_pcm_sample_rate(pcm));
+        CHECK(sd_pcm_channels(pcm) == channels, "%d channels", sd_pcm_channels(pcm));
+        CHECK(sd_pcm_frames(pcm) == written.frames, "%lld frames", (long long)sd_pcm_frames(pcm));
+        std::vector<float> out(1000, -9.f);
+        for (int c = 0; c < channels; ++c) {
+            CHECK(sd_pcm_copy(pcm, c, 777, out.data(), 1000) == 1000, "copy of channel %d", c);
+            CHECK(std::equal(out.begin(), out.end(), written.data[size_t(c)].begin() + 777), "channel %d differs", c);
+        }
+        // Past the last channel reads the last one: how a mono file gives both sides.
+        CHECK(sd_pcm_copy(pcm, 1, 0, out.data(), 1000) == 1000, "channel 1");
+        CHECK(std::equal(out.begin(), out.end(), written.data[size_t(channels - 1)].begin()), "channel 1 is not the last channel");
+        // The end of the audio: fewer than asked, and nothing written past what is returned.
+        std::fill(out.begin(), out.end(), -9.f);
+        CHECK(sd_pcm_copy(pcm, 0, written.frames - 10, out.data(), 1000) == 10, "tail");
+        CHECK(out[9] == written.data[0].back() && out[10] == -9.f, "tail content");
+        CHECK(sd_pcm_copy(pcm, 0, written.frames, out.data(), 10) == 0, "at the end");
+        CHECK(sd_pcm_copy(pcm, 0, -1, out.data(), 10) == 0, "negative start");
+        CHECK(sd_pcm_copy(pcm, -1, 0, out.data(), 10) == 0, "negative channel");
+        CHECK(sd_pcm_copy(pcm, 0, 0, out.data(), 0) == 0, "no frames");
+        sd_pcm_free(pcm);
+    }
+    sd_pcm_free(nullptr);
+}
+
+void pcmDecodeReportsFailuresAsStatusCodes() {
+    const auto text = tempPath("sdengine-pcm-not-audio.m4a");
+    if (FILE *f = openFileUtf8(text, "wb")) {
+        std::fputs("this is not an audio file, just some text that no decoder should accept", f);
+        std::fclose(f);
+    }
+    int status = -1;
+    CHECK(sd_pcm_decode(text.c_str(), 0, &status) == nullptr && status == SD_PCM_FAILED, "text file: status %d", status);
+    CHECK(sd_pcm_decode(text.c_str(), 0, nullptr) == nullptr, "a NULL status crashed or decoded");
+    std::filesystem::remove(text);
+    CHECK(sd_pcm_decode(text.c_str(), 0, &status) == nullptr && status == SD_PCM_FAILED, "missing file: status %d", status);
+
+    const auto wav = tempPath("sdengine-pcm-budget.wav");
+    std::string error;
+    CHECK(writeWavFloat(wav, rampBuffer(2, 2.0), error), "cannot write: %s", error.c_str());
+    CHECK(sd_pcm_decode(wav.c_str(), 1000, &status) == nullptr && status == SD_PCM_TOO_LONG, "budget: status %d", status);
+    std::filesystem::remove(wav);
+}
+
 } // namespace
 
 int main() {
@@ -1129,6 +1327,12 @@ int main() {
         {"a cut or corrupt MP4 is read within its bytes", [] { aCutOrCorruptMp4IsReadWithinItsBytes(); }},
         {"export begins while another file opens", [&] { exportBeginsWhileAnotherFileOpens(path); }},
         {"peaks outline the open file", [] { peaksOutlineTheOpenFile(); }},
+        {"stem MP3 decodes to the same frames at the same place", [] { stemMp3DecodesToTheSameFramesAtTheSamePlace(); }},
+        {"stem writer takes mono, any rate and any block size", [] { stemWriterTakesMonoAnyRateAndAnyBlockSize(); }},
+        {"stem decode reports its errors and the budget", [] { stemDecodeReportsItsErrorsAndTheBudget(); }},
+        {"stem writer reports its errors as status codes", [] { stemWriterReportsItsErrorsAsStatusCodes(); }},
+        {"pcm decode gives the frames and copies ranges", [] { pcmDecodeGivesTheFramesAndCopiesRanges(); }},
+        {"pcm decode reports failures as status codes", [] { pcmDecodeReportsFailuresAsStatusCodes(); }},
     };
     for (const auto &[name, test] : tests) {
         const int before = failures;

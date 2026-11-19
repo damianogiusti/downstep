@@ -76,7 +76,10 @@ target_compile_options(mp3lame PRIVATE -w)
 
 add_library(miniaudio STATIC ${miniaudio_SOURCE_DIR}/miniaudio.c)
 target_include_directories(miniaudio PUBLIC ${miniaudio_SOURCE_DIR})
-target_compile_definitions(miniaudio PUBLIC MA_NO_DECODING MA_NO_ENCODING MA_NO_GENERATION)
+# Only the MP3 decoder (dr_mp3), for the stems we write ourselves: the OS decoders ignore the Xing/LAME tag
+# on Windows. No WAV/FLAC, no encoder, no engine or resource manager (the device path is the only other use).
+target_compile_definitions(miniaudio PUBLIC MA_NO_WAV MA_NO_FLAC MA_NO_ENCODING MA_NO_GENERATION
+  MA_NO_RESOURCE_MANAGER MA_NO_NODE_GRAPH MA_NO_ENGINE)
 
 if(APPLE)
   set(DECODER_SOURCE src/DecoderApple.cpp)
@@ -94,7 +97,10 @@ set(ENGINE_SOURCES
   src/Loudness.cpp
   src/Mp3Export.cpp
   src/Mp4EditList.cpp
+  src/PcmApi.cpp
   src/Player.cpp
+  src/StemDecoder.cpp
+  src/StemWriter.cpp
   src/TimeStretcher.cpp
   src/Wav.cpp)
 
@@ -107,7 +113,7 @@ function(configure_engine_target target)
   target_compile_options(${target} PRIVATE -Wall -Wextra)
 endfunction()
 
-# The library loaded by the JVM (FFM). Only the sd_engine_* and sd_export_* functions are exported.
+# The library loaded by the JVM (FFM). Only the sd_engine_*, sd_export_*, sd_pcm_* and sd_stem_* functions are exported.
 add_library(sdengine SHARED ${ENGINE_SOURCES})
 configure_engine_target(sdengine)
 set_target_properties(sdengine PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
@@ -117,7 +123,8 @@ if(WIN32)
 endif()
 if(APPLE)
   # Bungee and miniaudio are built with default visibility: keep their symbols out of the export table.
-  target_link_options(sdengine PRIVATE "LINKER:-exported_symbol,_sd_engine_*" "LINKER:-exported_symbol,_sd_export_*")
+  target_link_options(sdengine PRIVATE "LINKER:-exported_symbol,_sd_engine_*" "LINKER:-exported_symbol,_sd_export_*"
+    "LINKER:-exported_symbol,_sd_pcm_*" "LINKER:-exported_symbol,_sd_stem_*")
 endif()
 
 # Tests use the C API in manual mode plus a few internals, so they compile the sources directly.

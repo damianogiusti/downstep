@@ -128,6 +128,77 @@ SD_API double sd_export_next(SdExport *exporter);
 /** Finishes the file and frees the exporter. 1 = complete file, 0 = failed or cut short. */
 SD_API int sd_export_end(SdExport *exporter);
 
+/*
+ * Decoded audio without a player: the stem pipeline decodes a track, separates it, writes the stems.
+ * The same decoders as sd_engine_open (AudioToolbox, Media Foundation).
+ */
+typedef struct SdPcm SdPcm;
+
+/** Results of `sd_pcm_decode`, in `*status`. */
+#define SD_PCM_OK 0
+/** The file cannot be decoded: unreadable, unsupported, no audio, more than two channels. */
+#define SD_PCM_FAILED 1
+/** The decoded audio does not fit in memory. */
+#define SD_PCM_TOO_LONG 2
+
+/**
+ * Decodes the whole file into memory at its own sample rate and channel count (mono or stereo): no
+ * resampling here. Blocking: call it off the UI thread. `memoryBudgetBytes` as in
+ * `sd_engine_set_memory_budget`: 0 = automatic. Returns NULL on failure, with the reason in `*status`
+ * (may be NULL if not wanted).
+ */
+SD_API SdPcm *sd_pcm_decode(const char *utf8Path, int64_t memoryBudgetBytes, int *status);
+SD_API int sd_pcm_sample_rate(const SdPcm *pcm);
+/** 1 or 2. A mono file stays mono: the caller duplicates the channel. */
+SD_API int sd_pcm_channels(const SdPcm *pcm);
+SD_API int64_t sd_pcm_frames(const SdPcm *pcm);
+/**
+ * Copies up to `frames` samples of `channel`, from `firstFrame`, into `out`. Returns how many were
+ * copied: fewer than asked at the end of the audio, 0 for a bad range. A channel past the last one
+ * reads the last one (channel 1 of a mono file is channel 0).
+ */
+SD_API int64_t sd_pcm_copy(const SdPcm *pcm, int channel, int64_t firstFrame, float *out, int64_t frames);
+SD_API void sd_pcm_free(SdPcm *pcm);
+
+/**
+ * Decodes an MP3 stem written by `sd_stem_writer_*` into the same SdPcm, with the engine's own decoder
+ * (miniaudio's dr_mp3) instead of the OS one: the same on every platform, and it honours the Xing/LAME
+ * tag, so `sd_pcm_frames` is exactly the number of frames written and the audio is at the same place.
+ * Only for files the stem writer made: other MP3s should go through `sd_pcm_decode`. Budget, statuses
+ * (SD_PCM_*) and the rest as `sd_pcm_decode`; free with `sd_pcm_free`.
+ */
+SD_API SdPcm *sd_stem_decode(const char *utf8Path, int64_t memoryBudgetBytes, int *status);
+
+typedef struct SdStemWriter SdStemWriter;
+
+/** Results of `sd_stem_writer_open` (in `*status`) and `sd_stem_writer_write`. */
+#define SD_STEM_OK 0
+/** The file cannot be created. */
+#define SD_STEM_OPEN_FAILED 1
+/** Rate, channel count or bitrate that the MP3 encoder does not take. */
+#define SD_STEM_BAD_FORMAT 2
+/** The encoder or the disk failed, or the writer already failed: the file is not complete. */
+#define SD_STEM_WRITE_FAILED 3
+
+/**
+ * Starts an MP3 stem file around `bitrateKbps` (192 is the default for stems), `channels` 1 or 2, the
+ * rates MP3 allows (8000 to 48000). LAME is called directly and the file is opened "w+b" so that
+ * `sd_stem_writer_close` can write the Xing/LAME tag: with it a decoder gives back exactly the frames
+ * written, without it AudioToolbox adds 2560 frames and the audio is late. The bitrate is an average
+ * (ABR), not constant: a constant-bitrate file gets an "Info" tag, which AudioToolbox misreads by 1152
+ * frames for some lengths. Returns NULL on failure, with the reason in `*status` (may be NULL).
+ */
+SD_API SdStemWriter *sd_stem_writer_open(const char *utf8Path, int sampleRate, int channels, int bitrateKbps,
+                                         int *status);
+/**
+ * Encodes `frames` frames of interleaved float samples (-1..1; `channels` values per frame). Call it
+ * as often as needed, with any block size. Returns SD_STEM_OK or an error; after an error every write
+ * fails and the file is not complete.
+ */
+SD_API int sd_stem_writer_write(SdStemWriter *writer, const float *interleaved, int64_t frames);
+/** Flushes the encoder, writes the tag, closes the file and frees the writer. 1 = complete file, 0 = not. */
+SD_API int sd_stem_writer_close(SdStemWriter *writer);
+
 #ifdef __cplusplus
 }
 #endif
