@@ -46,14 +46,18 @@ import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.SetLoopRegionUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
+import com.damianogiusti.slowdowner.domain.stems.AcknowledgeStemSeparationUseCase
+import com.damianogiusti.slowdowner.domain.stems.CancelStemSeparationUseCase
 import com.damianogiusti.slowdowner.domain.stems.DeleteStemModelUseCase
 import com.damianogiusti.slowdowner.domain.stems.DeleteTrackStemsUseCase
 import com.damianogiusti.slowdowner.domain.stems.DownloadStemModelUseCase
 import com.damianogiusti.slowdowner.domain.stems.ObserveStemModelUseCase
 import com.damianogiusti.slowdowner.domain.stems.ObserveSeparatedTracksUseCase
 import com.damianogiusti.slowdowner.domain.stems.ObserveTrackStemsUseCase
+import com.damianogiusti.slowdowner.domain.stems.ObserveStemSeparationUseCase
 import com.damianogiusti.slowdowner.domain.stems.SetStemGainUseCase
 import com.damianogiusti.slowdowner.domain.stems.SetTrackModeUseCase
+import com.damianogiusti.slowdowner.domain.stems.StartStemSeparationUseCase
 import org.koin.core.module.dsl.factoryOf
 import org.koin.dsl.module
 
@@ -110,6 +114,10 @@ val useCasesModule = module {
     factoryOf(::ObserveStemModelUseCase)
     factoryOf(::DownloadStemModelUseCase)
     factoryOf(::DeleteStemModelUseCase)
+    factoryOf(::StartStemSeparationUseCase)
+    factoryOf(::CancelStemSeparationUseCase)
+    factoryOf(::ObserveStemSeparationUseCase)
+    factoryOf(::AcknowledgeStemSeparationUseCase)
     // Explicit lambdas: the clock parameter keeps its default.
     factory { ExportTrackBackupUseCase(get()) }
     factory { ExportLibraryBackupUseCase(get()) }
