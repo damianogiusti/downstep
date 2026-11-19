@@ -53,6 +53,8 @@ tasks.test {
     systemProperty("slowdowner.openvino.dir", openVinoRuntimeDir.get().asFile.path)
     // The real model is optional (74 MB, downloaded by the app): -Dslowdowner.stemModelBin=<.bin> runs its test.
     System.getProperty("slowdowner.stemModelBin")?.let { systemProperty("slowdowner.stemModelBin", it) }
+    // The parity test of the pipeline also needs a folder made by the PyTorch reference script (see DemucsPipelineParityTest).
+    System.getProperty("slowdowner.stemReference")?.let { systemProperty("slowdowner.stemReference", it) }
     systemProperty("slowdowner.stemModelXml", rootProject.layout.projectDirectory.file("desktopApp/models/htdemucs_6s_fixed.xml").asFile.path)
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }

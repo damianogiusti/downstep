@@ -34,8 +34,9 @@ class OverlapAdd(private val plan: SegmentPlan, private val channelCount: Int) {
     /**
      * Adds [output], [channelCount] planar channels of the network's output for [segment] (each
      * `plan.segmentLength` long, the whole padded segment), then reports the samples that became final:
-     * `onFinished(start, count, channels)` with the channels' first [count] samples; the arrays are reused,
-     * so read them before returning.
+     * `onFinished(start, count, channels)` with the channels' first [count] samples. The arrays are reused:
+     * read them before returning. The callback may change those [count] samples in place (they are final, and
+     * the part that stays for the next segment starts after them).
      *
      * A short segment contributes `weights[0 until length]`, not a re-centred triangle, as in Demucs.
      */
