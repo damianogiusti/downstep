@@ -57,6 +57,7 @@ import com.damianogiusti.slowdowner.domain.stems.ObserveTrackStemsUseCase
 import com.damianogiusti.slowdowner.domain.stems.ObserveStemSeparationUseCase
 import com.damianogiusti.slowdowner.domain.stems.SetStemGainUseCase
 import com.damianogiusti.slowdowner.domain.stems.SetTrackModeUseCase
+import com.damianogiusti.slowdowner.domain.stems.SwitchTrackModeUseCase
 import com.damianogiusti.slowdowner.domain.stems.StartStemSeparationUseCase
 import org.koin.core.module.dsl.factoryOf
 import org.koin.dsl.module
@@ -109,6 +110,7 @@ val useCasesModule = module {
     factoryOf(::ObserveTrackStemsUseCase)
     factoryOf(::ObserveSeparatedTracksUseCase)
     factoryOf(::SetTrackModeUseCase)
+    factoryOf(::SwitchTrackModeUseCase)
     factoryOf(::SetStemGainUseCase)
     factoryOf(::DeleteTrackStemsUseCase)
     factoryOf(::ObserveStemModelUseCase)
