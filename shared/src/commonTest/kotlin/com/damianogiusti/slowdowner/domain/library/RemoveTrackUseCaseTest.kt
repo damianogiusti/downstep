@@ -3,6 +3,7 @@ package com.damianogiusti.slowdowner.domain.library
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
 import com.damianogiusti.slowdowner.domain.playback.CloseTrackUseCase
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
+import com.damianogiusti.slowdowner.fake.FakeStemsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
@@ -15,7 +16,8 @@ class RemoveTrackUseCaseTest {
     private val sources = FakeAudioSourceRepository()
     private val nowPlaying = InMemoryNowPlayingRepository()
     private val library = RecordingLibraryRepository()
-    private val removeTrack = RemoveTrackUseCase(library, nowPlaying, CloseTrackUseCase(sources, nowPlaying))
+    private val stems = FakeStemsRepository()
+    private val removeTrack = RemoveTrackUseCase(library, nowPlaying, CloseTrackUseCase(sources, nowPlaying), stems)
 
     private val playing = LibraryTrack("1", "Playing", "/1.m4a", null, 0)
     private val other = LibraryTrack("2", "Other", "/2.m4a", null, 0)
@@ -40,6 +42,13 @@ class RemoveTrackUseCaseTest {
         assertEquals(0, sources.closed)
         assertEquals(playing, nowPlaying.observe().value)
         assertEquals(listOf("2"), library.removed)
+    }
+
+    @Test
+    fun `removing a track also deletes its stems`() = runTest {
+        removeTrack(other)
+
+        assertEquals(listOf("2"), stems.deleted)
     }
 
     private class RecordingLibraryRepository : LibraryRepository {

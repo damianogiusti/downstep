@@ -35,6 +35,9 @@ import com.damianogiusti.slowdowner.data.playback.NativeOfflineRenderer
 import com.damianogiusti.slowdowner.data.playlists.DefaultPlaylistRepository
 import com.damianogiusti.slowdowner.data.practice.DefaultPracticeRepository
 import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
+import com.damianogiusti.slowdowner.data.stems.DefaultStemsRepository
+import com.damianogiusti.slowdowner.data.stems.RoomStemsStore
+import com.damianogiusti.slowdowner.data.stems.StemsStore
 import com.damianogiusti.slowdowner.data.support.DefaultSupportPromptRepository
 import com.damianogiusti.slowdowner.data.support.PreferencesSupportPromptStore
 import com.damianogiusti.slowdowner.data.support.SupportPromptStore
@@ -58,6 +61,7 @@ import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.playlists.PlaylistRepository
 import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
+import com.damianogiusti.slowdowner.domain.stems.StemsRepository
 import com.damianogiusti.slowdowner.domain.support.DismissSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.ObserveSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.RecordAppLaunchUseCase
@@ -149,6 +153,9 @@ fun desktopModule(
     single<PracticeRepository> { DefaultPracticeRepository(get(), Dispatchers.IO) }
     single { get<SlowDownerDatabase>().playlistDao() }
     single<PlaylistRepository> { DefaultPlaylistRepository(get(), Dispatchers.IO) }
+    single { get<SlowDownerDatabase>().stemsDao() }
+    single<StemsStore> { RoomStemsStore(get(), directories.stems) }
+    single<StemsRepository> { DefaultStemsRepository(get(), Dispatchers.IO, logger) }
     single { get<SlowDownerDatabase>().backupDao() }
     single { BackupArchive() }
     single<BackupRepository> {

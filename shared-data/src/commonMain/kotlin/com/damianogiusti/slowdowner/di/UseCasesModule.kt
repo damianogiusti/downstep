@@ -46,6 +46,11 @@ import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.SetLoopRegionUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
+import com.damianogiusti.slowdowner.domain.stems.DeleteTrackStemsUseCase
+import com.damianogiusti.slowdowner.domain.stems.ObserveSeparatedTracksUseCase
+import com.damianogiusti.slowdowner.domain.stems.ObserveTrackStemsUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetStemGainUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetTrackModeUseCase
 import org.koin.core.module.dsl.factoryOf
 import org.koin.dsl.module
 
@@ -94,6 +99,11 @@ val useCasesModule = module {
     factoryOf(::AddTrackToPlaylistUseCase)
     factoryOf(::RemoveTrackFromPlaylistUseCase)
     factoryOf(::ReorderPlaylistUseCase)
+    factoryOf(::ObserveTrackStemsUseCase)
+    factoryOf(::ObserveSeparatedTracksUseCase)
+    factoryOf(::SetTrackModeUseCase)
+    factoryOf(::SetStemGainUseCase)
+    factoryOf(::DeleteTrackStemsUseCase)
     // Explicit lambdas: the clock parameter keeps its default.
     factory { ExportTrackBackupUseCase(get()) }
     factory { ExportLibraryBackupUseCase(get()) }
