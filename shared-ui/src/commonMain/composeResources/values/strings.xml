@@ -305,11 +305,8 @@
     <string name="stems_download_error_network">The model could not be downloaded. Check your connection and try again later.</string>
     <string name="stems_download_error_corrupted">The downloaded file is not the expected one and was discarded. Try again.</string>
     <string name="stems_download_error_generic">The model download failed. Try again.</string>
-    <string name="instruments">Instruments</string>
-    <string name="instruments_subtitle">Choose what plays and balance the instruments of this track. Speed, pitch and loop apply to both.</string>
     <string name="instruments_mode_full_track">Full track</string>
     <string name="instruments_mode_stems">Instruments</string>
-    <string name="instruments_full_track_hint">The original file is playing. Choose Instruments to change the mix.</string>
     <string name="instruments_switching">Reopening the track…</string>
     <string name="instruments_mute">Mute %1$s</string>
     <string name="instruments_unmute">Unmute %1$s</string>

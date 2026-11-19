@@ -24,9 +24,6 @@ import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
 import com.damianogiusti.slowdowner.data.stems.StemFileDto
 import com.damianogiusti.slowdowner.data.stems.StemsStore
 import com.damianogiusti.slowdowner.data.stems.TrackStemsDto
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.stems.StemKind
 import com.damianogiusti.slowdowner.domain.stems.TrackMode
@@ -48,7 +45,6 @@ import com.damianogiusti.slowdowner.ui.resources.stem_piano
 import com.damianogiusti.slowdowner.ui.resources.stem_vocals
 import com.damianogiusti.slowdowner.ui.stems.InstrumentRow
 import com.damianogiusti.slowdowner.ui.stems.InstrumentsActions
-import com.damianogiusti.slowdowner.ui.stems.InstrumentsSheetContent
 import com.damianogiusti.slowdowner.ui.stems.InstrumentsUiState
 import com.damianogiusti.slowdowner.ui.stems.StemBanner
 import com.damianogiusti.slowdowner.ui.stems.StemDeprecatedDialog
@@ -317,30 +313,20 @@ class ScreenRenderTest {
     }
 
     @Test
-    fun `a separated open track shows the Instruments action in the player`() {
+    fun `a separated open track shows the Instruments card in the wide player`() {
         openSeparatedTrack()
-        // Wide: the player is the right pane. Narrow: the library, whose mini player opens it (a phone-sized
-        // window shows one screen), so the narrow look of the player itself is the render below.
+        // The player is the right pane of the wide window; a phone-sized window opens it from the mini player,
+        // so the narrow look of the player is the render below.
         val bytes = render(File("build/screenshots/instruments-player-wide.png"), widthDp = 1280, heightDp = 820)
         assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
     }
 
     @Test
-    fun `the player content has the Instruments action only when it is given one`() {
+    fun `the Instruments card of the player renders in every state at both widths and is absent without stems`() {
         val state = PlayerUiState(
             track = LibraryTrack("1", "Autumn Leaves", "/song.wav", null, 0),
-            controls = PlayerControlsState(isOpen = true, durationSeconds = 10f),
+            controls = PlayerControlsState(isOpen = true, position = 0.3f, durationSeconds = 120f, isLoopOn = true, loopStart = 0.2f, loopEnd = 0.4f),
         )
-        for ((label, onShowInstruments) in listOf<Pair<String, (() -> Unit)?>>("with" to {}, "without" to null)) {
-            val bytes = renderContent(File("build/screenshots/instruments-action-$label-narrow.png"), widthDp = 440, heightDp = 140) {
-                PlayerContent(state, playerActions(onShowInstruments))
-            }
-            assertTrue(bytes > 5_000, "suspiciously small render: $bytes bytes")
-        }
-    }
-
-    @Test
-    fun `the Instruments sheet renders in every state at both widths`() {
         val rows = listOf(
             InstrumentRow(StemKind.VOCALS, Res.string.stem_vocals, 0.8f),
             InstrumentRow(StemKind.DRUMS, Res.string.stem_drums, 0f),
@@ -349,24 +335,24 @@ class ScreenRenderTest {
             InstrumentRow(StemKind.PIANO, Res.string.stem_piano, 0.6f),
             InstrumentRow(StemKind.OTHER, Res.string.stem_other, 0.5f),
         )
-        val states = listOf(
+        val instrumentStates = listOf(
             "stems" to InstrumentsUiState.Ready("1", TrackMode.STEMS, isSwitching = false, stems = rows),
             "full-track" to InstrumentsUiState.Ready("1", TrackMode.FULL_TRACK, isSwitching = false, stems = rows),
             "switching" to InstrumentsUiState.Ready("1", TrackMode.FULL_TRACK, isSwitching = true, stems = rows),
+            "none" to null,
         )
-        for ((name, width) in listOf("narrow" to 440, "wide" to 1280)) {
-            for ((stateName, state) in states) {
-                val bytes = renderContent(File("build/screenshots/instruments-sheet-$stateName-$name.png"), widthDp = width, heightDp = 560) {
-                    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                        InstrumentsSheetContent(state, InstrumentsActions({}, { _, _ -> }, {}), Modifier.widthIn(max = 640.dp))
-                    }
+        // 560 dp: the player pane of a wide window, which is 42 % of it, up to 560 dp.
+        for ((name, width) in listOf("narrow" to 440, "wide" to 560)) {
+            for ((stateName, instruments) in instrumentStates) {
+                val bytes = renderContent(File("build/screenshots/instruments-card-$stateName-$name.png"), widthDp = width, heightDp = 1000) {
+                    PlayerContent(state, playerActions(), instruments)
                 }
                 assertTrue(bytes > 5_000, "suspiciously small render: $bytes bytes")
             }
         }
     }
 
-    private fun playerActions(onShowInstruments: (() -> Unit)?) = PlayerContentActions(
+    private fun playerActions() = PlayerContentActions(
         transport = TransportActions({}, {}, {}, {}),
         loop = LoopActions({}, {}, {}, {}, {}, {}, {}, {}, TimelineActions({}, { _, _ -> })),
         speed = ValueCardActions({}, {}, {}),
@@ -376,7 +362,7 @@ class ScreenRenderTest {
         timeline = TimelineActions({}, { _, _ -> }),
         onCollapse = {},
         onShowEffects = {},
-        onShowInstruments = onShowInstruments,
+        instruments = InstrumentsActions({}, { _, _ -> }, {}),
         onExport = {},
         onCancelExport = {},
         onAddToPlaylist = {},

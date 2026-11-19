@@ -103,7 +103,7 @@ class ActivityViewModels(
      * hides its menu items and marker, and no banner or dialog shows. The ViewModel is not even created there.
      */
     val stems: StemSeparationViewModel? = null,
-    /** Null with [stems]: without it the player has no Instruments action. */
+    /** Null with [stems]: without it the player has no Instruments card. */
     val instruments: InstrumentsViewModel? = null,
 )
 
