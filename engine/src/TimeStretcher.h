@@ -12,7 +12,8 @@ struct OutputChunk;
 } // namespace Bungee
 
 /**
- * Bungee's granular API over a stereo source (a mono one feeds both sides). Every grain names the
+ * Bungee's granular API over a stereo source (a mono one feeds both sides). A source of several streams
+ * (stems) is summed, each stream times its gain, into the grain input: the one place that reads source samples. Every grain names the
  * source position it wants, so seek and loop are just a new position: no splice, no reset. Grains
  * produce output in chunks of varying size, kept in a FIFO together with the source positions they
  * cover.
@@ -29,11 +30,17 @@ public:
      * the input chunk size changes, which resampleMode_autoOut never does: speed, pitch, seek and
      * loop changes render without allocating (the "rendering does not allocate" engine test).
      */
-    void prepare(const PcmBuffer &source, int outputRate, int maxBlockFrames);
+    void prepare(const PcmSource &source, int outputRate, int maxBlockFrames);
     void seek(double frame);
     void setSpeed(double ratio);
     void setPitch(double semitones);
     void setLoop(int64_t start, int64_t end, bool enabled);
+    /**
+     * Linear gain of each stream of the source (the first `count`), 1 by default. The gain of a grain
+     * moves from the one of the previous grain to this one along the grain, so a slider never steps; a
+     * seek or a start takes the new gains at once, under the fade-in. Ignored by a one-stream source.
+     */
+    void setStreamGains(const float *gains, int count);
     /** 0 = left on both channels, 0.5 = unchanged, 1 = right on both. Applied before the stretch. */
     void setMix(double mixRight);
 
@@ -44,6 +51,7 @@ public:
 
 private:
     void produceGrain();
+    void sumStreams(int begin, int length, float *left, float *right);
     void appendToFifo(const Bungee::OutputChunk &output);
     void updatePosition();
     void updateChunkPosition();
@@ -56,7 +64,11 @@ private:
     };
     static constexpr int kMaxChunks = 64;
 
-    const PcmBuffer *source_ = nullptr;
+    const PcmSource *source_ = nullptr;
+    int64_t sourceFrames_ = 0;
+    // Stems only. The gain a grain ends with, the gain asked for, and whether the next grain skips the ramp.
+    std::array<float, kMaxStreams> appliedGain_{}, targetGain_{};
+    bool snapsGains_ = true;
     std::unique_ptr<Bungee::Stretcher<Bungee::Basic>> stretcher_;
     struct RequestState;
     std::unique_ptr<RequestState> request_;

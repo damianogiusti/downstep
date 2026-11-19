@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <memory>
 #include <new>
 #include <string>
 #include <vector>
@@ -25,6 +26,31 @@ struct PcmBuffer {
     }
 
     double seconds() const { return sampleRate ? double(frames) / sampleRate : 0.0; }
+};
+
+/** Most streams a source can hold: the six stems of a separation, with room to spare. */
+constexpr int kMaxStreams = 8;
+
+/**
+ * What the player plays: one file's buffer, or the stems of a track (2 to kMaxStreams buffers) that it
+ * sums on the fly, each with its own gain. Every stream has the same sample rate and the same number of
+ * frames. Streams are shared read-only, like a lone buffer always was, so an export can keep them
+ * alive after the player has moved on. Never empty.
+ */
+struct PcmSource {
+    std::vector<std::shared_ptr<const PcmBuffer>> streams;
+    /** True for stems, even a single one: the stem count and the gains only exist then. */
+    bool isStemSet = false;
+
+    static std::shared_ptr<const PcmSource> single(std::shared_ptr<const PcmBuffer> pcm) {
+        auto source = std::make_shared<PcmSource>();
+        source->streams.push_back(std::move(pcm));
+        return source;
+    }
+
+    int sampleRate() const { return streams.front()->sampleRate; }
+    int64_t frames() const { return streams.front()->frames; }
+    double seconds() const { return streams.front()->seconds(); }
 };
 
 /**

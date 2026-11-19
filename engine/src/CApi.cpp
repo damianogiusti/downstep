@@ -100,6 +100,35 @@ int sd_engine_open(SdEngine *engine, const char *utf8Path) {
     }
 }
 
+int sd_engine_open_stems(SdEngine *engine, const char *const *utf8Paths, int count) {
+    // As sd_engine_open: nothing may cross into the JVM.
+    try {
+        if (!utf8Paths || count < 1 || count > SD_MAX_STEMS) {
+            engine->player->recordOpenFailure(SD_OPEN_FAILED, "a track has 1 to " + std::to_string(SD_MAX_STEMS) + " stems");
+            return 0;
+        }
+        std::vector<std::string> paths;
+        for (int i = 0; i < count; ++i) {
+            if (!utf8Paths[i]) {
+                engine->player->recordOpenFailure(SD_OPEN_FAILED, "a stem path is missing");
+                return 0;
+            }
+            paths.emplace_back(utf8Paths[i]);
+        }
+        return engine->player->openStems(paths) ? 1 : 0;
+    } catch (const std::bad_alloc &) {
+        engine->player->recordOpenFailure(SD_OPEN_TOO_LONG, "out of memory");
+        return 0;
+    } catch (...) {
+        engine->player->recordOpenFailure(SD_OPEN_FAILED, "unexpected exception");
+        return 0;
+    }
+}
+
+void sd_engine_set_stem_gain(SdEngine *engine, int index, double gain) { engine->player->setStemGain(index, gain); }
+
+int sd_engine_stem_count(const SdEngine *engine) { return engine->player->stemCount(); }
+
 void sd_engine_set_memory_budget(SdEngine *engine, int64_t bytes) { engine->player->setMemoryBudget(bytes); }
 
 int sd_engine_open_error(const SdEngine *engine) { return engine->player->openError(); }

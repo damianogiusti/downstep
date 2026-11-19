@@ -35,6 +35,13 @@ std::array<Biquad, 2> kWeighting(int sampleRate);
  */
 double integratedLoudness(const PcmBuffer &pcm);
 
+/**
+ * The same for the sum of a source's streams at gain 1 (what the stems give back together), measured
+ * without building the sum.
+ */
+double integratedLoudness(const PcmSource &source);
+double integratedLoudness(const PcmSource &source, int threads);
+
 /** The same on `threads` threads (1 = a single pass on the caller's), for tests. */
 double integratedLoudness(const PcmBuffer &pcm, int threads);
 
@@ -43,6 +50,8 @@ constexpr int kMaxLoudnessThreads = 8;
 
 /** The threads integratedLoudness uses for `pcm`: one per 30 s at least (so 1 under a minute), up to the cores and the cap. */
 int loudnessThreads(const PcmBuffer &pcm);
+
+int loudnessThreads(const PcmSource &source);
 
 /** Gain that brings `lufs` to the target, clamped. 0 dB for silence. */
 double normalizationGainDb(double lufs);

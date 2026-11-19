@@ -46,6 +46,36 @@ SD_API void sd_engine_destroy(SdEngine *engine);
 /** Decodes the whole file into memory. Blocking: call it off the UI thread. 1 = ok, 0 = failed. */
 SD_API int sd_engine_open(SdEngine *engine, const char *utf8Path);
 /**
+ * Opens the stems of a track and plays them together, summed on the fly, each with its own gain.
+ * `utf8Paths` are `count` MP3 files written by `sd_stem_writer_*` (1 to SD_MAX_STEMS), decoded like
+ * `sd_stem_decode`: sample-exact, the same on every OS. All must have the same sample rate (else
+ * SD_OPEN_FAILED); a mono stem plays on both sides; a stem shorter than the others is padded with
+ * silence. The memory limit (`sd_engine_set_memory_budget`) covers all the stems together
+ * (SD_OPEN_TOO_LONG). Blocking: call it off the UI thread. Status and error text as `sd_engine_open`
+ * (the text names the stem by number, never a path). 1 = ok, 0 = failed; on failure what was open stays.
+ *
+ * Speed, pitch, loop, mix, EQ, normalization and export work as for a single file, on the sum. The
+ * loudness for normalization is measured once, here, on the sum of the stems at gain 1: gain changes
+ * do not measure it again. `sd_engine_open` goes back to a single file.
+ */
+SD_API int sd_engine_open_stems(SdEngine *engine, const char *const *utf8Paths, int count);
+/** Most stems a source can have. */
+#define SD_MAX_STEMS 8
+/**
+ * Linear gain of stem `index` (the order of the paths in `sd_engine_open_stems`), 0 = muted. The audio
+ * thread follows it with a ramp over about one grain (tens of ms): a slider does not click. The engine
+ * applies the gain exactly as given and does not compensate the headroom of the stem files: the stem
+ * writer leaves -3 dB (gain 0.7079), so the caller passes `gain / 0.7079` to get the original level back
+ * with every stem at 1. An index outside 0..SD_MAX_STEMS-1 is ignored. Every successful open (stems or
+ * single file) resets all gains to 1, so set them after the open returns; they then persist until the
+ * next successful open. Playback after an open starts at the gains in place, with no ramp. Gains are
+ * limited to 0..8.
+ */
+SD_API void sd_engine_set_stem_gain(SdEngine *engine, int index, double gain);
+/** Number of stems of the open source; 0 when a single file is open (or nothing). */
+SD_API int sd_engine_stem_count(const SdEngine *engine);
+
+/**
  * Limit for the decoded audio of the next `sd_engine_open`, in bytes (32-bit float per channel per
  * frame). 0 = automatic: what the OS can still give (commit on Windows, physical memory on macOS)
  * minus a margin. A positive value is used as is: tests set a tiny one to get SD_OPEN_TOO_LONG.
@@ -116,7 +146,8 @@ SD_API int sd_engine_render(SdEngine *engine, float *interleaved, int frames);
 typedef struct SdExport SdExport;
 
 /**
- * Starts an MP3 export of the open file with the engine's current sound (speed, pitch, mix, EQ),
+ * Starts an MP3 export of the open file with the engine's current sound (speed, pitch, mix, EQ, and the
+ * stem gains when stems are open),
  * from the start to the end, loop ignored. It renders in its own engine over the audio already
  * decoded (shared, not decoded again): playback is not disturbed, and closing or replacing the
  * open file meanwhile does not affect the export. NULL if no file is open or the output cannot be
