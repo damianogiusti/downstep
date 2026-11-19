@@ -17,6 +17,7 @@ import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.library.LibraryViewModel
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 import com.damianogiusti.slowdowner.ui.playlists.AddToPlaylistViewModel
+import com.damianogiusti.slowdowner.ui.stems.StemSeparationViewModel
 import com.damianogiusti.slowdowner.ui.support.SupportPromptViewModel
 import com.damianogiusti.slowdowner.ui.update.UpdateViewModel
 import com.damianogiusti.slowdowner.ui.whatsnew.WhatsNewViewModel
@@ -64,6 +65,7 @@ class DesktopModuleTest {
         assertNotNull(koin.get<SupportPromptViewModel>())
         assertNotNull(koin.get<UpdateViewModel>())
         assertNotNull(koin.get<WhatsNewViewModel>())
+        assertNotNull(koin.get<StemSeparationViewModel>())
     }
 
     @Test
