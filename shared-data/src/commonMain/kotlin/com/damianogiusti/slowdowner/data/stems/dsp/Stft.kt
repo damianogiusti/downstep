@@ -114,6 +114,18 @@ object StftPadding {
         return padded
     }
 
+    /** [signal] with [left] samples reflected before it and [right] after it (torch `pad_mode = "reflect"`, edge not repeated). */
+    fun reflect(signal: FloatArray, left: Int, right: Int): FloatArray {
+        require(left in 0 until signal.size && right in 0 until signal.size) {
+            "padding must be in 0 until ${signal.size}, was $left and $right"
+        }
+        val padded = FloatArray(left + signal.size + right)
+        signal.copyInto(padded, left)
+        for (i in 1..left) padded[left - i] = signal[i]
+        for (i in 1..right) padded[left + signal.size - 1 + i] = signal[signal.size - 1 - i]
+        return padded
+    }
+
     /** [signal] with [pad] samples reflected on each side, like torch `pad_mode = "reflect"` (edge not repeated). */
     fun reflect(signal: FloatArray, pad: Int): FloatArray {
         require(pad in 0 until signal.size) { "pad must be in 0 until ${signal.size}, was $pad" }

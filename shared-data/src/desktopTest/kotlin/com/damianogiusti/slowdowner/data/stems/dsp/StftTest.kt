@@ -46,6 +46,13 @@ class StftTest {
     }
 
     @Test
+    fun `reflect padding can differ on the two sides`() {
+        val padded = StftPadding.reflect(floatArrayOf(1f, 2f, 3f, 4f, 5f), left = 1, right = 3)
+
+        assertArrayEquals(floatArrayOf(2f, 1f, 2f, 3f, 4f, 5f, 4f, 3f, 2f), padded, 0f)
+    }
+
+    @Test
     fun `leading zeros are prepended`() {
         assertArrayEquals(floatArrayOf(0f, 0f, 1f, 2f), StftPadding.leadingZeros(floatArrayOf(1f, 2f), 2), 0f)
     }
