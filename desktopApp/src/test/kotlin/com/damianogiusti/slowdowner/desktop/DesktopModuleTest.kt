@@ -2,8 +2,14 @@ package com.damianogiusti.slowdowner.desktop
 
 import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
+import com.damianogiusti.slowdowner.data.stems.DefaultStemSeparationRepository
 import com.damianogiusti.slowdowner.di.uiModule
 import com.damianogiusti.slowdowner.di.useCasesModule
+import com.damianogiusti.slowdowner.domain.stems.CancelStemSeparationUseCase
+import com.damianogiusti.slowdowner.domain.stems.ObserveStemSeparationUseCase
+import com.damianogiusti.slowdowner.domain.stems.StartStemSeparationUseCase
+import com.damianogiusti.slowdowner.domain.stems.AcknowledgeStemSeparationUseCase
+import com.damianogiusti.slowdowner.domain.stems.StemSeparationRepository
 import com.damianogiusti.slowdowner.ui.backup.BackupViewModel
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
@@ -19,6 +25,7 @@ import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertNotNull
+import kotlin.test.assertSame
 
 /**
  * Every shared ViewModel resolves against the desktop bindings: wiring errors show up here, not at launch.
@@ -56,5 +63,14 @@ class DesktopModuleTest {
         assertNotNull(koin.get<SupportPromptViewModel>())
         assertNotNull(koin.get<UpdateViewModel>())
         assertNotNull(koin.get<WhatsNewViewModel>())
+    }
+
+    @Test
+    fun `the stem separation use cases resolve and share one repository`() {
+        assertNotNull(koin.get<StartStemSeparationUseCase>())
+        assertNotNull(koin.get<CancelStemSeparationUseCase>())
+        assertNotNull(koin.get<ObserveStemSeparationUseCase>())
+        assertNotNull(koin.get<AcknowledgeStemSeparationUseCase>())
+        assertSame(koin.get<DefaultStemSeparationRepository>(), koin.get<StemSeparationRepository>())
     }
 }

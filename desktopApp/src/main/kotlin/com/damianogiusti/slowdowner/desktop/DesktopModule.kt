@@ -36,10 +36,14 @@ import com.damianogiusti.slowdowner.data.playlists.DefaultPlaylistRepository
 import com.damianogiusti.slowdowner.data.practice.DefaultPracticeRepository
 import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
 import com.damianogiusti.slowdowner.data.stems.DefaultStemModelRepository
+import com.damianogiusti.slowdowner.data.stems.DefaultStemSeparationRepository
+import com.damianogiusti.slowdowner.data.stems.DemucsStemSeparatorDataSource
 import com.damianogiusti.slowdowner.data.stems.DefaultStemsRepository
 import com.damianogiusti.slowdowner.data.stems.ModelFileSpec
 import com.damianogiusti.slowdowner.data.stems.StemModelSpec
 import com.damianogiusti.slowdowner.data.stems.RoomStemsStore
+import com.damianogiusti.slowdowner.data.stems.SeparationModel
+import com.damianogiusti.slowdowner.data.stems.StemSeparatorDataSource
 import com.damianogiusti.slowdowner.data.stems.StemsStore
 import com.damianogiusti.slowdowner.data.support.DefaultSupportPromptRepository
 import com.damianogiusti.slowdowner.data.support.PreferencesSupportPromptStore
@@ -65,6 +69,7 @@ import com.damianogiusti.slowdowner.domain.playlists.PlaylistRepository
 import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
 import com.damianogiusti.slowdowner.domain.stems.StemModelRepository
+import com.damianogiusti.slowdowner.domain.stems.StemSeparationRepository
 import com.damianogiusti.slowdowner.domain.stems.StemsRepository
 import com.damianogiusti.slowdowner.domain.support.DismissSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.ObserveSupportPromptUseCase
@@ -114,6 +119,8 @@ fun desktopModule(
     logger: Logger = ConsoleLogger(),
     updates: UpdateSettings = UpdateSettings(),
     whatsNew: WhatsNewSettings = WhatsNewSettings(),
+    // The app's resources folder: the model graph and the OpenVINO libraries sit in it. Null outside a Gradle run or an install.
+    resources: File? = System.getProperty("compose.application.resources.dir")?.let(::File),
 ) = module {
     single { directories }
     single { logger }
@@ -163,6 +170,24 @@ fun desktopModule(
     single<StemModelRepository> {
         DefaultStemModelRepository(get(), DESKTOP_STEM_MODEL, directories.models, Dispatchers.IO, logger)
     }
+    // The separation runs on its own thread, one job at a time, and never on the UI thread.
+    single<StemSeparatorDataSource> {
+        DemucsStemSeparatorDataSource(logger, resources?.let { File(it, "openvino").toPath() })
+    }
+    single {
+        DefaultStemSeparationRepository(
+            separator = get(),
+            library = get(),
+            stems = get(),
+            models = get(),
+            model = SeparationModel(DESKTOP_STEM_MODEL.id, stemModelFiles(directories, resources)),
+            scope = get(),
+            dispatcher = Dispatchers.IO.limitedParallelism(1),
+            logger = logger,
+        )
+    }
+    // The same instance under its interface: the quit path needs shutdown(), which the interface does not have.
+    single<StemSeparationRepository> { get<DefaultStemSeparationRepository>() }
     single { get<SlowDownerDatabase>().backupDao() }
     single { BackupArchive() }
     single<BackupRepository> {
@@ -234,3 +259,10 @@ private val DESKTOP_STEM_MODEL = StemModelSpec(
         ),
     ),
 )
+
+/** The graph that ships with the app, then the weights the app downloads: the order the separator reads them in. */
+private fun stemModelFiles(directories: AppDirectories, resources: File?): List<File> {
+    val graph = File(resources, "models/htdemucs_6s_fixed.xml")
+    val downloaded = DESKTOP_STEM_MODEL.files.map { File(File(directories.models, DESKTOP_STEM_MODEL.id), it.name) }
+    return listOf(graph) + downloaded
+}
