@@ -50,6 +50,7 @@ import com.damianogiusti.slowdowner.ui.common.TextInputFocus
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.navigation.ActivityViewModels
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsViewModel
 import com.damianogiusti.slowdowner.ui.stems.StemSeparationViewModel
 import com.damianogiusti.slowdowner.ui.navigation.SlowDownerApp
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
@@ -385,6 +386,7 @@ private fun DesktopApp(
             backup = koinViewModel<BackupViewModel>(),
             effects = koinViewModel<EffectsViewModel>(),
             stems = koinViewModel<StemSeparationViewModel>(),
+            instruments = koinViewModel<InstrumentsViewModel>(),
         )
         val actions = remember(viewModels) { DesktopActions(window, viewModels, logger, onContact).toActivityActions() }
         LaunchedEffect(viewModels.player) { onShortcutsReady(PracticeShortcuts(viewModels.player, textInput)) }

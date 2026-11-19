@@ -63,6 +63,7 @@ import com.damianogiusti.slowdowner.ui.player.components.ExportReadyDialog
 import com.damianogiusti.slowdowner.ui.playlists.AddToPlaylistSheet
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistNavigation
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistScreen
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsViewModel
 import com.damianogiusti.slowdowner.ui.stems.StemBanner
 import com.damianogiusti.slowdowner.ui.stems.StemDeprecatedDialog
 import com.damianogiusti.slowdowner.ui.stems.StemDialog
@@ -102,6 +103,8 @@ class ActivityViewModels(
      * hides its menu items and marker, and no banner or dialog shows. The ViewModel is not even created there.
      */
     val stems: StemSeparationViewModel? = null,
+    /** Null with [stems]: without it the player has no Instruments action. */
+    val instruments: InstrumentsViewModel? = null,
 )
 
 /**
@@ -128,6 +131,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
     CollectMessages(importViewModel.messages, snackbarHostState)
     CollectMessages(backupViewModel.messages, snackbarHostState)
     if (stemsViewModel != null) CollectMessages(stemsViewModel.messages, snackbarHostState)
+    viewModels.instruments?.let { CollectMessages(it.messages, snackbarHostState) }
 
     val isPlaying = player.controls.isPlaying
     LaunchedEffect(isPlaying) { if (isPlaying) activity.onPlaybackStarted() }
@@ -236,6 +240,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                         PlayerScreen(
                             viewModel = playerViewModel,
                             effects = viewModels.effects,
+                            instruments = viewModels.instruments,
                             navigation = PlayerNavigation(
                                 onCollapse = { navController.popBackStack() },
                                 onPlayStop = activity.onPlayStop,
@@ -254,6 +259,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                         PlayerScreen(
                             viewModel = playerViewModel,
                             effects = viewModels.effects,
+                            instruments = viewModels.instruments,
                             navigation = PlayerNavigation(
                                 onCollapse = null,
                                 onPlayStop = activity.onPlayStop,
