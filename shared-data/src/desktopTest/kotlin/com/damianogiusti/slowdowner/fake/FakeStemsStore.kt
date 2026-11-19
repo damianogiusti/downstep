@@ -10,7 +10,10 @@ import kotlinx.coroutines.flow.update
 import java.io.File
 
 /** In-memory [StemsStore] that keeps what the repository asks it to write, as plain text like the real one. */
-class FakeStemsStore(initial: List<TrackStemsDto> = emptyList()) : StemsStore {
+class FakeStemsStore(initial: List<TrackStemsDto> = emptyList(), private val root: File? = null) : StemsStore {
+
+    /** Thrown by [add], to play a store that fails (a removed track, a full disk). */
+    var addError: Exception? = null
 
     val tracks = MutableStateFlow(initial.associateBy { it.trackId })
     val deleted = mutableListOf<String>()
@@ -27,14 +30,20 @@ class FakeStemsStore(initial: List<TrackStemsDto> = emptyList()) : StemsStore {
         all + (trackId to current.copy(stems = current.stems.map { if (it.stem == stem) it.copy(gain = gain) else it }))
     }
 
-    override suspend fun add(stems: TrackStemsDto) = tracks.update { it + (stems.trackId to stems) }
+    override suspend fun add(stems: TrackStemsDto) {
+        addError?.let { throw it }
+        tracks.update { it + (stems.trackId to stems) }
+    }
 
     override suspend fun delete(trackId: String) {
         deleted += trackId
         tracks.update { it - trackId }
+        // Files directly inside the folder, then the folder: what the real store does, with no recursion.
+        root?.let { dir -> File(dir, trackId).apply { listFiles()?.forEach { it.delete() } }.delete() }
     }
 
-    override fun dirFor(trackId: String): File = error("unused")
+    override fun dirFor(trackId: String): File =
+        File(requireNotNull(root) { "built without a folder" }, trackId).apply { mkdirs() }
 
     companion object {
         fun stem(name: String, gain: Float = 1f) = StemFileDto(name, "${name.lowercase()}.wav", gain)
