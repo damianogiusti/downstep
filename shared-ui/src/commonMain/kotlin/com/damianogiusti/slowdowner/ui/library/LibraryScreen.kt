@@ -84,6 +84,16 @@ class LibraryNavigation(
     val onContact: (() -> Unit)?,
     /** Null hides the Settings item (see ActivityActions.hasSettings). */
     val onSettings: (() -> Unit)? = null,
+    /** Null hides the stem separation: the menu items and the marker (see ActivityViewModels.stems). */
+    val stems: LibraryStems? = null,
+)
+
+/** What the library needs to offer the stem separation. */
+class LibraryStems(
+    /** The tracks that have stems: they get the marker and "Separate again". */
+    val separatedTrackIds: Set<String>,
+    val onSeparate: (LibraryTrack) -> Unit,
+    val onDeleteStems: (LibraryTrack) -> Unit,
 )
 
 @Composable
@@ -100,6 +110,7 @@ fun LibraryScreen(
     var showLinkDialog by rememberSaveable { mutableStateOf(false) }
     var showNewPlaylist by rememberSaveable { mutableStateOf(false) }
     var trackToRemove by remember { mutableStateOf<LibraryTrack?>(null) }
+    var trackToDeleteStems by remember { mutableStateOf<LibraryTrack?>(null) }
 
     LibraryContent(
         state = state,
@@ -112,6 +123,7 @@ fun LibraryScreen(
             onExportTrackBackup = navigation.onExportTrackBackup,
             onExportLibraryBackup = navigation.onExportLibraryBackup,
             onRemoveTrack = { trackToRemove = it },
+            stems = navigation.stems?.let { stems -> LibraryStems(stems.separatedTrackIds, stems.onSeparate) { trackToDeleteStems = it } },
             onPlaylistClick = navigation.onPlaylistClick,
             onNewPlaylist = { showNewPlaylist = true },
             onImport = { showImport = true },
@@ -185,6 +197,17 @@ fun LibraryScreen(
             onDismiss = { trackToRemove = null },
         )
     }
+    trackToDeleteStems?.let { track ->
+        ConfirmDialog(
+            text = stringResource(Res.string.stems_delete_confirm, track.title),
+            confirm = stringResource(Res.string.remove),
+            onConfirm = {
+                navigation.stems?.onDeleteStems?.invoke(track)
+                trackToDeleteStems = null
+            },
+            onDismiss = { trackToDeleteStems = null },
+        )
+    }
 }
 
 enum class LibraryTab { Tracks, Playlists }
@@ -203,6 +226,8 @@ class LibraryContentActions(
     val onDonate: (() -> Unit)? = null,
     val onContact: (() -> Unit)? = null,
     val onSettings: (() -> Unit)? = null,
+    /** Null hides the stem separation. [LibraryStems.onDeleteStems] asks for the confirmation first. */
+    val stems: LibraryStems? = null,
 )
 
 @Composable
@@ -388,10 +413,22 @@ private fun TracksTab(state: LibraryUiState, actions: LibraryContentActions) {
                 isNowPlaying = item.track.id == state.nowPlayingId,
                 onClick = { actions.onTrackClick(item.track) },
                 trailing = {
+                    val stems = actions.stems
+                    val isSeparated = stems != null && item.track.id in stems.separatedTrackIds
+                    if (isSeparated) StemsMarker()
                     TrackMenu(
-                        onAddToPlaylist = { actions.onAddToPlaylist(item.track) },
-                        onExportBackup = { actions.onExportTrackBackup(item.track) },
-                        onRemove = { actions.onRemoveTrack(item.track) },
+                        TrackMenuActions(
+                            onAddToPlaylist = { actions.onAddToPlaylist(item.track) },
+                            onExportBackup = { actions.onExportTrackBackup(item.track) },
+                            onRemove = { actions.onRemoveTrack(item.track) },
+                            stems = stems?.let {
+                                TrackStemsActions(
+                                    isSeparated = isSeparated,
+                                    onSeparate = { it.onSeparate(item.track) },
+                                    onDelete = { it.onDeleteStems(item.track) },
+                                )
+                            },
+                        ),
                     )
                 },
             )
@@ -399,8 +436,29 @@ private fun TracksTab(state: LibraryUiState, actions: LibraryContentActions) {
     }
 }
 
+/** A small icon in the row: the track has its instruments separated. */
 @Composable
-private fun TrackMenu(onAddToPlaylist: () -> Unit, onExportBackup: () -> Unit, onRemove: () -> Unit) {
+private fun StemsMarker() {
+    Icon(
+        painterResource(Res.drawable.ic_layers),
+        contentDescription = stringResource(Res.string.stems_marker_description),
+        tint = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.size(18.dp),
+    )
+}
+
+private class TrackMenuActions(
+    val onAddToPlaylist: () -> Unit,
+    val onExportBackup: () -> Unit,
+    val onRemove: () -> Unit,
+    /** Null where the separation is not offered. */
+    val stems: TrackStemsActions?,
+)
+
+private class TrackStemsActions(val isSeparated: Boolean, val onSeparate: () -> Unit, val onDelete: () -> Unit)
+
+@Composable
+private fun TrackMenu(actions: TrackMenuActions) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
@@ -411,12 +469,32 @@ private fun TrackMenu(onAddToPlaylist: () -> Unit, onExportBackup: () -> Unit, o
             )
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            actions.stems?.let { stems ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(if (stems.isSeparated) Res.string.stems_separate_again else Res.string.stems_separate)) },
+                    leadingIcon = { Icon(painterResource(Res.drawable.ic_layers), null) },
+                    onClick = {
+                        expanded = false
+                        stems.onSeparate()
+                    },
+                )
+                if (stems.isSeparated) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.stems_delete)) },
+                        leadingIcon = { Icon(painterResource(Res.drawable.ic_delete), null) },
+                        onClick = {
+                            expanded = false
+                            stems.onDelete()
+                        },
+                    )
+                }
+            }
             DropdownMenuItem(
                 text = { Text(stringResource(Res.string.add_to_playlist)) },
                 leadingIcon = { Icon(painterResource(Res.drawable.ic_playlist_add), null) },
                 onClick = {
                     expanded = false
-                    onAddToPlaylist()
+                    actions.onAddToPlaylist()
                 },
             )
             DropdownMenuItem(
@@ -424,7 +502,7 @@ private fun TrackMenu(onAddToPlaylist: () -> Unit, onExportBackup: () -> Unit, o
                 leadingIcon = { Icon(painterResource(Res.drawable.ic_archive), null) },
                 onClick = {
                     expanded = false
-                    onExportBackup()
+                    actions.onExportBackup()
                 },
             )
             DropdownMenuItem(
@@ -432,7 +510,7 @@ private fun TrackMenu(onAddToPlaylist: () -> Unit, onExportBackup: () -> Unit, o
                 leadingIcon = { Icon(painterResource(Res.drawable.ic_delete), null) },
                 onClick = {
                     expanded = false
-                    onRemove()
+                    actions.onRemove()
                 },
             )
         }
