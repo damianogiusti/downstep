@@ -106,6 +106,7 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 import java.io.File
+import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 
 /**
@@ -178,7 +179,13 @@ fun desktopModule(
     }
     // The separation runs on its own thread, one job at a time, and never on the UI thread.
     single<StemSeparatorDataSource> {
-        DemucsStemSeparatorDataSource(logger, resources?.let { File(it, "openvino").toPath() })
+        DemucsStemSeparatorDataSource(
+            logger,
+            openVinoDirectory = resources?.let { File(it, "openvino").toPath() },
+            // The same library the player uses (Main.engineLibrary): the separator decodes and writes with it.
+            engineLibrary = System.getProperty(NativeEngine.LIBRARY_PROPERTY)?.let { Path.of(it) }
+                ?: resources?.let { File(it, System.mapLibraryName("sdengine")).toPath() },
+        )
     }
     single {
         DefaultStemSeparationRepository(

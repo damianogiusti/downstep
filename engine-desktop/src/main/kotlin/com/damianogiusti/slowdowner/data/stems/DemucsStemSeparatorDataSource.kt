@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.data.stems
 
+import com.damianogiusti.slowdowner.data.playback.NativeEngine
 import com.damianogiusti.slowdowner.data.playback.NativePcm
 import com.damianogiusti.slowdowner.data.playback.NativeStemWriter
 import com.damianogiusti.slowdowner.data.playback.PcmDecodeResult
@@ -35,11 +36,14 @@ import java.nio.file.StandardCopyOption
  * files of an earlier separation as they were.
  *
  * [openVinoDirectory] is the folder of the OpenVINO libraries; by default the system property of
- * [OpenVinoRuntime.LIBRARY_DIR_PROPERTY].
+ * [OpenVinoRuntime.LIBRARY_DIR_PROPERTY]. [engineLibrary] is the engine library that decodes the track and
+ * writes the stems: the app passes the one it plays with; by default the system property of
+ * [NativeEngine.LIBRARY_PROPERTY], which only tests and development runs set.
  */
 class DemucsStemSeparatorDataSource(
     private val logger: Logger,
     private val openVinoDirectory: Path? = null,
+    private val engineLibrary: Path? = null,
 ) : StemSeparatorDataSource {
 
     private val oneAtATime = Mutex()
@@ -53,6 +57,8 @@ class DemucsStemSeparatorDataSource(
                 run.cleanUp()
             }
         }
+
+    private fun library(): Path = engineLibrary ?: NativeEngine.defaultLibrary()
 
     /** One call: owns the resources that [cleanUp] releases, whatever happens. */
     private inner class Run(private val request: SeparationRequest, private val onProgress: (Float) -> Unit) {
@@ -101,7 +107,7 @@ class DemucsStemSeparatorDataSource(
         }
 
         private fun decode(): Decoded {
-            val pcm = when (val result = NativePcm.decode(request.inputPath, DECODE_BUDGET_BYTES)) {
+            val pcm = when (val result = NativePcm.decode(request.inputPath, DECODE_BUDGET_BYTES, library())) {
                 is PcmDecodeResult.Decoded -> result.pcm
                 PcmDecodeResult.Failed -> return Decoded.Failure(SeparationFailure.DECODE_FAILED)
                 PcmDecodeResult.TooLong -> return Decoded.Failure(SeparationFailure.TOO_LONG)
@@ -141,7 +147,7 @@ class DemucsStemSeparatorDataSource(
                 val part = File(request.outputDir, "${fileNameOf(kind)}$PART_SUFFIX")
                 partFiles[kind] = part
                 val format = StemFormat(DemucsModel.SAMPLE_RATE, DemucsModel.CHANNELS)
-                when (val opened = NativeStemWriter.open(part.path, format)) {
+                when (val opened = NativeStemWriter.open(part.path, format, library())) {
                     is StemWriterOpenResult.Opened -> writers[kind] = opened.writer
                     else -> return false
                 }
