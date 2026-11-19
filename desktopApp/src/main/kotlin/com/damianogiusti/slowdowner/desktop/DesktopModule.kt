@@ -68,6 +68,7 @@ import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.playlists.PlaylistRepository
 import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
+import com.damianogiusti.slowdowner.domain.stems.StemMixer
 import com.damianogiusti.slowdowner.domain.stems.StemModelRepository
 import com.damianogiusti.slowdowner.domain.stems.StemPlatform
 import com.damianogiusti.slowdowner.domain.stems.StemSeparationRepository
@@ -136,7 +137,10 @@ fun desktopModule(
     single { DesktopPlaybackEngine(get(), get()) }
     single<PlaybackEngine> { get<DesktopPlaybackEngine>() }
     single<EffectsEngine> { get<DesktopPlaybackEngine>() }
-    single<AudioSourceRepository> { DesktopAudioSourceRepository(get(), logger) }
+    single { DesktopAudioSourceRepository(get(), logger) }
+    single<AudioSourceRepository> { get<DesktopAudioSourceRepository>() }
+    // The same instance: it knows which engine index each stem of the open source has.
+    single<StemMixer> { get<DesktopAudioSourceRepository>() }
     singleOf(::InMemoryNowPlayingRepository) { bind<NowPlayingRepository>() }
 
     // Library
