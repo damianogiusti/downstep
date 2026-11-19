@@ -13,6 +13,10 @@ import com.damianogiusti.slowdowner.ui.playlists.AddToPlaylistViewModel
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistEditUseCases
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistTrackUseCases
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistViewModel
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsUseCases
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsViewModel
+import com.damianogiusti.slowdowner.ui.stems.StemSeparationViewModel
+import com.damianogiusti.slowdowner.ui.stems.StemUseCases
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
@@ -25,6 +29,8 @@ val uiModule = module {
     factoryOf(::PlaylistEditUseCases)
     factoryOf(::PlaylistTrackUseCases)
     factoryOf(::BackupUseCases)
+    factoryOf(::StemUseCases)
+    factoryOf(::InstrumentsUseCases)
 
     viewModelOf(::PlayerViewModel)
     viewModelOf(::ImportViewModel)
@@ -34,4 +40,8 @@ val uiModule = module {
     viewModelOf(::AddToPlaylistViewModel)
     viewModelOf(::EffectsViewModel)
     viewModelOf(::SettingsViewModel)
+    // Resolved only by apps that bind the stem repositories (the desktop app); see ActivityViewModels.stems.
+    viewModelOf(::StemSeparationViewModel)
+    // Same condition: the panel of the stems of the open track.
+    viewModelOf(::InstrumentsViewModel)
 }

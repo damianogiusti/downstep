@@ -35,6 +35,16 @@ import com.damianogiusti.slowdowner.data.playback.NativeOfflineRenderer
 import com.damianogiusti.slowdowner.data.playlists.DefaultPlaylistRepository
 import com.damianogiusti.slowdowner.data.practice.DefaultPracticeRepository
 import com.damianogiusti.slowdowner.data.source.DesktopAudioSourceRepository
+import com.damianogiusti.slowdowner.data.stems.DefaultStemModelRepository
+import com.damianogiusti.slowdowner.data.stems.DefaultStemSeparationRepository
+import com.damianogiusti.slowdowner.data.stems.DemucsStemSeparatorDataSource
+import com.damianogiusti.slowdowner.data.stems.DefaultStemsRepository
+import com.damianogiusti.slowdowner.data.stems.ModelFileSpec
+import com.damianogiusti.slowdowner.data.stems.StemModelSpec
+import com.damianogiusti.slowdowner.data.stems.RoomStemsStore
+import com.damianogiusti.slowdowner.data.stems.SeparationModel
+import com.damianogiusti.slowdowner.data.stems.StemSeparatorDataSource
+import com.damianogiusti.slowdowner.data.stems.StemsStore
 import com.damianogiusti.slowdowner.data.support.DefaultSupportPromptRepository
 import com.damianogiusti.slowdowner.data.support.PreferencesSupportPromptStore
 import com.damianogiusti.slowdowner.data.support.SupportPromptStore
@@ -58,6 +68,11 @@ import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
 import com.damianogiusti.slowdowner.domain.playlists.PlaylistRepository
 import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
+import com.damianogiusti.slowdowner.domain.stems.StemMixer
+import com.damianogiusti.slowdowner.domain.stems.StemModelRepository
+import com.damianogiusti.slowdowner.domain.stems.StemPlatform
+import com.damianogiusti.slowdowner.domain.stems.StemSeparationRepository
+import com.damianogiusti.slowdowner.domain.stems.StemsRepository
 import com.damianogiusti.slowdowner.domain.support.DismissSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.ObserveSupportPromptUseCase
 import com.damianogiusti.slowdowner.domain.support.RecordAppLaunchUseCase
@@ -91,6 +106,7 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 import java.io.File
+import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 
 /**
@@ -106,6 +122,9 @@ fun desktopModule(
     logger: Logger = ConsoleLogger(),
     updates: UpdateSettings = UpdateSettings(),
     whatsNew: WhatsNewSettings = WhatsNewSettings(),
+    // The app's resources folder: the model graph and the OpenVINO libraries sit in it. Null outside a Gradle run or an install.
+    resources: File? = System.getProperty("compose.application.resources.dir")?.let(::File),
+    stemPlatform: StemPlatform = detectStemPlatform(),
 ) = module {
     single { directories }
     single { logger }
@@ -119,7 +138,10 @@ fun desktopModule(
     single { DesktopPlaybackEngine(get(), get()) }
     single<PlaybackEngine> { get<DesktopPlaybackEngine>() }
     single<EffectsEngine> { get<DesktopPlaybackEngine>() }
-    single<AudioSourceRepository> { DesktopAudioSourceRepository(get(), logger) }
+    single { DesktopAudioSourceRepository(get(), logger) }
+    single<AudioSourceRepository> { get<DesktopAudioSourceRepository>() }
+    // The same instance: it knows which engine index each stem of the open source has.
+    single<StemMixer> { get<DesktopAudioSourceRepository>() }
     singleOf(::InMemoryNowPlayingRepository) { bind<NowPlayingRepository>() }
 
     // Library
@@ -149,6 +171,37 @@ fun desktopModule(
     single<PracticeRepository> { DefaultPracticeRepository(get(), Dispatchers.IO) }
     single { get<SlowDownerDatabase>().playlistDao() }
     single<PlaylistRepository> { DefaultPlaylistRepository(get(), Dispatchers.IO) }
+    single { get<SlowDownerDatabase>().stemsDao() }
+    single<StemsStore> { RoomStemsStore(get(), directories.stems) }
+    single<StemsRepository> { DefaultStemsRepository(get(), Dispatchers.IO, logger) }
+    single<StemModelRepository> {
+        DefaultStemModelRepository(get(), DESKTOP_STEM_MODEL, directories.models, Dispatchers.IO, logger)
+    }
+    // The separation runs on its own thread, one job at a time, and never on the UI thread.
+    single<StemSeparatorDataSource> {
+        DemucsStemSeparatorDataSource(
+            logger,
+            openVinoDirectory = resources?.let { File(it, "openvino").toPath() },
+            // The same library the player uses (Main.engineLibrary): the separator decodes and writes with it.
+            engineLibrary = System.getProperty(NativeEngine.LIBRARY_PROPERTY)?.let { Path.of(it) }
+                ?: resources?.let { File(it, System.mapLibraryName("sdengine")).toPath() },
+        )
+    }
+    single {
+        DefaultStemSeparationRepository(
+            separator = get(),
+            library = get(),
+            stems = get(),
+            models = get(),
+            model = SeparationModel(DESKTOP_STEM_MODEL.id, stemModelFiles(directories, resources)),
+            scope = get(),
+            dispatcher = Dispatchers.IO.limitedParallelism(1),
+            logger = logger,
+        )
+    }
+    // The same instance under its interface: the quit path needs shutdown(), which the interface does not have.
+    single<StemSeparationRepository> { get<DefaultStemSeparationRepository>() }
+    single { stemPlatform }
     single { get<SlowDownerDatabase>().backupDao() }
     single { BackupArchive() }
     single<BackupRepository> {
@@ -206,4 +259,24 @@ fun desktopModule(
     factoryOf(::IsWhatsNewDueUseCase)
     factory { RecordWhatsNewShownUseCase(get(), runningVersion, logger) }
     viewModelOf(::WhatsNewViewModel)
+}
+
+/** Pinned to a commit, so the size and checksum cannot drift under us. The graph (.xml) ships in the installer. */
+private val DESKTOP_STEM_MODEL = StemModelSpec(
+    id = "htdemucs-6s-ov",
+    files = listOf(
+        ModelFileSpec(
+            name = "htdemucs_fwd.bin",
+            url = "https://huggingface.co/Intel/demucs-openvino/resolve/efb3d2bc54f93899b13b72b12c57001e19f09ae2/htdemucs_v4_6s/htdemucs_fwd.bin",
+            sizeBytes = 74_384_618L,
+            sha256 = "5d66281099b5fdaba8844e306f3d6710b3e0b005fa9aad4514ce7604e24fbec9",
+        ),
+    ),
+)
+
+/** The graph that ships with the app, then the weights the app downloads: the order the separator reads them in. */
+private fun stemModelFiles(directories: AppDirectories, resources: File?): List<File> {
+    val graph = File(resources, "models/htdemucs_6s_fixed.xml")
+    val downloaded = DESKTOP_STEM_MODEL.files.map { File(File(directories.models, DESKTOP_STEM_MODEL.id), it.name) }
+    return listOf(graph) + downloaded
 }

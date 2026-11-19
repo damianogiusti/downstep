@@ -278,4 +278,45 @@
     <string name="settings_waveform_summary">Disegna il brano nella timeline. Con Fine acceso nel loop A-B, lo disegna anche lo zoom sul loop.</string>
     <!-- Zoom sul loop A-B -->
     <string name="loop_zoom_description">Zoom sul loop, da %1$s a %2$s</string>
+    <!-- Separazione degli strumenti -->
+    <string name="stems_separate">Separa strumenti</string>
+    <string name="stems_separate_again">Separa di nuovo</string>
+    <string name="stems_delete">Elimina strumenti</string>
+    <string name="stems_marker_description">Strumenti separati</string>
+    <string name="stems_delete_confirm">Eliminare gli strumenti separati di "%1$s"? Potrai separare di nuovo il brano.</string>
+    <string name="stems_separating">Separo gli strumenti… %1$d%</string>
+    <string name="stems_downloading">Scarico il modello… %1$d%</string>
+    <string name="stems_ready">Strumenti pronti</string>
+    <string name="stems_busy">Uno alla volta: aspetta che finisca la separazione o il download in corso.</string>
+    <string name="stems_error_unreadable">Questo brano non può essere separato: il file non si legge, non ha audio o ha più di due canali.</string>
+    <string name="stems_error_too_long">Questo brano è troppo lungo per essere separato con la memoria di questo computer.</string>
+    <string name="stems_error_model">La separazione è fallita a causa del modello. Riprova; se continua a fallire, riavvia Downstep.</string>
+    <string name="stems_error_write">Non è stato possibile salvare gli strumenti. Controlla lo spazio libero sul disco.</string>
+    <string name="stems_error_removed">Il brano è stato rimosso prima della fine della separazione.</string>
+    <string name="stems_error_unexpected">La separazione è fallita per un motivo imprevisto.</string>
+    <string name="stems_model_title">Scaricare il modello di separazione?</string>
+    <string name="stems_model_text">Per separare gli strumenti Downstep ha bisogno di un modello da 74 MB. Si scarica una volta sola da Hugging Face, dove lo pubblica Intel, e poi gira sul tuo computer: la tua musica non viene caricata da nessuna parte.</string>
+    <string name="stems_model_download">Scarica</string>
+    <string name="stems_deprecated_notice">Su questo Mac (processore Intel) la separazione degli strumenti è deprecata e potrebbe funzionare male: può essere molto lenta o fallire.</string>
+    <string name="stems_deprecated_title">Separare su questo Mac?</string>
+    <string name="stems_deprecated_continue">Separa comunque</string>
+    <string name="stems_download_error_network">Non è stato possibile scaricare il modello. Controlla la connessione e riprova più tardi.</string>
+    <string name="stems_download_error_corrupted">Il file scaricato non è quello atteso ed è stato scartato. Riprova.</string>
+    <string name="stems_download_error_generic">Il download del modello è fallito. Riprova.</string>
+    <string name="instruments_mode_full_track">Brano intero</string>
+    <string name="instruments_mode_stems">Strumenti</string>
+    <string name="instruments_switching">Riapro il brano…</string>
+    <string name="instruments_mute_label">Muto</string>
+    <string name="instruments_mute">Silenzia %1$s</string>
+    <string name="instruments_unmute">Riattiva %1$s</string>
+    <string name="instruments_solo">Solo</string>
+    <string name="instruments_solo_stem">Assolo %1$s</string>
+    <string name="instruments_unsolo">Togli l'assolo da %1$s</string>
+    <string name="instruments_volume_format">%1$d%</string>
+    <string name="stem_vocals">Voce</string>
+    <string name="stem_drums">Batteria</string>
+    <string name="stem_bass">Basso</string>
+    <string name="stem_guitar">Chitarra</string>
+    <string name="stem_piano">Piano</string>
+    <string name="stem_other">Altro</string>
 </resources>

@@ -86,6 +86,8 @@ uint64_t fileBytes(const std::string &path) {
     return (uint64_t(data.nFileSizeHigh) << 32) | data.nFileSizeLow;
 }
 
+} // namespace
+
 /**
  * What the process can still commit (physical memory plus page file), not what is free in RAM: on
  * Windows an allocation fails when the commit limit is reached, even with the disk half empty.
@@ -98,6 +100,8 @@ uint64_t availableMemoryBytes() {
     const uint64_t commit = std::min<uint64_t>(status.ullAvailPageFile, status.ullAvailVirtual);
     return commit > kMemoryMarginBytes ? commit - kMemoryMarginBytes : 0;
 }
+
+namespace {
 
 /** Whether the file starts as an MP4 does (an ftyp box), without reading the rest. */
 bool startsLikeMp4(const std::string &path) {

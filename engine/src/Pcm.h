@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <memory>
 #include <new>
 #include <string>
 #include <vector>
@@ -25,6 +26,31 @@ struct PcmBuffer {
     }
 
     double seconds() const { return sampleRate ? double(frames) / sampleRate : 0.0; }
+};
+
+/** Most streams a source can hold: the six stems of a separation, with room to spare. */
+constexpr int kMaxStreams = 8;
+
+/**
+ * What the player plays: one file's buffer, or the stems of a track (2 to kMaxStreams buffers) that it
+ * sums on the fly, each with its own gain. Every stream has the same sample rate and the same number of
+ * frames. Streams are shared read-only, like a lone buffer always was, so an export can keep them
+ * alive after the player has moved on. Never empty.
+ */
+struct PcmSource {
+    std::vector<std::shared_ptr<const PcmBuffer>> streams;
+    /** True for stems, even a single one: the stem count and the gains only exist then. */
+    bool isStemSet = false;
+
+    static std::shared_ptr<const PcmSource> single(std::shared_ptr<const PcmBuffer> pcm) {
+        auto source = std::make_shared<PcmSource>();
+        source->streams.push_back(std::move(pcm));
+        return source;
+    }
+
+    int sampleRate() const { return streams.front()->sampleRate; }
+    int64_t frames() const { return streams.front()->frames; }
+    double seconds() const { return streams.front()->seconds(); }
 };
 
 /**
@@ -76,11 +102,23 @@ inline bool pcmFitsInMemory(int64_t expectedFrames, int channels, uint64_t fileB
 }
 
 /**
+ * What the process can still allocate for decoded audio, minus kMemoryMarginBytes (per OS, in the
+ * decoder source). The budget of a decode that is given 0.
+ */
+uint64_t availableMemoryBytes();
+
+/**
  * Only the decoder depends on the OS: AudioToolbox on macOS, Media Foundation on Windows.
  * [memoryBudgetBytes] bounds the decoded PCM: 0 = what the OS can still give, minus a margin. On
  * TooLong or Failed, [error] says why, without the path.
  */
 DecodeStatus decodeFile(const std::string &path, PcmBuffer &out, std::string &error, int64_t memoryBudgetBytes);
+
+/**
+ * Decodes an MP3 stem written by the stem writer with miniaudio's decoder (same on every OS), to the
+ * frames that were written. Same budget and statuses as decodeFile.
+ */
+DecodeStatus decodeStemMp3(const std::string &path, PcmBuffer &out, std::string &error, int64_t memoryBudgetBytes);
 
 /** fopen for a UTF-8 path: on Windows the narrow fopen reads paths in the ANSI code page. */
 FILE *openFileUtf8(const std::string &path, const char *mode);

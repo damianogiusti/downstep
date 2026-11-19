@@ -79,6 +79,35 @@ class NativeEngineTest {
     }
 
     @Test
+    fun `the stem calls go through, and a single file takes the engine back`() {
+        val stem = File.createTempFile("native-stem", ".mp3")
+        try {
+            val writer = (NativeStemWriter.open(stem.path, StemFormat(RATE, channels = 2)) as StemWriterOpenResult.Opened).writer
+            assertTrue(writer.write(FloatArray(RATE * 2) { 0.1f }))
+            writer.close()
+            assertTrue(writer.isComplete)
+
+            NativeEngine.manual(RATE).use { native ->
+                assertEquals(0, native.stemCount)
+                assertTrue(native.openStems(listOf(stem.path, stem.path)))
+                assertEquals(2, native.stemCount)
+                assertEquals(1.0, native.durationSeconds, 0.01)
+                native.setStemGain(1, 0.5)
+                native.setStemGain(NativeEngine.MAX_STEMS, 0.0) // out of range: ignored, not an error
+
+                assertFalse(native.openStems(emptyList()))
+                assertEquals(NativeEngine.OPEN_FAILED, native.openError)
+                assertEquals(2, native.stemCount)
+
+                assertTrue(native.open(file.path))
+                assertEquals(0, native.stemCount)
+            }
+        } finally {
+            stem.delete()
+        }
+    }
+
+    @Test
     fun `when the budget is smaller than the decoded track then open fails as too long`() {
         NativeEngine.manual(RATE).use { native ->
             native.setMemoryBudget(1_000) // the 2 s tone needs about 700 KB

@@ -5,6 +5,8 @@ import com.damianogiusti.slowdowner.data.playback.FileOpenResult
 import com.damianogiusti.slowdowner.domain.source.AudioSource
 import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
 import com.damianogiusti.slowdowner.domain.source.OpenResult
+import com.damianogiusti.slowdowner.domain.stems.StemKind
+import com.damianogiusti.slowdowner.domain.stems.StemMixer
 import com.damianogiusti.slowdowner.logging.Logger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -13,21 +15,28 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Local files only: Spotify playback is out of use on every platform. [open] decodes the whole file,
- * which takes seconds for a long song: it runs on [decodeDispatcher] so the caller's (main) thread stays free.
+ * Local files and the stems of a track: Spotify playback is out of use on every platform. [open] decodes the
+ * whole file, which takes seconds for a long song: it runs on [decodeDispatcher] so the caller's (main) thread
+ * stays free.
+ *
+ * It is also the [StemMixer]: it opened the stems, so it knows the engine index of each one (their order in
+ * [AudioSource.Stems]).
  */
 class DesktopAudioSourceRepository(
     private val engine: DesktopPlaybackEngine,
     private val logger: Logger,
     private val decodeDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : AudioSourceRepository {
+) : AudioSourceRepository, StemMixer {
 
+    // Written on the decode thread, read by the mixer on the caller's: a whole value each time.
+    @Volatile
     private var current: AudioSource? = null
 
     override suspend fun open(source: AudioSource): OpenResult = withContext(decodeDispatcher) {
         close()
         val result = when (source) {
             is AudioSource.LocalFile -> openLocal(File(source.path))
+            is AudioSource.Stems -> openStems(source)
             is AudioSource.SpotifyTrack -> OpenResult.Failed
         }
         current = if (result == OpenResult.Opened) source else null
@@ -35,6 +44,12 @@ class DesktopAudioSourceRepository(
     }
 
     override fun current(): AudioSource? = current
+
+    override fun setGain(stem: StemKind, gain: Float) {
+        val stems = (current as? AudioSource.Stems)?.stems ?: return
+        val index = stems.indexOfFirst { it.kind == stem }
+        if (index >= 0) engine.setStemGain(index, gain)
+    }
 
     private fun openLocal(file: File): OpenResult {
         val properties = mapOf(
@@ -47,7 +62,31 @@ class DesktopAudioSourceRepository(
             logger.w("Cannot open track", properties = properties + ("reason" to "unreadable"))
             return OpenResult.Failed
         }
-        return when (val result = engine.openFile(file.path)) {
+        return report(engine.openFile(file.path), properties) { videoLink(file) }
+    }
+
+    private fun openStems(source: AudioSource.Stems): OpenResult {
+        val files = source.stems.map { File(it.path) }
+        val properties = mapOf(
+            "extension" to files.firstOrNull()?.extension?.lowercase().orEmpty(),
+            "source" to "stems",
+            "size" to sizeBucket(files.sumOf { it.length() }),
+            "stems" to files.size.toString(),
+        )
+        if (files.isEmpty() || files.any { !it.canRead() }) {
+            logger.w("Cannot open track", properties = properties + ("reason" to "unreadable"))
+            return OpenResult.Failed
+        }
+        // The engine plays them in this order, so index i of the mixer is source.stems[i].
+        return report(engine.openStems(files.map { it.path }), properties) { emptyMap() }
+    }
+
+    private fun report(
+        opened: FileOpenResult,
+        properties: Map<String, String>,
+        extra: () -> Map<String, String>,
+    ): OpenResult {
+        return when (val result = opened) {
             FileOpenResult.Opened -> OpenResult.Opened
             // Not a bug: the decoded track needs more memory than the system can give. Logged to see how often.
             FileOpenResult.TooLong -> {
@@ -56,7 +95,7 @@ class DesktopAudioSourceRepository(
             }
             // A file the decoder rejects: tells which formats need work, and the native text says why.
             is FileOpenResult.Failed -> {
-                val failure = properties + mapOf("reason" to "decoder", "detail" to result.detail) + videoLink(file)
+                val failure = properties + mapOf("reason" to "decoder", "detail" to result.detail) + extra()
                 logger.e("Cannot open track", properties = failure)
                 OpenResult.Failed
             }

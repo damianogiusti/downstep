@@ -46,6 +46,26 @@ import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.SetLoopRegionUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
+import com.damianogiusti.slowdowner.domain.stems.AcknowledgeStemSeparationUseCase
+import com.damianogiusti.slowdowner.domain.stems.CancelStemSeparationUseCase
+import com.damianogiusti.slowdowner.domain.stems.DeleteStemModelUseCase
+import com.damianogiusti.slowdowner.domain.stems.DeleteTrackStemsUseCase
+import com.damianogiusti.slowdowner.domain.stems.DownloadStemModelUseCase
+import com.damianogiusti.slowdowner.domain.stems.ObserveStemModelUseCase
+import com.damianogiusti.slowdowner.domain.stems.ObserveSeparatedTracksUseCase
+import com.damianogiusti.slowdowner.domain.stems.ObserveTrackStemsUseCase
+import com.damianogiusti.slowdowner.domain.stems.ObserveStemSeparationUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetStemGainUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetStemMutedUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetStemSoloedUseCase
+import com.damianogiusti.slowdowner.domain.stems.SetTrackModeUseCase
+import com.damianogiusti.slowdowner.domain.stems.SwitchTrackModeUseCase
+import com.damianogiusti.slowdowner.domain.stems.ModeSwitchRepository
+import com.damianogiusti.slowdowner.domain.stems.ObserveModeSwitchUseCase
+import com.damianogiusti.slowdowner.data.stems.InMemoryModeSwitchRepository
+import org.koin.core.module.dsl.singleOf
+import org.koin.core.module.dsl.bind
+import com.damianogiusti.slowdowner.domain.stems.StartStemSeparationUseCase
 import org.koin.core.module.dsl.factoryOf
 import org.koin.dsl.module
 
@@ -94,6 +114,24 @@ val useCasesModule = module {
     factoryOf(::AddTrackToPlaylistUseCase)
     factoryOf(::RemoveTrackFromPlaylistUseCase)
     factoryOf(::ReorderPlaylistUseCase)
+    factoryOf(::ObserveTrackStemsUseCase)
+    factoryOf(::ObserveSeparatedTracksUseCase)
+    factoryOf(::SetTrackModeUseCase)
+    // Here and not on a platform: the player observes it on every platform, stems or not.
+    singleOf(::InMemoryModeSwitchRepository) { bind<ModeSwitchRepository>() }
+    factoryOf(::ObserveModeSwitchUseCase)
+    factoryOf(::SwitchTrackModeUseCase)
+    factoryOf(::SetStemGainUseCase)
+    factoryOf(::SetStemMutedUseCase)
+    factoryOf(::SetStemSoloedUseCase)
+    factoryOf(::DeleteTrackStemsUseCase)
+    factoryOf(::ObserveStemModelUseCase)
+    factoryOf(::DownloadStemModelUseCase)
+    factoryOf(::DeleteStemModelUseCase)
+    factoryOf(::StartStemSeparationUseCase)
+    factoryOf(::CancelStemSeparationUseCase)
+    factoryOf(::ObserveStemSeparationUseCase)
+    factoryOf(::AcknowledgeStemSeparationUseCase)
     // Explicit lambdas: the clock parameter keeps its default.
     factory { ExportTrackBackupUseCase(get()) }
     factory { ExportLibraryBackupUseCase(get()) }

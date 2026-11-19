@@ -55,6 +55,29 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         api.open.invokeExact(handle, utf8Path) as Int != 0
     }
 
+    /**
+     * Decodes the stems of a track and plays them summed (`sd_engine_open_stems`): [paths] are the MP3 files of
+     * the stem writer, 1 to [MAX_STEMS], in the order of the gains. Blocking. The memory budget covers all of
+     * them together. On failure see [openError]; what was open stays. Every successful open resets the gains
+     * to 1.
+     */
+    fun openStems(paths: List<String>): Boolean = Arena.ofConfined().use { arena ->
+        val utf8Paths: MemorySegment = arena.allocate(ADDRESS.byteSize() * paths.size, ADDRESS.byteAlignment())
+        paths.forEachIndexed { index, path -> utf8Paths.setAtIndex(ADDRESS, index.toLong(), arena.allocateFrom(path)) }
+        api.openStems.invokeExact(handle, utf8Paths, paths.size) as Int != 0
+    }
+
+    /** Number of stems of the open source; 0 for a single file or nothing. */
+    val stemCount: Int get() = api.stemCount.invokeExact(handle) as Int
+
+    /**
+     * Linear gain of one stem, applied by the engine as given (the headroom of the stem files is the caller's
+     * to compensate), with a ramp. An index outside 0 until [MAX_STEMS] is ignored. See `sd_engine_set_stem_gain`.
+     */
+    fun setStemGain(index: Int, gain: Double) {
+        api.setStemGain.invokeExact(handle, index, gain)
+    }
+
     /** Why the last [open] failed: [OPEN_OK], [OPEN_FAILED] or [OPEN_TOO_LONG]. */
     val openError: Int get() = api.openError.invokeExact(handle) as Int
 
@@ -182,6 +205,7 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
     companion object {
         const val EVENT_REACHED_END = 1
         const val EQ_BANDS = 7
+        const val MAX_STEMS = 8
         const val OPEN_OK = 0
         const val OPEN_FAILED = 1
         const val OPEN_TOO_LONG = 2
@@ -203,7 +227,7 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
             return if (handle == MemorySegment.NULL) null else NativeEngine(api, handle)
         }
 
-        private fun defaultLibrary(): Path {
+        internal fun defaultLibrary(): Path {
             val path = System.getProperty(LIBRARY_PROPERTY)
             requireNotNull(path) { "set -D$LIBRARY_PROPERTY=<path to libsdengine>" }
             return Path.of(path)
@@ -229,6 +253,9 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         val create = function("sd_engine_create", ADDRESS, JAVA_INT, JAVA_INT)
         val destroy = function("sd_engine_destroy", null, ADDRESS)
         val open = function("sd_engine_open", JAVA_INT, ADDRESS, ADDRESS)
+        val openStems = function("sd_engine_open_stems", JAVA_INT, ADDRESS, ADDRESS, JAVA_INT)
+        val setStemGain = function("sd_engine_set_stem_gain", null, ADDRESS, JAVA_INT, JAVA_DOUBLE, critical = true)
+        val stemCount = function("sd_engine_stem_count", JAVA_INT, ADDRESS, critical = true)
         val setMemoryBudget = function("sd_engine_set_memory_budget", null, ADDRESS, JAVA_LONG)
         val openError = function("sd_engine_open_error", JAVA_INT, ADDRESS)
         val openErrorText = function("sd_engine_open_error_text", JAVA_INT, ADDRESS, ADDRESS, JAVA_INT)
@@ -261,6 +288,16 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         val exportBegin = function("sd_export_begin", ADDRESS, ADDRESS, ADDRESS, JAVA_INT)
         val exportNext = function("sd_export_next", JAVA_DOUBLE, ADDRESS)
         val exportEnd = function("sd_export_end", JAVA_INT, ADDRESS)
+        val pcmDecode = function("sd_pcm_decode", ADDRESS, ADDRESS, JAVA_LONG, ADDRESS)
+        val stemDecode = function("sd_stem_decode", ADDRESS, ADDRESS, JAVA_LONG, ADDRESS)
+        val pcmSampleRate = function("sd_pcm_sample_rate", JAVA_INT, ADDRESS, critical = true)
+        val pcmChannels = function("sd_pcm_channels", JAVA_INT, ADDRESS, critical = true)
+        val pcmFrames = function("sd_pcm_frames", JAVA_LONG, ADDRESS, critical = true)
+        val pcmCopy = function("sd_pcm_copy", JAVA_LONG, ADDRESS, JAVA_INT, JAVA_LONG, ADDRESS, JAVA_LONG)
+        val pcmFree = function("sd_pcm_free", null, ADDRESS)
+        val stemWriterOpen = function("sd_stem_writer_open", ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS)
+        val stemWriterWrite = function("sd_stem_writer_write", JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG)
+        val stemWriterClose = function("sd_stem_writer_close", JAVA_INT, ADDRESS)
 
         companion object {
             private val CRITICAL = arrayOf(Linker.Option.critical(false))

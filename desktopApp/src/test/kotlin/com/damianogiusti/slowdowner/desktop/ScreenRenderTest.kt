@@ -21,6 +21,38 @@ import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
 import com.damianogiusti.slowdowner.data.support.SupportPromptDto
 import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
+import com.damianogiusti.slowdowner.data.stems.StemFileDto
+import com.damianogiusti.slowdowner.data.stems.StemsStore
+import com.damianogiusti.slowdowner.data.stems.TrackStemsDto
+import com.damianogiusti.slowdowner.domain.library.LibraryTrack
+import com.damianogiusti.slowdowner.domain.stems.StemKind
+import com.damianogiusti.slowdowner.domain.stems.TrackMode
+import com.damianogiusti.slowdowner.ui.player.components.LoopActions
+import com.damianogiusti.slowdowner.ui.player.PlayerContent
+import com.damianogiusti.slowdowner.ui.player.PlayerContentActions
+import com.damianogiusti.slowdowner.ui.player.PlayerControlsState
+import com.damianogiusti.slowdowner.ui.player.PlayerUiState
+import com.damianogiusti.slowdowner.ui.player.components.PresetActions
+import com.damianogiusti.slowdowner.ui.player.components.TimelineActions
+import com.damianogiusti.slowdowner.ui.player.components.TransportActions
+import com.damianogiusti.slowdowner.ui.player.components.ValueCardActions
+import com.damianogiusti.slowdowner.ui.resources.Res
+import com.damianogiusti.slowdowner.ui.resources.stem_bass
+import com.damianogiusti.slowdowner.ui.resources.stem_drums
+import com.damianogiusti.slowdowner.ui.resources.stem_guitar
+import com.damianogiusti.slowdowner.ui.resources.stem_other
+import com.damianogiusti.slowdowner.ui.resources.stem_piano
+import com.damianogiusti.slowdowner.ui.resources.stem_vocals
+import com.damianogiusti.slowdowner.ui.stems.InstrumentRow
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsActions
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsUiState
+import com.damianogiusti.slowdowner.ui.stems.StemBanner
+import com.damianogiusti.slowdowner.ui.stems.StemDeprecatedDialog
+import com.damianogiusti.slowdowner.ui.stems.StemModelDialog
+import com.damianogiusti.slowdowner.ui.stems.StemProgress
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import com.damianogiusti.slowdowner.di.uiModule
 import com.damianogiusti.slowdowner.di.useCasesModule
 import com.damianogiusti.slowdowner.ui.navigation.ActivityActions
@@ -230,6 +262,170 @@ class ScreenRenderTest {
         }
     }
 
+    @Test
+    fun `a separated track shows its marker at both widths`() {
+        importSeparatedTrack()
+        for ((name, width, height) in listOf(Triple("narrow", 440, 900), Triple("wide", 1280, 820))) {
+            val bytes = render(File("build/screenshots/stems-library-$name.png"), widthDp = width, heightDp = height)
+            assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+        }
+    }
+
+    @Test
+    fun `the menu of a separated track offers Separate again and Delete instruments`() {
+        importSeparatedTrack()
+        for ((name, width, height) in listOf(Triple("narrow", 440, 900), Triple("wide", 1280, 820))) {
+            val bytes = render(File("build/screenshots/stems-menu-$name.png"), widthDp = width, heightDp = height,
+                afterFirstFrames = {
+                    // The row's ⋮ button: the right end of the first row of the library pane. In the wide layout the
+                    // library has the width left of the player pane (42 % of the window, 420 to 560 dp).
+                    val libraryWidth = if (width >= 840) width - (width * 0.42f).coerceIn(420f, 560f) - 1 else width.toFloat()
+                    val menu = Offset((libraryWidth - 8 - 24) * 2f, ROW_MENU_Y_DP * 2f)
+                    scene.sendPointerEvent(PointerEventType.Press, menu)
+                    scene.sendPointerEvent(PointerEventType.Release, menu)
+                },
+            )
+            assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+        }
+    }
+
+    @Test
+    fun `the banner and the dialogs of the stem separation render at both widths`() {
+        for ((name, width) in listOf("narrow" to 440, "wide" to 1280)) {
+            val width = width
+            val banner = renderContent(File("build/screenshots/stems-banner-$name.png"), widthDp = width, heightDp = 260) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StemBanner(StemProgress.Separating(42), onCancel = {})
+                    StemBanner(StemProgress.DownloadingModel(7), onCancel = {})
+                }
+            }
+            assertTrue(banner > 5_000, "suspiciously small render: $banner bytes")
+            val dialogs = listOf<Pair<String, @androidx.compose.runtime.Composable () -> Unit>>(
+                "model" to { StemModelDialog(isDeprecatedPlatform = false, onDownload = {}, onDismiss = {}) },
+                "model-intel" to { StemModelDialog(isDeprecatedPlatform = true, onDownload = {}, onDismiss = {}) },
+                "intel" to { StemDeprecatedDialog(onConfirm = {}, onDismiss = {}) },
+            )
+            for ((dialogName, dialog) in dialogs) {
+                val bytes = renderContent(File("build/screenshots/stems-dialog-$dialogName-$name.png"), widthDp = width, heightDp = 520, content = dialog)
+                assertTrue(bytes > 5_000, "suspiciously small render: $bytes bytes")
+            }
+        }
+    }
+
+    @Test
+    fun `a separated open track shows the Instruments card in the wide player`() {
+        openSeparatedTrack()
+        // The player is the right pane of the wide window; a phone-sized window opens it from the mini player,
+        // so the narrow look of the player is the render below.
+        val bytes = render(File("build/screenshots/instruments-player-wide.png"), widthDp = 1280, heightDp = 820)
+        assertTrue(bytes > 10_000, "suspiciously small render: $bytes bytes")
+    }
+
+    @Test
+    fun `the Instruments card of the player renders in every state at both widths and is absent without stems`() {
+        val state = PlayerUiState(
+            track = LibraryTrack("1", "Autumn Leaves", "/song.wav", null, 0),
+            controls = PlayerControlsState(isOpen = true, position = 0.3f, durationSeconds = 120f, isLoopOn = true, loopStart = 0.2f, loopEnd = 0.4f),
+        )
+        val rows = listOf(
+            InstrumentRow(StemKind.VOCALS, Res.string.stem_vocals, 0.8f),
+            InstrumentRow(StemKind.DRUMS, Res.string.stem_drums, 0.5f, isMuted = true),
+            InstrumentRow(StemKind.BASS, Res.string.stem_bass, 1f),
+            InstrumentRow(StemKind.GUITAR, Res.string.stem_guitar, 0.35f),
+            InstrumentRow(StemKind.PIANO, Res.string.stem_piano, 0.6f),
+            InstrumentRow(StemKind.OTHER, Res.string.stem_other, 0.5f),
+        )
+        // Vocals soloed: the others are silenced by it, and the muted drums stay muted.
+        val soloRows = listOf(
+            InstrumentRow(StemKind.VOCALS, Res.string.stem_vocals, 0.8f, isSoloed = true),
+            InstrumentRow(StemKind.DRUMS, Res.string.stem_drums, 0.5f, isMuted = true),
+            InstrumentRow(StemKind.BASS, Res.string.stem_bass, 1f, isSilencedBySolo = true),
+            InstrumentRow(StemKind.GUITAR, Res.string.stem_guitar, 0.35f, isSilencedBySolo = true),
+            InstrumentRow(StemKind.PIANO, Res.string.stem_piano, 0.6f, isSoloed = true),
+            InstrumentRow(StemKind.OTHER, Res.string.stem_other, 0.5f, isSilencedBySolo = true),
+        )
+        val instrumentStates = listOf(
+            "solo" to InstrumentsUiState.Ready("1", TrackMode.STEMS, isSwitching = false, stems = soloRows),
+            "stems" to InstrumentsUiState.Ready("1", TrackMode.STEMS, isSwitching = false, stems = rows),
+            "full-track" to InstrumentsUiState.Ready("1", TrackMode.FULL_TRACK, isSwitching = false, stems = rows),
+            "switching" to InstrumentsUiState.Ready("1", TrackMode.FULL_TRACK, isSwitching = true, stems = rows),
+            "none" to null,
+        )
+        // 560 dp: the player pane of a wide window, which is 42 % of it, up to 560 dp.
+        for ((name, width) in listOf("narrow" to 440, "wide" to 560)) {
+            for ((stateName, instruments) in instrumentStates) {
+                val bytes = renderContent(File("build/screenshots/instruments-card-$stateName-$name.png"), widthDp = width, heightDp = 1000) {
+                    PlayerContent(state, playerActions(), instruments)
+                }
+                assertTrue(bytes > 5_000, "suspiciously small render: $bytes bytes")
+            }
+        }
+    }
+
+    @Test
+    fun `the player during a mode switch keeps the track and its controls and shows the card switching`() {
+        val rows = listOf(
+            InstrumentRow(StemKind.VOCALS, Res.string.stem_vocals, 0.8f),
+            InstrumentRow(StemKind.DRUMS, Res.string.stem_drums, 0.5f),
+            InstrumentRow(StemKind.BASS, Res.string.stem_bass, 1f),
+        )
+        val state = PlayerUiState(
+            track = LibraryTrack("1", "Autumn Leaves", "/song.wav", null, 0),
+            controls = PlayerControlsState(isOpen = true, position = 0.3f, durationSeconds = 120f, isLoopOn = true, loopStart = 0.2f, loopEnd = 0.4f),
+            isSwitchingMode = true,
+        )
+        for ((name, width) in listOf("narrow" to 440, "wide" to 560)) {
+            val bytes = renderContent(File("build/screenshots/player-switching-$name.png"), widthDp = width, heightDp = 1000) {
+                PlayerContent(state, playerActions(), InstrumentsUiState.Ready("1", TrackMode.STEMS, isSwitching = true, stems = rows))
+            }
+            assertTrue(bytes > 5_000, "suspiciously small render: $bytes bytes")
+        }
+    }
+
+    private fun playerActions() = PlayerContentActions(
+        transport = TransportActions({}, {}, {}, {}),
+        loop = LoopActions({}, {}, {}, {}, {}, {}, {}, {}, TimelineActions({}, { _, _ -> })),
+        speed = ValueCardActions({}, {}, {}),
+        pitch = ValueCardActions({}, {}, {}),
+        onPitchFineToggle = {},
+        presets = PresetActions({}, {}, {}),
+        timeline = TimelineActions({}, { _, _ -> }),
+        onCollapse = {},
+        onShowEffects = {},
+        instruments = InstrumentsActions({}, { _, _ -> }, {}, {}),
+        onExport = {},
+        onCancelExport = {},
+        onAddToPlaylist = {},
+    )
+
+    /** Imports a track, gives it three stem files (the tone, as WAV) in STEMS mode, and opens it as the stems. */
+    private fun openSeparatedTrack() {
+        val file = File(Files.createTempDirectory("slowdowner-render-audio").toFile(), "Autumn Leaves.wav")
+        file.writeBytes(toneWav())
+        val imported = runBlocking { koin.get<ImportDocumentUseCase>()(file.path) }
+        assertIs<ImportResult.Success>(imported)
+        val stems = koin.get<StemsStore>()
+        val gains = mapOf("VOCALS" to 0.8f, "DRUMS" to 0f, "BASS" to 1f)
+        for (name in gains.keys) File(stems.dirFor(imported.track.id), "${name.lowercase()}.wav").writeBytes(toneWav())
+        runBlocking {
+            stems.add(
+                TrackStemsDto(imported.track.id, "htdemucs-6s-ov", "STEMS", gains.map { (name, gain) -> StemFileDto(name, "${name.lowercase()}.wav", gain) }),
+            )
+            koin.get<OpenTrackForPracticeUseCase>()(imported.track)
+        }
+    }
+
+    /** Imports a track and records stems for it, as a finished separation does. */
+    private fun importSeparatedTrack() {
+        val file = File(Files.createTempDirectory("slowdowner-render-audio").toFile(), "Autumn Leaves.wav")
+        file.writeBytes(toneWav())
+        val imported = runBlocking { koin.get<ImportDocumentUseCase>()(file.path) }
+        assertIs<ImportResult.Success>(imported)
+        runBlocking {
+            koin.get<StemsStore>().add(TrackStemsDto(imported.track.id, "htdemucs-6s-ov", "STEMS", listOf(StemFileDto("VOCALS", "vocals.wav", 1f))))
+        }
+    }
+
     private enum class ColorScheme { Light, Dark }
 
     private lateinit var scene: ImageComposeScene
@@ -285,7 +481,7 @@ class ScreenRenderTest {
             scene = ImageComposeScene(width = widthDp * 2, height = heightDp * 2, density = Density(2f)) {
                 CompositionLocalProvider(LocalLifecycleOwner provides lifecycle, LocalViewModelStoreOwner provides store) {
                     SlowDownerTheme(darkTheme = scheme == ColorScheme.Dark) {
-                        val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel(), koinViewModel())
+                        val viewModels = ActivityViewModels(koinViewModel(), koinViewModel(), koinViewModel(), koinViewModel(), koinViewModel(), koinViewModel())
                         player = viewModels.player
                         Column(modifier = Modifier.fillMaxSize()) {
                             UpdateBanner()
@@ -347,6 +543,9 @@ class ScreenRenderTest {
     }
 
     private companion object {
+        /** The first track row's centre: header and tabs above it, about 200 dp from the top of the library. */
+        const val ROW_MENU_Y_DP = 218f
+
         // With the notes as release.yml writes them: changes, "---", install instructions.
         const val RELEASE_JSON = """{"tag_name":"v1.0.4","html_url":"https://github.com/damianogiusti/downstep/releases/tag/v1.0.4","assets":[],""" +
             """"body":"\n- Normalize volume: every song plays at a similar level. Quiet songs are raised, loud ones lowered. Exports keep the original volume.\n""" +

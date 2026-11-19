@@ -1,0 +1,55 @@
+package com.damianogiusti.slowdowner.data.stems
+
+import com.damianogiusti.slowdowner.domain.stems.PlayableStem
+import com.damianogiusti.slowdowner.domain.stems.PlayableStems
+import com.damianogiusti.slowdowner.domain.stems.StemKind
+import com.damianogiusti.slowdowner.domain.stems.StemMix
+import com.damianogiusti.slowdowner.domain.stems.TrackMode
+import com.damianogiusti.slowdowner.domain.stems.TrackStems
+import com.damianogiusti.slowdowner.logging.Logger
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * Stored text to domain. A name this version does not know (a database written by a newer one)
+ * must not crash: an unknown stem is skipped, an unknown mode makes the track count as not
+ * separated. Logged once per mapper, with no value in it.
+ */
+class TrackStemsMapper(private val logger: Logger) {
+
+    private val hasLoggedUnknown = AtomicBoolean(false)
+
+    fun toDomain(dto: TrackStemsDto): TrackStems? {
+        val mode = dto.mode.toEnumOrNull<TrackMode>() ?: return unknown()
+        val known = dto.stems.mapNotNull { stem ->
+            val kind = stem.stem.toEnumOrNull<StemKind>() ?: return@mapNotNull unknown()
+            kind to stem
+        }
+        val mix = StemMix(
+            gains = known.associate { (kind, stem) -> kind to stem.gain },
+            mutedStems = known.filter { (_, stem) -> stem.isMuted }.map { (kind, _) -> kind }.toSet(),
+            soloedStems = known.filter { (_, stem) -> stem.isSoloed }.map { (kind, _) -> kind }.toSet(),
+        )
+        return TrackStems(dto.trackId, dto.model, mode, mix)
+    }
+
+    /**
+     * The files to play, in the order of [StemKind]. Null when the mode is unknown or no stem is known.
+     * Only builds the paths: whether the files exist is the repository's call.
+     */
+    fun toPlayable(dto: TrackStemsDto, dir: File): PlayableStems? {
+        val mode = dto.mode.toEnumOrNull<TrackMode>() ?: return unknown()
+        val stems = dto.stems.mapNotNull { stem ->
+            val kind = stem.stem.toEnumOrNull<StemKind>() ?: return@mapNotNull unknown()
+            PlayableStem(kind, File(dir, stem.fileName).path, stem.gain, stem.isMuted, stem.isSoloed)
+        }.sortedBy { it.kind.ordinal }
+        return if (stems.isEmpty()) null else PlayableStems(mode, stems)
+    }
+
+    private inline fun <reified E : Enum<E>> String.toEnumOrNull(): E? = enumValues<E>().firstOrNull { it.name == this }
+
+    private fun unknown(): Nothing? {
+        if (hasLoggedUnknown.compareAndSet(false, true)) logger.w("Stem data has a value this version does not know")
+        return null
+    }
+}

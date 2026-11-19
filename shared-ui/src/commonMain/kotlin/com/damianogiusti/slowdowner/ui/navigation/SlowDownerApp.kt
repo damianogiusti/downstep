@@ -53,6 +53,7 @@ import com.damianogiusti.slowdowner.ui.library.ImportBanner
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.library.LibraryNavigation
 import com.damianogiusti.slowdowner.ui.library.LibraryScreen
+import com.damianogiusti.slowdowner.ui.library.LibraryStems
 import com.damianogiusti.slowdowner.ui.player.ExportUiState
 import com.damianogiusti.slowdowner.ui.player.MiniPlayerBar
 import com.damianogiusti.slowdowner.ui.player.PlayerNavigation
@@ -62,6 +63,12 @@ import com.damianogiusti.slowdowner.ui.player.components.ExportReadyDialog
 import com.damianogiusti.slowdowner.ui.playlists.AddToPlaylistSheet
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistNavigation
 import com.damianogiusti.slowdowner.ui.playlists.PlaylistScreen
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsViewModel
+import com.damianogiusti.slowdowner.ui.stems.StemBanner
+import com.damianogiusti.slowdowner.ui.stems.StemDeprecatedDialog
+import com.damianogiusti.slowdowner.ui.stems.StemDialog
+import com.damianogiusti.slowdowner.ui.stems.StemModelDialog
+import com.damianogiusti.slowdowner.ui.stems.StemSeparationViewModel
 
 /** What the app needs from the activity: pickers, share sheet, service, permissions. */
 class ActivityActions(
@@ -91,6 +98,13 @@ class ActivityViewModels(
     val backup: BackupViewModel,
     /** The EQ: window-scoped like the player, so a quit can flush its last edit. */
     val effects: EffectsViewModel,
+    /**
+     * Null where the stem separation is not offered (Android binds no stem repository yet): the library then
+     * hides its menu items and marker, and no banner or dialog shows. The ViewModel is not even created there.
+     */
+    val stems: StemSeparationViewModel? = null,
+    /** Null with [stems]: without it the player has no Instruments card. */
+    val instruments: InstrumentsViewModel? = null,
 )
 
 /**
@@ -102,11 +116,13 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
     val playerViewModel = viewModels.player
     val importViewModel = viewModels.imports
     val backupViewModel = viewModels.backup
+    val stemsViewModel = viewModels.stems
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val player by playerViewModel.state.collectAsStateWithLifecycle()
     val import by importViewModel.state.collectAsStateWithLifecycle()
     val backup by backupViewModel.state.collectAsStateWithLifecycle()
+    val stems = stemsViewModel?.state?.collectAsStateWithLifecycle()?.value
     val backStackEntry by navController.currentBackStackEntryAsState()
     val isOnPlayer = backStackEntry?.destination?.hasRoute<PlayerRoute>() == true
     var trackForPlaylist by remember { mutableStateOf<LibraryTrack?>(null) }
@@ -114,6 +130,8 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
     CollectMessages(playerViewModel.messages, snackbarHostState)
     CollectMessages(importViewModel.messages, snackbarHostState)
     CollectMessages(backupViewModel.messages, snackbarHostState)
+    if (stemsViewModel != null) CollectMessages(stemsViewModel.messages, snackbarHostState)
+    viewModels.instruments?.let { CollectMessages(it.messages, snackbarHostState) }
 
     val isPlaying = player.controls.isPlaying
     LaunchedEffect(isPlaying) { if (isPlaying) activity.onPlaybackStarted() }
@@ -146,6 +164,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                 ) {
                     BackupBanner(backup, onCancelExport = backupViewModel::onExportCancelClicked)
                     ImportBanner(import)
+                    if (stemsViewModel != null && stems != null) StemBanner(stems.progress, onCancel = stemsViewModel::onCancelClicked)
                     AnimatedVisibility(
                         visible = track != null && player.controls.isOpen && !isOnPlayer && !isWide,
                         enter = slideInVertically { it } + fadeIn(),
@@ -158,6 +177,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                                 onOpen = { navController.navigate(PlayerRoute) { launchSingleTop = true } },
                                 onPlayStop = activity.onPlayStop,
                                 modifier = Modifier.padding(bottom = 12.dp),
+                                isEnabled = !player.isSwitchingMode,
                             )
                         }
                     }
@@ -185,6 +205,15 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                                 onDonate = activity.onDonate,
                                 onContact = activity.onContact,
                                 onSettings = { navController.navigate(SettingsRoute) { launchSingleTop = true } }.takeIf { activity.hasSettings },
+                                stems = if (stemsViewModel != null && stems != null) {
+                                    LibraryStems(
+                                        separatedTrackIds = stems.separatedTrackIds,
+                                        onSeparate = { stemsViewModel.onSeparateClicked(it.id) },
+                                        onDeleteStems = { stemsViewModel.onDeleteStemsConfirmed(it.id) },
+                                    )
+                                } else {
+                                    null
+                                },
                             ),
                             snackbarHostState = snackbarHostState,
                         )
@@ -212,6 +241,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                         PlayerScreen(
                             viewModel = playerViewModel,
                             effects = viewModels.effects,
+                            instruments = viewModels.instruments,
                             navigation = PlayerNavigation(
                                 onCollapse = { navController.popBackStack() },
                                 onPlayStop = activity.onPlayStop,
@@ -230,6 +260,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                         PlayerScreen(
                             viewModel = playerViewModel,
                             effects = viewModels.effects,
+                            instruments = viewModels.instruments,
                             navigation = PlayerNavigation(
                                 onCollapse = null,
                                 onPlayStop = activity.onPlayStop,
@@ -244,6 +275,20 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
         }
     }
 
+    if (stemsViewModel != null && stems != null) {
+        when (val dialog = stems.dialog) {
+            StemDialog.None -> Unit
+            is StemDialog.DownloadModel -> StemModelDialog(
+                isDeprecatedPlatform = dialog.isDeprecatedPlatform,
+                onDownload = stemsViewModel::onModelDownloadConfirmed,
+                onDismiss = stemsViewModel::onModelDownloadDismissed,
+            )
+            StemDialog.ConfirmDeprecatedPlatform -> StemDeprecatedDialog(
+                onConfirm = stemsViewModel::onDeprecationAccepted,
+                onDismiss = stemsViewModel::onDeprecationDismissed,
+            )
+        }
+    }
     trackForPlaylist?.let { track ->
         AddToPlaylistSheet(track = track, snackbarHostState = snackbarHostState, onDismiss = { trackForPlaylist = null })
     }

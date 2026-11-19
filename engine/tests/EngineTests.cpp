@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -784,8 +785,8 @@ void monoIsKeptAsOneChannelAndPlaysOnBothSides() {
     const double tone = 0.5 / std::sqrt(2.0);
     for (const double mix : {0.0, 0.5, 1.0}) {
         SdEngine *e = openEngine(path);
-        CHECK(sdEnginePlayer(e)->source()->channels == 1, "mono copied into %d channels",
-              sdEnginePlayer(e)->source()->channels);
+        CHECK(sdEnginePlayer(e)->source()->streams[0]->channels == 1, "mono copied into %d channels",
+              sdEnginePlayer(e)->source()->streams[0]->channels);
         sd_engine_set_mix(e, mix);
         sd_engine_set_pitch(e, 2); // through the resampler too
         sd_engine_set_playing(e, 1);
@@ -1078,6 +1079,541 @@ void peaksOutlineTheOpenFile() {
     std::filesystem::remove(path);
 }
 
+/** Writes `pcm` (planar) through the stem writer in blocks of `blockFrames`, like the pipeline will. */
+bool writeStem(const std::string &path, const PcmBuffer &pcm, int bitrateKbps, int64_t blockFrames) {
+    int status = -1;
+    SdStemWriter *writer = sd_stem_writer_open(path.c_str(), pcm.sampleRate, pcm.channels, bitrateKbps, &status);
+    if (!writer) {
+        std::printf("  cannot open the stem writer: status %d\n", status);
+        return false;
+    }
+    std::vector<float> block(size_t(blockFrames) * size_t(pcm.channels));
+    bool isOk = true;
+    for (int64_t start = 0; start < pcm.frames && isOk; start += blockFrames) {
+        const int64_t n = std::min(blockFrames, pcm.frames - start);
+        for (int64_t i = 0; i < n; ++i)
+            for (int c = 0; c < pcm.channels; ++c) block[size_t(i * pcm.channels + c)] = pcm.data[size_t(c)][size_t(start + i)];
+        isOk = sd_stem_writer_write(writer, block.data(), n) == SD_STEM_OK;
+    }
+    return sd_stem_writer_close(writer) == 1 && isOk;
+}
+
+/** Decodes a stem the way the app does: with the engine's own decoder, not the OS one. */
+PcmBuffer decodeStemOrFail(const std::string &path) {
+    PcmBuffer decoded;
+    std::string error;
+    const DecodeStatus status = decodeStemMp3(path, decoded, error, 0);
+    CHECK(status == DecodeStatus::Ok, "cannot decode the stem: %s", error.c_str());
+    return decoded;
+}
+
+/**
+ * The format decision for stems: an MP3 written by the stem writer must decode, with the engine's own
+ * decoder (dr_mp3, the same on every platform), to exactly the frames written and with the audio at the
+ * same place. dr_mp3 honours the Xing/LAME tag; the OS decoders do not all (Media Foundation ignores it),
+ * which is why stems do not go through them. Without the tag every decoder returns padding and delay.
+ */
+void stemMp3DecodesToTheSameFramesAtTheSamePlace() {
+    constexpr int64_t kFrames = 20 * int64_t(kRate) + 777; // not a multiple of 1152
+    PcmBuffer pcm;
+    pcm.sampleRate = kRate;
+    pcm.channels = 2;
+    pcm.frames = kFrames;
+    pcm.data.assign(2, std::vector<float>(size_t(kFrames), 0.f));
+    const int64_t clicks[] = {kRate, 5 * int64_t(kRate) + 123, 12 * int64_t(kRate) + 1000, kFrames - 5000};
+    for (const int64_t click : clicks) pcm.data[0][size_t(click)] = pcm.data[1][size_t(click)] = 0.8f;
+
+    const auto path = tempPath("sdengine-stem-align.mp3");
+    CHECK(writeStem(path, pcm, 192, 5000), "cannot write the stem");
+    {
+        // Informational only, never fails: the OS decoder is not what stems use and differs per platform.
+        PcmBuffer os;
+        std::string osError;
+        if (decodeFile(path, os, osError, 0) == DecodeStatus::Ok)
+            std::printf("     (info) the OS decoder returns %lld frames for %lld written\n", (long long)os.frames, (long long)kFrames);
+    }
+    const PcmBuffer decoded = decodeStemOrFail(path);
+    std::filesystem::remove(path);
+    std::printf("     decoded %lld frames, wrote %lld\n", (long long)decoded.frames, (long long)kFrames);
+    CHECK(decoded.channels == 2 && decoded.sampleRate == kRate, "%d channels at %d Hz", decoded.channels, decoded.sampleRate);
+    CHECK(decoded.frames == kFrames,
+          "the stem decoder returned %lld frames for %lld written: the Xing/LAME tag was not honoured",
+          (long long)decoded.frames, (long long)kFrames);
+    if (decoded.channels != 2) return;
+    for (const int64_t click : clicks) {
+        // The loudest sample within 300 frames of where the click was written.
+        int64_t peakAt = -1;
+        float peak = 0.f;
+        for (int64_t i = std::max<int64_t>(0, click - 300); i < std::min(decoded.frames, click + 300); ++i) {
+            const float value = std::fabs(decoded.data[0][size_t(i)]);
+            if (value > peak) {
+                peak = value;
+                peakAt = i;
+            }
+        }
+        std::printf("     click at %lld: peak %.3f at offset %lld\n", (long long)click, peak, (long long)(peakAt - click));
+        CHECK(peak > 0.3f, "no click found near %lld", (long long)click);
+        CHECK(peakAt == click, "the click at %lld came back at offset %lld: the decoded audio is not aligned",
+              (long long)click, (long long)(peakAt - click));
+    }
+}
+
+void stemWriterTakesMonoAnyRateAndAnyBlockSize() {
+    PcmBuffer pcm;
+    pcm.sampleRate = 48000;
+    pcm.channels = 1;
+    pcm.frames = 3 * 48000 + 101;
+    pcm.data.assign(1, std::vector<float>(size_t(pcm.frames)));
+    for (int64_t i = 0; i < pcm.frames; ++i) pcm.data[0][size_t(i)] = float(0.4 * std::sin(2 * M_PI * 440 * double(i) / 48000));
+    const auto path = tempPath("sdengine-stem-mono.mp3");
+    // A block bigger than the writer's internal chunk, and one that is not a divisor of the length.
+    CHECK(writeStem(path, pcm, 128, 40000), "cannot write the stem");
+    const PcmBuffer decoded = decodeStemOrFail(path);
+    std::filesystem::remove(path);
+    CHECK(decoded.channels == 1 && decoded.sampleRate == 48000, "%d channels at %d Hz", decoded.channels, decoded.sampleRate);
+    CHECK(decoded.frames == pcm.frames, "%lld frames, wrote %lld", (long long)decoded.frames, (long long)pcm.frames);
+}
+
+void stemWriterReportsItsErrorsAsStatusCodes() {
+    int status = -1;
+    const auto path = tempPath("sdengine-stem-bad.mp3");
+    CHECK(sd_stem_writer_open(path.c_str(), 44100, 3, 192, &status) == nullptr && status == SD_STEM_BAD_FORMAT, "3 channels: %d", status);
+    CHECK(sd_stem_writer_open(path.c_str(), 44100, 0, 192, &status) == nullptr && status == SD_STEM_BAD_FORMAT, "0 channels: %d", status);
+    CHECK(sd_stem_writer_open(path.c_str(), 96000, 2, 192, &status) == nullptr && status == SD_STEM_BAD_FORMAT, "96 kHz: %d", status);
+    CHECK(sd_stem_writer_open(path.c_str(), 44100, 2, 0, &status) == nullptr && status == SD_STEM_BAD_FORMAT, "0 kbps: %d", status);
+    CHECK(!std::filesystem::exists(path), "a rejected format created a file");
+    const auto missing = (std::filesystem::temp_directory_path() / "sdengine-no-such-folder" / "stem.mp3").string();
+    CHECK(sd_stem_writer_open(missing.c_str(), 44100, 2, 192, &status) == nullptr && status == SD_STEM_OPEN_FAILED, "no folder: %d", status);
+    CHECK(sd_stem_writer_open(missing.c_str(), 44100, 2, 192, nullptr) == nullptr, "a NULL status crashed or opened");
+    // Nothing written: closing still gives a valid, empty file and reports it complete.
+    SdStemWriter *writer = sd_stem_writer_open(path.c_str(), 44100, 2, 192, &status);
+    CHECK(writer != nullptr && status == SD_STEM_OK, "open: %d", status);
+    if (writer) {
+        const float silence[8] = {};
+        CHECK(sd_stem_writer_write(writer, silence, 0) == SD_STEM_OK, "zero frames");
+        CHECK(sd_stem_writer_close(writer) == 1, "an empty stem did not close");
+    }
+    std::filesystem::remove(path);
+}
+
+void stemDecodeReportsItsErrorsAndTheBudget() {
+    int status = -1;
+    CHECK(sd_stem_decode("/no/such/folder/stem.mp3", 0, &status) == nullptr && status == SD_PCM_FAILED, "missing file: %d", status);
+    CHECK(sd_stem_decode("/no/such/folder/stem.mp3", 0, nullptr) == nullptr, "a NULL status crashed or decoded");
+    const auto text = tempPath("sdengine-stem-notmp3.mp3");
+    if (FILE *f = openFileUtf8(text, "wb")) {
+        std::fputs("this is not an MP3 file, only text", f);
+        std::fclose(f);
+    }
+    CHECK(sd_stem_decode(text.c_str(), 0, &status) == nullptr && status == SD_PCM_FAILED, "text file: %d", status);
+    std::filesystem::remove(text);
+
+    const PcmBuffer pcm = rampBuffer(2, 3.3);
+    const auto path = tempPath("sdengine-stem-budget.mp3");
+    CHECK(writeStem(path, pcm, 128, 4096), "cannot write the stem");
+    SdPcm *tooBig = sd_stem_decode(path.c_str(), 1000, &status);
+    CHECK(tooBig == nullptr && status == SD_PCM_TOO_LONG, "a 1000-byte budget: %d", status);
+    SdPcm *decoded = sd_stem_decode(path.c_str(), 0, &status);
+    std::filesystem::remove(path);
+    CHECK(decoded != nullptr && status == SD_PCM_OK, "status %d", status);
+    if (decoded) {
+        CHECK(sd_pcm_frames(decoded) == pcm.frames, "%lld frames, wrote %lld", (long long)sd_pcm_frames(decoded), (long long)pcm.frames);
+        sd_pcm_free(decoded);
+    }
+}
+
+void pcmDecodeGivesTheFramesAndCopiesRanges() {
+    for (const int channels : {2, 1}) {
+        const PcmBuffer written = rampBuffer(channels, 3.3);
+        const auto path = tempPath("sdengine-pcm-api.wav");
+        std::string error;
+        CHECK(writeWavFloat(path, written, error), "cannot write: %s", error.c_str());
+        int status = -1;
+        SdPcm *pcm = sd_pcm_decode(path.c_str(), 0, &status);
+        std::filesystem::remove(path);
+        CHECK(pcm != nullptr && status == SD_PCM_OK, "status %d", status);
+        if (!pcm) continue;
+        CHECK(sd_pcm_sample_rate(pcm) == kRate, "rate %d", sd_pcm_sample_rate(pcm));
+        CHECK(sd_pcm_channels(pcm) == channels, "%d channels", sd_pcm_channels(pcm));
+        CHECK(sd_pcm_frames(pcm) == written.frames, "%lld frames", (long long)sd_pcm_frames(pcm));
+        std::vector<float> out(1000, -9.f);
+        for (int c = 0; c < channels; ++c) {
+            CHECK(sd_pcm_copy(pcm, c, 777, out.data(), 1000) == 1000, "copy of channel %d", c);
+            CHECK(std::equal(out.begin(), out.end(), written.data[size_t(c)].begin() + 777), "channel %d differs", c);
+        }
+        // Past the last channel reads the last one: how a mono file gives both sides.
+        CHECK(sd_pcm_copy(pcm, 1, 0, out.data(), 1000) == 1000, "channel 1");
+        CHECK(std::equal(out.begin(), out.end(), written.data[size_t(channels - 1)].begin()), "channel 1 is not the last channel");
+        // The end of the audio: fewer than asked, and nothing written past what is returned.
+        std::fill(out.begin(), out.end(), -9.f);
+        CHECK(sd_pcm_copy(pcm, 0, written.frames - 10, out.data(), 1000) == 10, "tail");
+        CHECK(out[9] == written.data[0].back() && out[10] == -9.f, "tail content");
+        CHECK(sd_pcm_copy(pcm, 0, written.frames, out.data(), 10) == 0, "at the end");
+        CHECK(sd_pcm_copy(pcm, 0, -1, out.data(), 10) == 0, "negative start");
+        CHECK(sd_pcm_copy(pcm, -1, 0, out.data(), 10) == 0, "negative channel");
+        CHECK(sd_pcm_copy(pcm, 0, 0, out.data(), 0) == 0, "no frames");
+        sd_pcm_free(pcm);
+    }
+    sd_pcm_free(nullptr);
+}
+
+void pcmDecodeReportsFailuresAsStatusCodes() {
+    const auto text = tempPath("sdengine-pcm-not-audio.m4a");
+    if (FILE *f = openFileUtf8(text, "wb")) {
+        std::fputs("this is not an audio file, just some text that no decoder should accept", f);
+        std::fclose(f);
+    }
+    int status = -1;
+    CHECK(sd_pcm_decode(text.c_str(), 0, &status) == nullptr && status == SD_PCM_FAILED, "text file: status %d", status);
+    CHECK(sd_pcm_decode(text.c_str(), 0, nullptr) == nullptr, "a NULL status crashed or decoded");
+    std::filesystem::remove(text);
+    CHECK(sd_pcm_decode(text.c_str(), 0, &status) == nullptr && status == SD_PCM_FAILED, "missing file: status %d", status);
+
+    const auto wav = tempPath("sdengine-pcm-budget.wav");
+    std::string error;
+    CHECK(writeWavFloat(wav, rampBuffer(2, 2.0), error), "cannot write: %s", error.c_str());
+    CHECK(sd_pcm_decode(wav.c_str(), 1000, &status) == nullptr && status == SD_PCM_TOO_LONG, "budget: status %d", status);
+    std::filesystem::remove(wav);
+}
+
+/**
+ * Stems written by the stem writer into a temp folder, with what the engine reads back from them (their
+ * MP3 decode) and the sum of those: the expected output at gain 1 for each.
+ */
+struct TestStems {
+    std::filesystem::path folder;
+    std::vector<std::string> paths;
+    std::vector<PcmBuffer> decoded;
+    PcmBuffer sum;
+
+    /** `seconds` of tone per stem; stem k is `frequencies[k]` at `amplitudes[k]`, the right side at half. */
+    TestStems(const char *name, std::vector<double> seconds, std::vector<double> frequencies, std::vector<double> amplitudes,
+              int rate = kRate)
+        : folder(std::filesystem::temp_directory_path() / name) {
+        std::filesystem::remove_all(folder);
+        std::filesystem::create_directories(folder);
+        for (size_t k = 0; k < frequencies.size(); ++k) {
+            PcmBuffer pcm = sine(rate, seconds[k], frequencies[k], amplitudes[k], true);
+            for (auto &x : pcm.data[1]) x *= 0.5f;
+            paths.push_back((folder / ("stem" + std::to_string(k) + ".mp3")).string());
+            if (!writeStem(paths.back(), pcm, 192, 4096)) std::printf("  cannot write %s\n", paths.back().c_str());
+            decoded.push_back(decodeStemOrFail(paths.back()));
+        }
+        sum = decoded.front();
+        for (size_t k = 1; k < decoded.size(); ++k)
+            for (int c = 0; c < 2; ++c)
+                for (int64_t i = 0; i < std::min(sum.frames, decoded[k].frames); ++i)
+                    sum.data[size_t(c)][size_t(i)] += decoded[k].data[size_t(c)][size_t(i)];
+    }
+    ~TestStems() { std::filesystem::remove_all(folder); }
+
+    std::vector<const char *> cPaths() const {
+        std::vector<const char *> all;
+        for (const auto &path : paths) all.push_back(path.c_str());
+        return all;
+    }
+    int open(SdEngine *e) const {
+        const auto all = cPaths();
+        return sd_engine_open_stems(e, all.data(), int(all.size()));
+    }
+};
+
+/** The standard trio: three tones at different pitches, 4 s each. */
+TestStems trio(const char *name, double seconds = 4.0) {
+    return TestStems(name, {seconds, seconds, seconds}, {330, 441, 660}, {0.2, 0.15, 0.1});
+}
+
+double maxStep(const std::vector<float> &x, size_t from, size_t to) {
+    double step = 0;
+    for (size_t i = std::max<size_t>(from, 1); i < to; ++i) step = std::max(step, double(std::fabs(x[i] - x[i - 1])));
+    return step;
+}
+
+std::string openErrorText(SdEngine *e) {
+    char text[256];
+    sd_engine_open_error_text(e, text, sizeof text);
+    return text;
+}
+
+void stemsPlayAsTheirSum() {
+    const TestStems stems = trio("sdengine-stems-sum");
+    const std::string single = writeTemp(stems.sum, "sdengine-stems-sum.wav");
+    SdEngine *a = sd_engine_create(0, kRate), *b = openEngine(single);
+    CHECK(stems.open(a) == 1, "open stems: %s", openErrorText(a).c_str());
+    CHECK(sd_engine_stem_count(a) == 3, "stem count %d", sd_engine_stem_count(a));
+    CHECK(sd_engine_stem_count(b) == 0, "a single file has %d stems", sd_engine_stem_count(b));
+    CHECK(std::fabs(sd_engine_duration_seconds(a) - 4.0) < 0.01, "duration %f", sd_engine_duration_seconds(a));
+    for (const double speed : {1.0, 0.7}) {
+        for (SdEngine *e : {a, b}) {
+            sd_engine_seek(e, 0);
+            sd_engine_set_speed(e, speed);
+            sd_engine_set_mix(e, 0.3);
+            sd_engine_set_playing(e, 1);
+        }
+        const Rendered x = render(a, 2.0), y = render(b, 2.0);
+        double worst = 0;
+        for (size_t i = 0; i < x.left.size(); ++i)
+            worst = std::max({worst, double(std::fabs(x.left[i] - y.left[i])), double(std::fabs(x.right[i] - y.right[i]))});
+        CHECK(rms(x.left, kRate / 2) > 0.1, "speed %.1f: stems are silent", speed);
+        CHECK(worst < 1e-3, "speed %.1f: stems differ from their sum by %g", speed, worst);
+    }
+    sd_engine_destroy(a);
+    sd_engine_destroy(b);
+    std::filesystem::remove(single);
+}
+
+void stemGainRemovesAStemAndScalesIt() {
+    const TestStems stems = trio("sdengine-stems-gain");
+    SdEngine *e = sd_engine_create(0, kRate);
+    stems.open(e);
+    const auto energy = [&](std::initializer_list<double> gains) {
+        sd_engine_seek(e, 0);
+        int index = 0;
+        for (const double g : gains) sd_engine_set_stem_gain(e, index++, g);
+        sd_engine_set_playing(e, 1);
+        render(e, 0.3); // lets the ramp settle
+        const Rendered r = render(e, 1.0);
+        sd_engine_set_playing(e, 0);
+        render(e, 0.05);
+        return rms(r.left) * rms(r.left);
+    };
+    // Different frequencies, so the energies add: 0.2^2/2, 0.15^2/2, 0.1^2/2 on the left. Within 10%: the
+    // stretcher at speed 1 is not unity gain for a pure tone (the test of the sum compares with a file).
+    const auto isNear = [](double value, double expected) { return std::fabs(value - expected) < 0.1 * expected; };
+    const double all = energy({1, 1, 1}), withoutFirst = energy({0, 1, 1}), onlyFirst = energy({1, 0, 0});
+    CHECK(isNear(all, (0.04 + 0.0225 + 0.01) / 2), "all stems: %f", all);
+    CHECK(isNear(withoutFirst, (0.0225 + 0.01) / 2), "stem 0 muted: %f", withoutFirst);
+    CHECK(isNear(onlyFirst, 0.04 / 2), "only stem 0: %f", onlyFirst);
+    CHECK(std::fabs(energy({0.5, 0, 0}) / onlyFirst - 0.25) < 0.01, "half gain does not give a quarter of the energy");
+    CHECK(energy({0, 0, 0}) < 1e-9, "all muted is not silent");
+    // Out of range or NaN: ignored.
+    sd_engine_set_stem_gain(e, -1, 0);
+    sd_engine_set_stem_gain(e, 8, 0);
+    sd_engine_set_stem_gain(e, 1000, 0);
+    sd_engine_set_stem_gain(e, 0, std::nan(""));
+    CHECK(std::fabs(energy({1, 1, 1}) - all) < 1e-6, "an out-of-range index changed the sound");
+    sd_engine_destroy(e);
+}
+
+void gainsResetOnEveryOpen() {
+    const TestStems stems = trio("sdengine-stems-reset");
+    SdEngine *e = sd_engine_create(0, kRate);
+    sd_engine_set_stem_gain(e, 0, 0); // before the open: lost with it, as documented
+    stems.open(e);
+    sd_engine_set_playing(e, 1);
+    const double before = rms(render(e, 1.0).left, kRate / 2);
+    sd_engine_set_stem_gain(e, 0, 0);
+    stems.open(e);
+    sd_engine_set_playing(e, 1);
+    const double after = rms(render(e, 1.0).left, kRate / 2);
+    CHECK(std::fabs(before - after) < 1e-3 && before > 0.1, "gains were kept over an open: %f vs %f", before, after);
+    sd_engine_destroy(e);
+}
+
+void aGainChangeHasNoStep() {
+    const TestStems stems("sdengine-stems-ramp", {6, 6}, {441, 660}, {0.5, 0.05});
+    SdEngine *e = sd_engine_create(0, kRate);
+    stems.open(e);
+    sd_engine_set_playing(e, 1);
+    Rendered all = render(e, 0.5);
+    sd_engine_set_stem_gain(e, 0, 0); // the loud tone goes from 1 to 0 at once, between two blocks
+    const Rendered after = render(e, 1.0);
+    all.left.insert(all.left.end(), after.left.begin(), after.left.end());
+    // The tones alone move at most 2*pi*f/rate*a per sample. A step of the gain would add up to 0.5.
+    const double steady = 2 * M_PI * 441 / kRate * 0.5 + 2 * M_PI * 660 / kRate * 0.05;
+    const double worst = maxStep(all.left, kRate / 10, all.left.size());
+    CHECK(worst < steady * 1.5, "largest step %f, a steady tone makes %f", worst, steady);
+    CHECK(maxStep(all.left, kRate / 10, kRate / 2) > steady * 0.5, "the check measures nothing");
+    // And it did go away, within a few grains (the ramp is one grain long).
+    std::vector<float> tail(all.left.begin() + kRate / 2 + kRate / 4, all.left.end());
+    CHECK(std::fabs(rms(tail) - 0.05 / std::sqrt(2.0)) < 0.01, "stem 0 not muted: %f", rms(tail));
+    // And back: the same.
+    sd_engine_set_stem_gain(e, 0, 1);
+    const Rendered back = render(e, 1.0);
+    CHECK(maxStep(back.left, 0, back.left.size()) < steady * 1.5, "unmuting steps by %f", maxStep(back.left, 0, back.left.size()));
+    CHECK(rms(back.left, kRate / 2) > 0.3, "stem 0 did not come back: %f", rms(back.left, kRate / 2));
+    sd_engine_destroy(e);
+}
+
+void loopAndSeekWorkOnStems() {
+    const TestStems stems = trio("sdengine-stems-loop", 6.0);
+    SdEngine *e = sd_engine_create(0, kRate);
+    stems.open(e);
+    sd_engine_set_speed(e, 0.8);
+    sd_engine_set_loop_and_seek(e, 0.2, 0.4, 1, 0.2);
+    sd_engine_set_playing(e, 1);
+    double lowest = 1, highest = 0;
+    std::vector<float> block(1024 * 2);
+    for (int i = 0; i < 250; ++i) { // about 5.8 s of audio: the loop (1.2 s of the track) wraps several times
+        sd_engine_render(e, block.data(), 1024);
+        if (i < 5) continue;
+        lowest = std::min(lowest, sd_engine_position(e));
+        highest = std::max(highest, sd_engine_position(e));
+    }
+    CHECK(lowest > 0.19 && highest < 0.41, "position left the loop: %f..%f", lowest, highest);
+    CHECK(sd_engine_is_playing(e) == 1 && (sd_engine_take_events(e) & SD_EVENT_REACHED_END) == 0, "the loop ended");
+    CHECK(rms(render(e, 0.5).left) > 0.1, "the loop is silent");
+    sd_engine_set_loop(e, 0, 1, 0);
+    sd_engine_seek(e, 0.75);
+    render(e, 0.2);
+    CHECK(sd_engine_position(e) > 0.74, "seek on stems: %f", sd_engine_position(e));
+    // To the end: stops, with the event.
+    render(e, 2.0);
+    CHECK(sd_engine_is_playing(e) == 0 && (sd_engine_take_events(e) & SD_EVENT_REACHED_END) != 0, "no end of stems");
+    sd_engine_destroy(e);
+}
+
+void exportRendersTheStemsWithTheirGains() {
+    const TestStems stems = trio("sdengine-stems-export", 3.0);
+    SdEngine *e = sd_engine_create(0, kRate);
+    stems.open(e);
+    sd_engine_set_stem_gain(e, 0, 0);
+    sd_engine_set_stem_gain(e, 2, 0.5);
+    const auto output = tempPath("sdengine-stems-export.mp3");
+    SdExport *exporter = sd_export_begin(e, output.c_str(), 192);
+    CHECK(exporter != nullptr, "cannot start the export");
+    if (!exporter) {
+        sd_engine_destroy(e);
+        return;
+    }
+    sd_engine_set_stem_gain(e, 0, 1); // after the start: the export has its own copy
+    while (sd_export_next(exporter) >= 0) {
+    }
+    CHECK(sd_export_end(exporter) == 1, "export incomplete");
+    PcmBuffer out;
+    std::string error;
+    CHECK(decodeFile(output, out, error, 0) == DecodeStatus::Ok, "cannot read the export: %s", error.c_str());
+    // Expected on the left: stem 1 at 0.15, stem 2 at 0.1 times 0.5, no stem 0.
+    const double expected = std::sqrt((0.15 * 0.15 + 0.05 * 0.05) / 2);
+    CHECK(std::fabs(rms(out.data[0], size_t(kRate)) - expected) < 0.01, "export level %f, expected %f",
+          rms(out.data[0], size_t(kRate)), expected);
+    CHECK(std::fabs(double(out.frames) / kRate - 3.0) < 0.2, "export length %f", double(out.frames) / kRate);
+    std::filesystem::remove(output);
+    sd_engine_destroy(e);
+}
+
+void stemsOfAnotherRateAreRefusedAndTheOpenOneStays() {
+    const TestStems stems = trio("sdengine-stems-rate");
+    const TestStems other("sdengine-stems-rate-48k", {4.0}, {441}, {0.2}, 48000);
+    SdEngine *e = sd_engine_create(0, kRate);
+    CHECK(stems.open(e) == 1, "open: %s", openErrorText(e).c_str());
+    const std::vector<const char *> mixed = {stems.paths[0].c_str(), other.paths[0].c_str()};
+    CHECK(sd_engine_open_stems(e, mixed.data(), 2) == 0, "mixed rates were accepted");
+    CHECK(sd_engine_open_error(e) == SD_OPEN_FAILED, "error code %d", sd_engine_open_error(e));
+    const std::string text = openErrorText(e);
+    CHECK(!text.empty() && text.find("sdengine") == std::string::npos, "error text: %s", text.c_str());
+    CHECK(sd_engine_stem_count(e) == 3 && sd_engine_is_open(e) == 1, "the open stems did not stay");
+    // Other bad input.
+    const std::string nope = (stems.folder / "nope.mp3").string();
+    const std::vector<const char *> missing = {stems.paths[0].c_str(), nope.c_str()};
+    CHECK(sd_engine_open_stems(e, missing.data(), 2) == 0 && sd_engine_open_error(e) == SD_OPEN_FAILED, "missing file");
+    CHECK(sd_engine_open_stems(e, mixed.data(), 0) == 0 && sd_engine_open_error(e) == SD_OPEN_FAILED, "no stems");
+    CHECK(sd_engine_open_stems(e, nullptr, 2) == 0, "null paths");
+    std::vector<const char *> nine(9, stems.paths[0].c_str());
+    CHECK(sd_engine_open_stems(e, nine.data(), 9) == 0, "more than SD_MAX_STEMS");
+    sd_engine_destroy(e);
+}
+
+void theBudgetCoversAllTheStemsTogether() {
+    const TestStems stems("sdengine-stems-budget", {2, 2, 2}, {330, 441, 660}, {0.2, 0.15, 0.1});
+    // One stem of 2 s is 88200 frames * 2 channels * 4 bytes = 705600 bytes: each fits alone.
+    SdEngine *e = sd_engine_create(0, kRate);
+    sd_engine_set_memory_budget(e, 1'000'000);
+    CHECK(sd_engine_open_stems(e, stems.cPaths().data(), 1) == 1, "one stem in 1 MB: %s", openErrorText(e).c_str());
+    CHECK(sd_engine_open_stems(e, stems.cPaths().data(), 3) == 0 && sd_engine_open_error(e) == SD_OPEN_TOO_LONG,
+          "three stems in 1 MB: code %d", sd_engine_open_error(e));
+    CHECK(sd_engine_stem_count(e) == 1, "the open stem did not stay");
+    sd_engine_set_memory_budget(e, 2'000'000);
+    CHECK(sd_engine_open_stems(e, stems.cPaths().data(), 3) == 0 && sd_engine_open_error(e) == SD_OPEN_TOO_LONG,
+          "three stems in 2 MB: code %d", sd_engine_open_error(e));
+    sd_engine_set_memory_budget(e, 2'200'000);
+    CHECK(sd_engine_open_stems(e, stems.cPaths().data(), 3) == 1, "three stems in 2.2 MB: %s", openErrorText(e).c_str());
+    sd_engine_destroy(e);
+}
+
+void anOpenAfterStemsIsASingleFileAgain() {
+    const TestStems stems = trio("sdengine-stems-back");
+    const std::string single = writeTemp(stems.sum, "sdengine-stems-back.wav");
+    SdEngine *e = sd_engine_create(0, kRate);
+    stems.open(e);
+    sd_engine_set_stem_gain(e, 0, 0);
+    CHECK(sd_engine_open(e, single.c_str()) == 1, "cannot open the single file");
+    CHECK(sd_engine_stem_count(e) == 0, "stem count %d after a single file", sd_engine_stem_count(e));
+    sd_engine_set_stem_gain(e, 1, 0); // no stems: nothing to mute
+    sd_engine_set_playing(e, 1);
+    const Rendered r = render(e, 1.5);
+    SdEngine *reference = openEngine(single);
+    sd_engine_set_playing(reference, 1);
+    const Rendered expected = render(reference, 1.5);
+    CHECK(r.left == expected.left && r.right == expected.right, "the single file does not play as itself");
+    sd_engine_close(e);
+    CHECK(sd_engine_stem_count(e) == 0, "stem count after close");
+    sd_engine_destroy(reference);
+    sd_engine_destroy(e);
+    std::filesystem::remove(single);
+}
+
+void normalizationIsMeasuredOnTheSumAtGainOne() {
+    const TestStems stems = trio("sdengine-stems-loud", 3.0);
+    SdEngine *e = sd_engine_create(0, kRate);
+    stems.open(e);
+    const double expected = loudness::integratedLoudness(stems.sum);
+    CHECK(std::isfinite(expected) && std::fabs(sd_engine_loudness_lufs(e) - expected) < 1e-3, "loudness %f, expected %f",
+          sd_engine_loudness_lufs(e), expected);
+    const double gainDb = sd_engine_normalization_gain_db(e);
+    sd_engine_set_stem_gain(e, 0, 0);
+    sd_engine_set_stem_gain(e, 1, 0);
+    sd_engine_set_normalization(e, 1);
+    sd_engine_set_playing(e, 1);
+    render(e, 1.0);
+    CHECK(sd_engine_loudness_lufs(e) == sd_engine_loudness_lufs(e) && std::fabs(sd_engine_loudness_lufs(e) - expected) < 1e-3,
+          "loudness changed with the gains");
+    CHECK(sd_engine_normalization_gain_db(e) == gainDb, "the normalization gain changed with the gains");
+    // The same figure as a thread count, a stem at a time or all at once.
+    CHECK(std::fabs(loudness::integratedLoudness(stems.sum, 3) - expected) < 1e-6, "threads");
+    sd_engine_destroy(e);
+}
+
+void aShorterStemIsPaddedWithSilence() {
+    const TestStems stems("sdengine-stems-short", {2, 1}, {330, 441}, {0.2, 0.15});
+    SdEngine *e = sd_engine_create(0, kRate);
+    CHECK(stems.open(e) == 1, "open: %s", openErrorText(e).c_str());
+    CHECK(std::fabs(sd_engine_duration_seconds(e) - 2.0) < 0.01, "duration %f", sd_engine_duration_seconds(e));
+    sd_engine_seek(e, 0.6);
+    sd_engine_set_playing(e, 1);
+    const Rendered r = render(e, 0.7);
+    // From 1.2 s only the first stem plays: 0.2 / sqrt 2.
+    CHECK(std::fabs(rms(r.left, kRate / 5) - 0.2 / std::sqrt(2.0)) < 0.01, "tail level %f", rms(r.left, kRate / 5));
+    sd_engine_destroy(e);
+}
+
+void renderingStemsDoesNotAllocate() {
+    const TestStems stems = trio("sdengine-stems-alloc", 6.0);
+    for (const int rate : {kRate, 48000}) {
+        SdEngine *e = sd_engine_create(0, rate);
+        CHECK(stems.open(e) == 1, "open");
+        sd_engine_set_eq_enabled(e, 1);
+        sd_engine_set_normalization(e, 1);
+        sd_engine_set_playing(e, 1);
+        std::vector<float> block(512 * 2);
+        for (int i = 0; i < 40; ++i) sd_engine_render(e, block.data(), 512);
+        countAllocations.store(true);
+        for (int i = 0; i < 400; ++i) {
+            const double t = i / 400.0;
+            sd_engine_set_speed(e, 0.05 + 3.95 * t);
+            sd_engine_set_pitch(e, -12 + 24 * t);
+            sd_engine_set_stem_gain(e, i % 3, (i % 7) / 6.0); // every block, zero included
+            sd_engine_set_mix(e, t);
+            if (i == 200) sd_engine_set_loop_and_seek(e, 0.3, 0.5, 1, 0.3);
+            sd_engine_render(e, block.data(), 512);
+        }
+        countAllocations.store(false);
+        const long newCount = news.exchange(0), mallocCount = mallocs.exchange(0);
+        CHECK(newCount == 0 && mallocCount == 0, "%d Hz: %ld new, %ld malloc while rendering stems", rate, newCount, mallocCount);
+        sd_engine_destroy(e);
+    }
+}
+
 } // namespace
 
 int main() {
@@ -1129,6 +1665,24 @@ int main() {
         {"a cut or corrupt MP4 is read within its bytes", [] { aCutOrCorruptMp4IsReadWithinItsBytes(); }},
         {"export begins while another file opens", [&] { exportBeginsWhileAnotherFileOpens(path); }},
         {"peaks outline the open file", [] { peaksOutlineTheOpenFile(); }},
+        {"stem MP3 decodes to the same frames at the same place", [] { stemMp3DecodesToTheSameFramesAtTheSamePlace(); }},
+        {"stem writer takes mono, any rate and any block size", [] { stemWriterTakesMonoAnyRateAndAnyBlockSize(); }},
+        {"stem decode reports its errors and the budget", [] { stemDecodeReportsItsErrorsAndTheBudget(); }},
+        {"stem writer reports its errors as status codes", [] { stemWriterReportsItsErrorsAsStatusCodes(); }},
+        {"pcm decode gives the frames and copies ranges", [] { pcmDecodeGivesTheFramesAndCopiesRanges(); }},
+        {"pcm decode reports failures as status codes", [] { pcmDecodeReportsFailuresAsStatusCodes(); }},
+        {"stems play as their sum", [] { stemsPlayAsTheirSum(); }},
+        {"a stem gain removes or scales a stem", [] { stemGainRemovesAStemAndScalesIt(); }},
+        {"gains reset on every open", [] { gainsResetOnEveryOpen(); }},
+        {"a gain change has no step", [] { aGainChangeHasNoStep(); }},
+        {"loop and seek work on stems", [] { loopAndSeekWorkOnStems(); }},
+        {"export renders the stems with their gains", [] { exportRendersTheStemsWithTheirGains(); }},
+        {"stems of another rate are refused and the open one stays", [] { stemsOfAnotherRateAreRefusedAndTheOpenOneStays(); }},
+        {"the budget covers all the stems together", [] { theBudgetCoversAllTheStemsTogether(); }},
+        {"an open after stems is a single file again", [] { anOpenAfterStemsIsASingleFileAgain(); }},
+        {"normalization is measured on the sum at gain one", [] { normalizationIsMeasuredOnTheSumAtGainOne(); }},
+        {"a shorter stem is padded with silence", [] { aShorterStemIsPaddedWithSilence(); }},
+        {"rendering stems does not allocate", [] { renderingStemsDoesNotAllocate(); }},
     };
     for (const auto &[name, test] : tests) {
         const int before = failures;

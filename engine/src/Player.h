@@ -12,9 +12,11 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 /**
- * Everything between the decoded file and the output: mix → time stretch → EQ → preamp → loudness
+ * Everything between the decoded file (or the stems of a track, summed with a gain each) and the output:
+ * mix → time stretch → EQ → preamp → loudness
  * normalization and limiter (when on) → fades.
  *
  * Controls are atomics written by the control thread. render() runs on the audio thread (or the
@@ -31,6 +33,8 @@ public:
         bool eqEnabled = false;
         std::array<double, Equalizer::kBands> eqGainsDb{};
         double preampDb = 0.0;
+        std::array<float, kMaxStreams> stemGains{};
+        Settings() { stemGains.fill(1.f); }
     };
 
     explicit Player(int outputRate, int maxBlockFrames);
@@ -50,15 +54,22 @@ public:
         openErrorText_ = text;
         openError_.store(code);
     }
+    /**
+     * Decodes the stems of a track (1 to kMaxStreams MP3 files from the stem writer) and plays
+     * them summed. The memory budget covers all of them together. Same reporting as open(path). Playback
+     * of the old source goes on until the new one is ready.
+     */
+    bool openStems(const std::vector<std::string> &paths);
     /** Plays audio decoded elsewhere, shared read-only: the export reuses the player's buffer this way. */
     bool open(std::shared_ptr<const PcmBuffer> decoded, const std::string &path);
+    bool open(std::shared_ptr<const PcmSource> source, const std::string &path);
     void close();
     bool isOpen() const { return isOpen_.load(); }
     double durationSeconds() const { return durationSeconds_.load(); }
 
     /** The open file's decoded audio and path, read together; a null source when nothing is open. */
     struct Snapshot {
-        std::shared_ptr<const PcmBuffer> source;
+        std::shared_ptr<const PcmSource> source;
         std::string path;
     };
     /**
@@ -71,7 +82,7 @@ public:
         return {source_, path_};
     }
     /** As snapshot(), the source alone. */
-    std::shared_ptr<const PcmBuffer> source() const { return snapshot().source; }
+    std::shared_ptr<const PcmSource> source() const { return snapshot().source; }
     int sourceSampleRate() const { return sourceSampleRate_.load(); }
     Settings settings() const;
     void applySettings(const Settings &settings);
@@ -92,6 +103,13 @@ public:
     void setPreamp(double gainDb);
     void setOutputGain(double gain) { outputGain_.store(gain); }
     /** Playback only: settings() leaves it out, so an export keeps the original level. */
+    /**
+     * Linear gain of stem `index`, applied with a ramp. Any index 0..kMaxStreams-1 is stored, also past
+     * the stems that are open; others are ignored. Every successful open resets all gains to 1.
+     */
+    void setStemGain(int index, double gain);
+    /** Stems of the open source; 0 for a single file or nothing. */
+    int stemCount() const { return stemCount_.load(); }
     void setNormalization(bool enabled) { normalizationOn_.store(enabled); }
     /** Integrated loudness of the open file (LUFS), -infinity if silent or nothing is open. */
     double loudnessLufs() const { return loudnessLufs_.load(); }
@@ -124,7 +142,7 @@ private:
 
     mutable std::mutex lock_; // structure: source and stretcher
     // Written only by the control thread, under the lock; the audio thread reads it under the lock.
-    std::shared_ptr<const PcmBuffer> source_;
+    std::shared_ptr<const PcmSource> source_;
     std::string path_;
     std::atomic<int> sourceSampleRate_{0};
     TimeStretcher stretcher_;
@@ -156,6 +174,8 @@ private:
     std::atomic<double> seekTo_{-1.0};
     std::atomic<double> positionFrames_{0.0};
     std::atomic<double> outputGain_{1.0};
+    std::array<std::atomic<float>, kMaxStreams> stemGains_{};
+    std::atomic<int> stemCount_{0};
     std::atomic<unsigned> events_{0};
 
     // EQ settings: copied into the filters on the audio thread when the version changes.

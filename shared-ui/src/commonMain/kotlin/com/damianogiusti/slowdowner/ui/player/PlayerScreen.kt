@@ -48,6 +48,10 @@ import com.damianogiusti.slowdowner.ui.common.formatSpeed
 import com.damianogiusti.slowdowner.ui.common.formatPitch
 import com.damianogiusti.slowdowner.ui.effects.EffectsSheet
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsActions
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsCard
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsUiState
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsViewModel
 import com.damianogiusti.slowdowner.ui.player.components.ExportBanner
 import com.damianogiusti.slowdowner.ui.player.components.LoopActions
 import com.damianogiusti.slowdowner.ui.player.components.LoopCardState
@@ -73,8 +77,17 @@ class PlayerNavigation(
 )
 
 @Composable
-fun PlayerScreen(viewModel: PlayerViewModel, effects: EffectsViewModel, navigation: PlayerNavigation) {
+fun PlayerScreen(
+    viewModel: PlayerViewModel,
+    effects: EffectsViewModel,
+    navigation: PlayerNavigation,
+    /** Null where the stems are not offered (Android): the Instruments card does not exist. */
+    instruments: InstrumentsViewModel? = null,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val instrumentsState = instruments?.state?.collectAsStateWithLifecycle()?.value
+    // Only a track that has stems has the card.
+    val readyInstruments = instrumentsState as? InstrumentsUiState.Ready
     var showEffects by rememberSaveable { mutableStateOf(false) }
     var showSavePreset by rememberSaveable { mutableStateOf(false) }
     var presetToDelete by remember { mutableStateOf<PracticePreset?>(null) }
@@ -111,10 +124,12 @@ fun PlayerScreen(viewModel: PlayerViewModel, effects: EffectsViewModel, navigati
             timeline = timeline,
             onCollapse = navigation.onCollapse,
             onShowEffects = { showEffects = true },
+            instruments = instruments?.let { InstrumentsActions(it::onModeSelected, it::onGainChanged, it::onMuteToggled, it::onSoloToggled) },
             onExport = viewModel::onExportClicked,
             onCancelExport = viewModel::onExportCancelClicked,
             onAddToPlaylist = navigation.onAddToPlaylist,
         ),
+        instruments = readyInstruments,
     )
 
     if (showEffects) EffectsSheet(onDismiss = { showEffects = false }, viewModel = effects)
@@ -163,6 +178,8 @@ class PlayerContentActions(
     val timeline: TimelineActions,
     val onCollapse: (() -> Unit)?,
     val onShowEffects: () -> Unit,
+    /** Null hides the Instruments card with the platform that has no stems; see [PlayerContent]. */
+    val instruments: InstrumentsActions? = null,
     val onExport: () -> Unit,
     val onCancelExport: () -> Unit,
     val onAddToPlaylist: (LibraryTrack) -> Unit,
@@ -170,7 +187,7 @@ class PlayerContentActions(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions) {
+fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions, instruments: InstrumentsUiState.Ready? = null) {
     val controls = state.controls
     Scaffold(
         topBar = {
@@ -195,7 +212,7 @@ fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions) {
                             Icon(painterResource(Res.drawable.ic_playlist_add), stringResource(Res.string.add_to_playlist))
                         }
                     }
-                    IconButton(onClick = actions.onShowEffects, enabled = !state.isExporting) {
+                    IconButton(onClick = actions.onShowEffects, enabled = !state.isExporting && !state.isSwitchingMode) {
                         Icon(painterResource(Res.drawable.ic_tune), stringResource(Res.string.effects))
                     }
                     IconButton(onClick = actions.onExport, enabled = state.canExport) {
@@ -233,7 +250,7 @@ fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions) {
             return@Scaffold
         }
         // The render reads the live settings: freeze them until it is done.
-        val enabled = !state.isExporting
+        val enabled = !state.isExporting && !state.isSwitchingMode
         Column(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier
@@ -264,6 +281,10 @@ fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions) {
                 actions = actions.timeline,
                 modifier = Modifier.padding(horizontal = 24.dp),
             )
+            // Between the timeline and the transport: a track with stems shows its mix with the practice controls.
+            if (instruments != null && actions.instruments != null) {
+                InstrumentsCard(instruments, actions.instruments, Modifier.padding(horizontal = 16.dp))
+            }
             TransportRow(controls.isPlaying, controls.isLoopOn, enabled, actions.transport)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
                 LoopCard(LoopCardState(controls, state.loopZoom, isEnabled = enabled), actions.loop, Modifier.fillMaxWidth())

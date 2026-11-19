@@ -44,12 +44,12 @@ extern "C" {
 
 SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps) try {
     Player *source = sdEnginePlayer(engine);
-    // The open file's decoded audio, shared read-only: no second decode, no second copy in memory,
+    // The open file's (or stems') decoded audio, shared read-only: no second decode, no second copy in memory,
     // and it stays alive for the export even if the player moves on to another file. Buffer, path
     // and rate come from one locked read: a file opening on another thread cannot mix two files.
     auto open = source->snapshot();
     if (!open.source) return nullptr;
-    const int rate = open.source->sampleRate;
+    const int rate = open.source->sampleRate();
 
     auto exporter = std::make_unique<SdExport>();
     exporter->player = std::make_unique<Player>(rate, kChunkFrames);

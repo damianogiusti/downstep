@@ -10,6 +10,9 @@ import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
 import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
+import com.damianogiusti.slowdowner.fake.FakeLogger
+import com.damianogiusti.slowdowner.fake.FakeStemMixer
+import com.damianogiusti.slowdowner.fake.FakeStemsRepository
 import com.damianogiusti.slowdowner.fake.FakePracticeRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Runnable
@@ -97,7 +100,7 @@ class OpenTrackForPracticeUseCaseTest {
         nowPlaying: NowPlayingRepository,
     ): OpenTrackForPracticeUseCase {
         val save = SavePracticeStateUseCase(engine, nowPlaying, repository)
-        return OpenTrackForPracticeUseCase(OpenTrackUseCase(sources, nowPlaying), save, engine, repository)
+        return OpenTrackForPracticeUseCase(OpenTrackUseCase(sources, nowPlaying, FakeStemsRepository(), FakeStemMixer(), FakeLogger()), save, engine, repository)
     }
 
     private inner class RecordingSources(

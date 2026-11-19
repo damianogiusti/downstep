@@ -1,12 +1,20 @@
 package com.damianogiusti.slowdowner.ui.player
 
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
+import com.damianogiusti.slowdowner.data.stems.InMemoryModeSwitchRepository
+import com.damianogiusti.slowdowner.domain.stems.ObserveModeSwitchUseCase
+import com.damianogiusti.slowdowner.domain.stems.StemKind
+import com.damianogiusti.slowdowner.domain.stems.SwitchTrackModeUseCase
+import com.damianogiusti.slowdowner.domain.stems.TrackMode
+import com.damianogiusti.slowdowner.domain.source.AudioSource
+import com.damianogiusti.slowdowner.domain.source.AudioSourceRepository
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
 import com.damianogiusti.slowdowner.domain.playback.OpenTrackUseCase
+import com.damianogiusti.slowdowner.logging.ConsoleLogger
 import com.damianogiusti.slowdowner.domain.playback.ReadWaveformUseCase
 import com.damianogiusti.slowdowner.domain.playback.SliderCurves
 import com.damianogiusti.slowdowner.domain.player.ObservePlayerPreferencesUseCase
@@ -17,6 +25,10 @@ import com.damianogiusti.slowdowner.domain.practice.ApplyPresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.DeletePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.ObservePresetsUseCase
 import com.damianogiusti.slowdowner.domain.practice.OpenTrackForPracticeUseCase
+import com.damianogiusti.slowdowner.domain.practice.PracticePreset
+import com.damianogiusti.slowdowner.domain.practice.PracticeRepository
+import com.damianogiusti.slowdowner.domain.practice.PracticeSettings
+import kotlinx.coroutines.flow.flowOf
 import com.damianogiusti.slowdowner.domain.practice.SavePracticeStateUseCase
 import com.damianogiusti.slowdowner.domain.practice.SavePresetUseCase
 import com.damianogiusti.slowdowner.domain.practice.SetLoopRegionUseCase
@@ -29,6 +41,8 @@ import com.damianogiusti.slowdowner.ui.fake.FakeExportRepository
 import com.damianogiusti.slowdowner.ui.fake.FakePlaybackEngine
 import com.damianogiusti.slowdowner.ui.fake.FakePlayerPreferencesRepository
 import com.damianogiusti.slowdowner.ui.fake.FakePracticeRepository
+import com.damianogiusti.slowdowner.ui.fake.FakeStemsRepository
+import com.damianogiusti.slowdowner.ui.fake.NoStemMixer
 import com.damianogiusti.slowdowner.ui.resources.Res
 import com.damianogiusti.slowdowner.ui.resources.error_cannot_open
 import com.damianogiusti.slowdowner.ui.resources.error_track_too_long
@@ -60,6 +74,11 @@ class PlayerViewModelTest {
     private val engine = FakePlaybackEngine()
     private val nowPlaying = InMemoryNowPlayingRepository()
     private val preferences = FakePlayerPreferencesRepository()
+    private val modeSwitch = InMemoryModeSwitchRepository()
+    private val preset = PracticePreset(1, "1", "Slow", PracticeSettings(60f))
+    private val practiceRepository = object : PracticeRepository by FakePracticeRepository() {
+        override fun observePresets(trackId: String) = flowOf(if (trackId == "1") listOf(preset) else emptyList())
+    }
 
     @BeforeTest
     fun setUp() {
@@ -418,6 +437,125 @@ class PlayerViewModelTest {
         assertNull(assertNotNull(viewModel.state.value.loopZoom).levels)
     }
 
+
+    // A mode switch reopens the open track: now playing is null and the engine closed while it decodes.
+
+    @Test
+    fun `when the mode switches then the player keeps the track and its controls while the source decodes`() = runTest {
+        val switching = startSwitch()
+
+        val state = switching.viewModel.state.value
+        assertNull(nowPlaying.observe().value)
+        assertFalse(engine.isOpen)
+        assertEquals(track, state.track)
+        assertTrue(state.controls.isOpen)
+        assertEquals(100f, state.controls.durationSeconds)
+        assertTrue(state.isSwitchingMode)
+        assertFalse(state.isOpening)
+    }
+
+    @Test
+    fun `when the mode switches then the presets of the track stay`() = runTest {
+        val switching = startSwitch()
+
+        assertEquals(listOf(preset), switching.viewModel.state.value.presets)
+    }
+
+    @Test
+    fun `when the mode switch ends then the player is the same and no longer switching`() = runTest {
+        val switching = startSwitch()
+
+        switching.finish()
+
+        val state = switching.viewModel.state.value
+        assertFalse(state.isSwitchingMode)
+        assertEquals(track, state.track)
+        assertTrue(state.controls.isOpen)
+        assertEquals(track, nowPlaying.observe().value)
+    }
+
+    @Test
+    fun `when the mode switch fails then the player goes to its empty state`() = runTest {
+        val switching = startSwitch()
+        sources.result = OpenResult.Failed
+
+        switching.finish()
+
+        val state = switching.viewModel.state.value
+        assertFalse(state.isSwitchingMode)
+        assertNull(state.track)
+        assertFalse(state.controls.isOpen)
+    }
+
+    @Test
+    fun `when the mode switches then export is not offered`() = runTest {
+        val switching = startSwitch()
+
+        assertFalse(switching.viewModel.state.value.canExport)
+        switching.finish()
+        assertTrue(switching.viewModel.state.value.canExport)
+    }
+
+    @Test
+    fun `when a track is picked during a mode switch then it opens after the switch ends`() = runTest {
+        val switching = startSwitch()
+        val other = LibraryTrack("2", "Other", "/other.m4a", null, 0)
+
+        switching.viewModel.onTrackSelected(other)
+        runCurrent()
+        assertNull(nowPlaying.observe().value)
+        assertTrue(switching.viewModel.state.value.isOpening)
+
+        switching.finish()
+
+        assertEquals(other, nowPlaying.observe().value)
+        assertFalse(switching.viewModel.state.value.isOpening)
+    }
+
+    private class Switching(
+        val viewModel: PlayerViewModel,
+        private val decode: CompletableDeferred<Unit>,
+        private val scope: kotlinx.coroutines.test.TestScope,
+    ) {
+        fun finish() {
+            decode.complete(Unit)
+            scope.runCurrent()
+        }
+    }
+
+    /** The track is open as the original and its mode switches to stems; the new source is still decoding. */
+    private suspend fun kotlinx.coroutines.test.TestScope.startSwitch(): Switching {
+        val stems = FakeStemsRepository().apply { add("1", TrackMode.FULL_TRACK, mapOf(StemKind.VOCALS to 1f)) }
+        val closing = ClosingSources()
+        val openForPractice = OpenTrackForPracticeUseCase(
+            OpenTrackUseCase(closing, nowPlaying, stems, NoStemMixer, ConsoleLogger()),
+            SavePracticeStateUseCase(engine, nowPlaying, practiceRepository),
+            engine,
+            practiceRepository,
+        )
+        val switch = SwitchTrackModeUseCase(stems, nowPlaying, closing, engine, openForPractice, modeSwitch)
+        openForPractice(track)
+        engine.durationSeconds = 100f
+        val viewModel = createViewModel()
+        runCurrent()
+
+        val decode = CompletableDeferred<Unit>()
+        sources.decode = decode
+        backgroundScope.launch { switch(track.id, TrackMode.STEMS) }
+        runCurrent()
+        return Switching(viewModel, decode, this)
+    }
+
+    /** What a real engine does on an open: closed for the decode, open again when it succeeds. */
+    private inner class ClosingSources : AudioSourceRepository by sources {
+        override suspend fun open(source: AudioSource): OpenResult {
+            engine.isOpen = false
+            val result = sources.open(source)
+            engine.isOpen = result == OpenResult.Opened
+            return result
+        }
+    }
+
     private fun openFile(loop: LoopRegion? = null) {
         engine.isOpen = true
         engine.durationSeconds = 100f
@@ -438,16 +576,16 @@ class PlayerViewModelTest {
     }
 
     private fun createViewModel(): PlayerViewModel {
-        val practiceRepository = FakePracticeRepository()
         return PlayerViewModel(
             engine,
             OpenTrackForPracticeUseCase(
-                OpenTrackUseCase(sources, nowPlaying),
+                OpenTrackUseCase(sources, nowPlaying, FakeStemsRepository(), NoStemMixer, ConsoleLogger()),
                 SavePracticeStateUseCase(engine, nowPlaying, practiceRepository),
                 engine,
                 practiceRepository,
             ),
             ObserveNowPlayingUseCase(nowPlaying),
+            ObserveModeSwitchUseCase(modeSwitch),
             PracticeUseCases(
                 StepSpeedUseCase(engine),
                 StepPitchUseCase(engine),

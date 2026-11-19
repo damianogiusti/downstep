@@ -13,11 +13,14 @@ TimeStretcher::TimeStretcher() : request_(std::make_unique<RequestState>()) {}
 
 TimeStretcher::~TimeStretcher() = default;
 
-void TimeStretcher::prepare(const PcmBuffer &source, int outputRate, int maxBlockFrames) {
+void TimeStretcher::prepare(const PcmSource &source, int outputRate, int maxBlockFrames) {
     source_ = &source;
+    sourceFrames_ = source.frames();
+    targetGain_.fill(1.f);
+    appliedGain_.fill(1.f);
     // Hop adjust 0: Bungee warns that other values degrade the sound, so there are no quality levels.
     stretcher_ = std::make_unique<Bungee::Stretcher<Bungee::Basic>>(
-        Bungee::SampleRates{source.sampleRate, outputRate}, 2);
+        Bungee::SampleRates{source.sampleRate(), outputRate}, 2);
     grainInput_.assign(2 * size_t(stretcher_->maxInputFrameCount()), 0.f);
     // A grain is ~10 ms of output; at the lowest speed and an upsampling device it can still be
     // several thousand frames, so leave room for a block plus a full second.
@@ -42,6 +45,11 @@ void TimeStretcher::seek(double frame) {
     finished_ = false;
     position_ = frame;
     seekTarget_ = frame;
+    snapsGains_ = true; // the output starts under a fade-in: no audible ramp from stale gains
+}
+
+void TimeStretcher::setStreamGains(const float *gains, int count) {
+    for (int s = 0; s < std::min(count, kMaxStreams); ++s) targetGain_[size_t(s)] = gains[s];
 }
 
 void TimeStretcher::setSpeed(double ratio) { request_->request.speed = std::clamp(ratio, 0.05, 4.0); }
@@ -89,7 +97,7 @@ void TimeStretcher::produceGrain() {
         // Jump without reset: Bungee overlaps the grains on both sides, so the wrap stays smooth.
         r.position = double(loopStart_) + std::fmod(r.position - double(loopEnd_), double(loopEnd_ - loopStart_));
     }
-    if (!loopOn_ && r.position >= double(source_->frames)) {
+    if (!loopOn_ && r.position >= double(sourceFrames_)) {
         finished_ = true;
         return;
     }
@@ -98,26 +106,31 @@ void TimeStretcher::produceGrain() {
     const int length = chunk.end - chunk.begin;
     float *left = grainInput_.data();
     float *right = grainInput_.data() + length;
-    if (chunk.begin >= 0 && int64_t(chunk.end) <= source_->frames) {
-        // Almost every grain lies inside the file: read the channels directly (a mono file's
-        // channel 0 serves both sides).
-        const float *sourceLeft = source_->channelData(0) + chunk.begin;
-        const float *sourceRight = source_->channelData(1) + chunk.begin;
-        for (int i = 0; i < length; ++i) {
-            const float l = sourceLeft[i], rr = sourceRight[i];
-            left[i] = keepLeft_ * l + mixRightToLeft_ * rr;
-            right[i] = keepRight_ * rr + mixLeftToRight_ * l;
-        }
+    if (source_->isStemSet) {
+        sumStreams(chunk.begin, length, left, right);
     } else {
-        for (int i = 0; i < length; ++i) {
-            const int64_t frame = int64_t(chunk.begin) + i;
-            const float l = source_->at(0, frame), rr = source_->at(1, frame);
-            left[i] = keepLeft_ * l + mixRightToLeft_ * rr;
-            right[i] = keepRight_ * rr + mixLeftToRight_ * l;
+        const PcmBuffer &pcm = *source_->streams.front();
+        if (chunk.begin >= 0 && int64_t(chunk.end) <= sourceFrames_) {
+            // Almost every grain lies inside the file: read the channels directly (a mono file's
+            // channel 0 serves both sides).
+            const float *sourceLeft = pcm.channelData(0) + chunk.begin;
+            const float *sourceRight = pcm.channelData(1) + chunk.begin;
+            for (int i = 0; i < length; ++i) {
+                const float l = sourceLeft[i], rr = sourceRight[i];
+                left[i] = keepLeft_ * l + mixRightToLeft_ * rr;
+                right[i] = keepRight_ * rr + mixLeftToRight_ * l;
+            }
+        } else {
+            for (int i = 0; i < length; ++i) {
+                const int64_t frame = int64_t(chunk.begin) + i;
+                const float l = pcm.at(0, frame), rr = pcm.at(1, frame);
+                left[i] = keepLeft_ * l + mixRightToLeft_ * rr;
+                right[i] = keepRight_ * rr + mixLeftToRight_ * l;
+            }
         }
     }
     const int muteHead = std::clamp(-chunk.begin, 0, length);
-    const int muteTail = std::clamp(int(int64_t(chunk.end) - source_->frames), 0, length);
+    const int muteTail = std::clamp(int(int64_t(chunk.end) - sourceFrames_), 0, length);
     stretcher_->analyseGrain(grainInput_.data(), length, muteHead, muteTail);
 
     Bungee::OutputChunk output{};
@@ -126,6 +139,46 @@ void TimeStretcher::produceGrain() {
 
     stretcher_->next(r);
     r.reset = false;
+}
+
+void TimeStretcher::sumStreams(int begin, int length, float *left, float *right) {
+    std::fill_n(left, length, 0.f);
+    std::fill_n(right, length, 0.f);
+    // Frames outside the file are silence: only the part of the grain that lies inside is read.
+    const int first = int(std::clamp<int64_t>(-int64_t(begin), 0, length));
+    const int last = int(std::clamp<int64_t>(sourceFrames_ - begin, first, length));
+    const int streamCount = int(source_->streams.size());
+    for (int s = 0; s < streamCount; ++s) {
+        const float to = targetGain_[size_t(s)];
+        const float from = snapsGains_ ? to : appliedGain_[size_t(s)];
+        appliedGain_[size_t(s)] = to;
+        if (from == 0.f && to == 0.f) continue; // a muted stem costs nothing
+        const PcmBuffer &pcm = *source_->streams[size_t(s)];
+        // Offset by `begin` only where it is inside the file: before the start it would point outside.
+        const float *sourceLeft = pcm.channelData(0) + (int64_t(begin) + first);
+        const float *sourceRight = pcm.channelData(1) + (int64_t(begin) + first);
+        // The gain moves along the whole grain: its window is weighted to the middle, and the next
+        // grain, which overlaps this one, starts from where this one ended.
+        const float step = (to - from) / float(length);
+        if (step == 0.f) {
+            for (int i = first; i < last; ++i) {
+                left[i] += to * sourceLeft[i - first];
+                right[i] += to * sourceRight[i - first];
+            }
+        } else {
+            for (int i = first; i < last; ++i) {
+                const float g = from + step * float(i);
+                left[i] += g * sourceLeft[i - first];
+                right[i] += g * sourceRight[i - first];
+            }
+        }
+    }
+    snapsGains_ = false;
+    for (int i = 0; i < length; ++i) {
+        const float l = left[i], rr = right[i];
+        left[i] = keepLeft_ * l + mixRightToLeft_ * rr;
+        right[i] = keepRight_ * rr + mixLeftToRight_ * l;
+    }
 }
 
 void TimeStretcher::appendToFifo(const Bungee::OutputChunk &output) {

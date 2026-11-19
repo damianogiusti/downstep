@@ -33,6 +33,14 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # The OpenVINO wheel (:engine-desktop:fetchOpenVinoRuntime) comes from PyPI once. The key holds the pinned
+      # urls and hashes, so a new pin downloads again; the task checks the hash of a cached file anyway.
+      - name: Cache the OpenVINO wheel
+        uses: actions/cache@v4
+        with:
+          path: .openvino-cache
+          key: openvino-wheel-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('engine-desktop/openvino-runtime.gradle.kts') }}
+
       - uses: msys2/setup-msys2@v2
         id: msys2
         with:

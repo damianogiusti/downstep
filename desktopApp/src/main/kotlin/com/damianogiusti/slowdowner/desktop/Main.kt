@@ -35,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.damianogiusti.slowdowner.data.playback.DesktopPlaybackEngine
 import com.damianogiusti.slowdowner.data.playback.EngineLibraryBlockedException
 import com.damianogiusti.slowdowner.data.playback.NativeEngine
+import com.damianogiusti.slowdowner.data.stems.DefaultStemSeparationRepository
 import com.damianogiusti.slowdowner.data.support.PreferencesSupportPromptStore
 import com.damianogiusti.slowdowner.desktop.update.DesktopUpdateInstaller
 import com.damianogiusti.slowdowner.desktop.update.UpdateSettings
@@ -49,6 +50,8 @@ import com.damianogiusti.slowdowner.ui.common.TextInputFocus
 import com.damianogiusti.slowdowner.ui.effects.EffectsViewModel
 import com.damianogiusti.slowdowner.ui.library.ImportViewModel
 import com.damianogiusti.slowdowner.ui.navigation.ActivityViewModels
+import com.damianogiusti.slowdowner.ui.stems.InstrumentsViewModel
+import com.damianogiusti.slowdowner.ui.stems.StemSeparationViewModel
 import com.damianogiusti.slowdowner.ui.navigation.SlowDownerApp
 import com.damianogiusti.slowdowner.ui.player.PlayerViewModel
 import com.damianogiusti.slowdowner.ui.resources.Res
@@ -238,6 +241,14 @@ fun main() {
         runCatching { runBlocking(Dispatchers.IO) { withTimeoutOrNull(QUIT_FLUSH_TIMEOUT_MS) { flush() } } }
             .onFailure { logger.e("Cannot save the last edits on quit", it) }
     }
+    // A separation can run for minutes and holds native memory: stop it and let it clean its partial files
+    // before the app work is cancelled. The separator checks for cancellation about once a second.
+    if (engine != null) {
+        QuitWatchdog.step = "stems"
+        runCatching {
+            runBlocking(Dispatchers.IO) { KoinPlatform.getKoin().get<DefaultStemSeparationRepository>().shutdown(QUIT_STEMS_TIMEOUT) }
+        }.onFailure { logger.e("Cannot stop the stem separation on quit", it) }
+    }
     // The window is gone, but its ViewModels and the app work still run on the Swing thread: a track
     // left playing kept reading the position and hit the freed engine. Stopping them there, then
     // freeing the engine there, means none of them is halfway through a call.
@@ -341,6 +352,9 @@ private const val NO_OUTPUT_SAMPLE_RATE = 44_100
 /** Quitting waits this long at most for the last write (preferences). */
 private const val QUIT_FLUSH_TIMEOUT_MS = 2_000L
 
+/** ... and this long at most for a running stem separation to stop. The watchdog halts at 10 s in all. */
+private val QUIT_STEMS_TIMEOUT = 5.seconds
+
 @Composable
 private fun NoAudioOutputBanner() {
     Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
@@ -371,6 +385,8 @@ private fun DesktopApp(
             imports = koinViewModel<ImportViewModel>(),
             backup = koinViewModel<BackupViewModel>(),
             effects = koinViewModel<EffectsViewModel>(),
+            stems = koinViewModel<StemSeparationViewModel>(),
+            instruments = koinViewModel<InstrumentsViewModel>(),
         )
         val actions = remember(viewModels) { DesktopActions(window, viewModels, logger, onContact).toActivityActions() }
         LaunchedEffect(viewModels.player) { onShortcutsReady(PracticeShortcuts(viewModels.player, textInput)) }

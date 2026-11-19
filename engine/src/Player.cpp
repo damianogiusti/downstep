@@ -19,6 +19,7 @@ Player::Player(int outputRate, int maxBlockFrames)
     : outputRate_(outputRate), maxBlockFrames_(maxBlockFrames),
       loudnessLufs_(-std::numeric_limits<double>::infinity()) {
     for (auto &gain : eqGainsDb_) gain.store(0.0);
+    for (auto &gain : stemGains_) gain.store(1.f);
     limiter_.prepare(outputRate);
 }
 
@@ -45,6 +46,78 @@ bool Player::open(const std::string &path) {
     return true;
 }
 
+bool Player::openStems(const std::vector<std::string> &paths) {
+    if (paths.empty() || paths.size() > size_t(kMaxStreams)) {
+        recordOpenFailure(SD_OPEN_FAILED, "a track has 1 to " + std::to_string(kMaxStreams) + " stems");
+        return false;
+    }
+    // One budget for all the stems: each decode gets what the previous ones left. The automatic budget is
+    // read once, as the OS would report more free memory for each decode that has not happened yet.
+    const int64_t configured = memoryBudget_.load();
+    const uint64_t budget = configured > 0 ? uint64_t(configured) : availableMemoryBytes();
+    uint64_t used = 0;
+    std::vector<std::shared_ptr<PcmBuffer>> stems;
+    int64_t longest = 0;
+    for (const auto &path : paths) {
+        // 0 would mean "automatic" to the decoder: 1 byte is "nothing left".
+        const uint64_t left = budget > used ? budget - used : 0;
+        auto stem = std::make_shared<PcmBuffer>();
+        std::string error;
+        const DecodeStatus status = decodeStemMp3(path, *stem, error, int64_t(std::max<uint64_t>(left, 1)));
+        if (status != DecodeStatus::Ok) {
+            recordOpenFailure(status == DecodeStatus::TooLong ? SD_OPEN_TOO_LONG : SD_OPEN_FAILED,
+                              "stem " + std::to_string(stems.size() + 1) + ": " + error);
+            return false;
+        }
+        if (stem->frames <= 0) {
+            recordOpenFailure(SD_OPEN_FAILED, "stem " + std::to_string(stems.size() + 1) + " has no audio");
+            return false;
+        }
+        if (!stems.empty() && stem->sampleRate != stems.front()->sampleRate) {
+            recordOpenFailure(SD_OPEN_FAILED, "the stems have different sample rates");
+            return false;
+        }
+        used += uint64_t(stem->frames) * uint64_t(stem->channels) * sizeof(float);
+        if (used > budget) {
+            recordOpenFailure(SD_OPEN_TOO_LONG, "the decoded audio would not fit in memory");
+            return false;
+        }
+        longest = std::max(longest, stem->frames);
+        stems.push_back(std::move(stem));
+    }
+    // They should all have the same length, as they come from one track. A shorter one is padded with
+    // silence rather than refused: the streams are read in step.
+    auto source = std::make_shared<PcmSource>();
+    source->isStemSet = true;
+    for (auto &stem : stems) {
+        PcmBuffer &pcm = *stem;
+        if (pcm.frames == longest) {
+            source->streams.push_back(std::move(stem));
+            continue;
+        }
+        used += uint64_t(longest - pcm.frames) * uint64_t(pcm.channels) * sizeof(float);
+        if (used > budget) {
+            recordOpenFailure(SD_OPEN_TOO_LONG, "the decoded audio would not fit in memory");
+            return false;
+        }
+        for (auto &channel : pcm.data) channel.resize(size_t(longest), 0.f);
+        pcm.frames = longest;
+        source->streams.push_back(std::move(stem));
+    }
+    auto summary = PeakSummary::of(*source);
+    std::shared_ptr<const PcmSource> shared = std::move(source);
+    if (!open(std::move(shared), paths.front())) {
+        recordOpenFailure(SD_OPEN_FAILED, "the stems have no audio");
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> guard(peaksLock_);
+        peaks_ = std::move(summary);
+    }
+    recordOpenFailure(SD_OPEN_OK, "");
+    return true;
+}
+
 int Player::peaks(double from, double to, float *out, int buckets) const {
     std::shared_ptr<const PeakSummary> summary;
     {
@@ -55,7 +128,16 @@ int Player::peaks(double from, double to, float *out, int buckets) const {
 }
 
 bool Player::open(std::shared_ptr<const PcmBuffer> decoded, const std::string &path) {
-    if (!decoded || decoded->frames <= 0 || decoded->channels < 1) return false;
+    if (!decoded) return false;
+    return open(PcmSource::single(std::move(decoded)), path);
+}
+
+bool Player::open(std::shared_ptr<const PcmSource> decoded, const std::string &path) {
+    if (!decoded || decoded->streams.empty() || decoded->streams.size() > size_t(kMaxStreams)) return false;
+    for (const auto &stream : decoded->streams) {
+        if (!stream || stream->frames <= 0 || stream->channels < 1) return false;
+        if (stream->frames != decoded->frames() || stream->sampleRate != decoded->sampleRate()) return false;
+    }
     {
         std::lock_guard<std::mutex> guard(peaksLock_);
         peaks_.reset();
@@ -65,17 +147,19 @@ bool Player::open(std::shared_ptr<const PcmBuffer> decoded, const std::string &p
     const double lufs = loudness::integratedLoudness(*decoded);
     const double gainDb = loudness::normalizationGainDb(lufs);
 
-    std::shared_ptr<const PcmBuffer> previous;
+    std::shared_ptr<const PcmSource> previous;
     {
         std::lock_guard<std::mutex> guard(lock_);
         wantsPlaying_.store(false);
         isRunning_ = false;
         previous = std::exchange(source_, std::move(decoded));
         path_ = path;
-        sourceSampleRate_.store(source_->sampleRate);
+        sourceSampleRate_.store(source_->sampleRate());
+        stemCount_.store(source_->isStemSet ? int(source_->streams.size()) : 0);
+        for (auto &gain : stemGains_) gain.store(1.f);
         stretcher_.prepare(*source_, outputRate_, maxBlockFrames_);
         equalizer_.reset();
-        sourceFrames_.store(source_->frames);
+        sourceFrames_.store(source_->frames());
         durationSeconds_.store(source_->seconds());
         positionFrames_.store(0.0);
         seekTo_.store(-1.0);
@@ -94,13 +178,14 @@ void Player::close() {
         std::lock_guard<std::mutex> peaksGuard(peaksLock_);
         peaks_.reset();
     }
-    std::shared_ptr<const PcmBuffer> previous; // declared before the guard: freed after unlocking
+    std::shared_ptr<const PcmSource> previous; // declared before the guard: freed after unlocking
     std::lock_guard<std::mutex> guard(lock_);
     wantsPlaying_.store(false);
     isRunning_ = false;
     isOpen_.store(false);
     previous = std::move(source_);
     path_.clear();
+    stemCount_.store(0);
     sourceFrames_.store(0);
     durationSeconds_.store(0.0);
     positionFrames_.store(0.0);
@@ -117,6 +202,7 @@ Player::Settings Player::settings() const {
     s.eqEnabled = eqEnabled_.load();
     for (int b = 0; b < Equalizer::kBands; ++b) s.eqGainsDb[size_t(b)] = eqGainsDb_[size_t(b)].load();
     s.preampDb = preampDb_.load();
+    for (int i = 0; i < kMaxStreams; ++i) s.stemGains[size_t(i)] = stemGains_[size_t(i)].load();
     return s;
 }
 
@@ -127,6 +213,7 @@ void Player::applySettings(const Settings &settings) {
     for (int b = 0; b < Equalizer::kBands; ++b) setEqBand(b, settings.eqGainsDb[size_t(b)]);
     setPreamp(settings.preampDb);
     setEqEnabled(settings.eqEnabled);
+    for (int i = 0; i < kMaxStreams; ++i) stemGains_[size_t(i)].store(settings.stemGains[size_t(i)]);
 }
 
 void Player::setPlaying(bool playing) {
@@ -156,6 +243,11 @@ void Player::setLoop(double start, double end, bool enabled, double seek) {
     if (seek >= 0) positionFrames_.store(std::clamp(seek, 0.0, 1.0) * double(sourceFrames_.load()));
 }
 
+void Player::setStemGain(int index, double gain) {
+    if (index < 0 || index >= kMaxStreams || std::isnan(gain)) return;
+    stemGains_[size_t(index)].store(float(std::clamp(gain, 0.0, 8.0)));
+}
+
 void Player::setEqEnabled(bool enabled) {
     eqEnabled_.store(enabled);
     eqVersion_.fetch_add(1);
@@ -173,10 +265,15 @@ void Player::setPreamp(double gainDb) {
 }
 
 double Player::applyControls() {
-    const double frames = double(source_->frames);
+    const double frames = double(source_->frames());
     stretcher_.setSpeed(speed_.load());
     stretcher_.setPitch(pitch_.load());
     stretcher_.setMix(mix_.load());
+    if (source_->isStemSet) {
+        std::array<float, kMaxStreams> gains;
+        for (int i = 0; i < kMaxStreams; ++i) gains[size_t(i)] = stemGains_[size_t(i)].load();
+        stretcher_.setStreamGains(gains.data(), kMaxStreams);
+    }
 
     double loopSeek = -1.0;
     const unsigned before = loopVersion_.load(std::memory_order_acquire);
@@ -218,7 +315,7 @@ int Player::render(float *const *out, int frames) {
     const double seek = loopSeek >= 0 ? loopSeek : plainSeek;
     const bool wantsPlaying = wantsPlaying_.load();
     if (seek >= 0) {
-        stretcher_.seek(seek * double(source_->frames));
+        stretcher_.seek(seek * double(source_->frames()));
         equalizer_.reset();
         limiter_.reset();
         needsFadeIn_ = true;
@@ -277,7 +374,7 @@ int Player::render(float *const *out, int frames) {
         // block. Accepted: files end in silence or a fade almost always.
         isRunning_ = false;
         wantsPlaying_.store(false);
-        positionFrames_.store(double(source_->frames));
+        positionFrames_.store(double(source_->frames()));
         events_.fetch_or(SD_EVENT_REACHED_END);
     } else if (!wantsPlaying) {
         applyFade(out, frames, false);

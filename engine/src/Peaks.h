@@ -39,6 +39,37 @@ public:
     }
 
     /**
+     * The outline of the sum of a source's streams at gain 1, summed one block at a time. A source of a
+     * single stream is the same as `of(pcm)`.
+     */
+    static std::shared_ptr<const PeakSummary> of(const PcmSource &source) {
+        if (source.streams.size() == 1 && !source.isStemSet) return of(*source.streams.front());
+        auto summary = std::make_shared<PeakSummary>();
+        const int64_t frames = source.frames();
+        const int64_t count = (frames + kFramesPerPeak - 1) / kFramesPerPeak;
+        summary->peaks_.assign(size_t(std::max<int64_t>(count, 0)), 0.f);
+        float left[kFramesPerPeak], right[kFramesPerPeak];
+        for (int64_t block = 0; block < count; ++block) {
+            const int64_t first = block * kFramesPerPeak;
+            const int64_t n = std::min(first + kFramesPerPeak, frames) - first;
+            std::fill_n(left, n, 0.f);
+            std::fill_n(right, n, 0.f);
+            for (const auto &stream : source.streams) {
+                const float *l = stream->channelData(0) + first;
+                const float *r = stream->channelData(1) + first;
+                for (int64_t i = 0; i < n; ++i) {
+                    left[i] += l[i];
+                    right[i] += r[i];
+                }
+            }
+            float peak = 0.f;
+            for (int64_t i = 0; i < n; ++i) peak = std::fmax(peak, std::fmax(std::fabs(left[i]), std::fabs(right[i])));
+            summary->peaks_[size_t(block)] = std::min(peak, 1.f);
+        }
+        return summary;
+    }
+
+    /**
      * Fills `buckets` values with the peak of each equal slice of from..to (fractions 0..1 of the
      * file). Slices narrower than one block repeat its value. Returns the number of values written.
      */
