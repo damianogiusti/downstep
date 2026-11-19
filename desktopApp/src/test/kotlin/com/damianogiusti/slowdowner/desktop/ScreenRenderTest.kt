@@ -352,6 +352,26 @@ class ScreenRenderTest {
         }
     }
 
+    @Test
+    fun `the player during a mode switch keeps the track and its controls and shows the card switching`() {
+        val rows = listOf(
+            InstrumentRow(StemKind.VOCALS, Res.string.stem_vocals, 0.8f),
+            InstrumentRow(StemKind.DRUMS, Res.string.stem_drums, 0.5f),
+            InstrumentRow(StemKind.BASS, Res.string.stem_bass, 1f),
+        )
+        val state = PlayerUiState(
+            track = LibraryTrack("1", "Autumn Leaves", "/song.wav", null, 0),
+            controls = PlayerControlsState(isOpen = true, position = 0.3f, durationSeconds = 120f, isLoopOn = true, loopStart = 0.2f, loopEnd = 0.4f),
+            isSwitchingMode = true,
+        )
+        for ((name, width) in listOf("narrow" to 440, "wide" to 560)) {
+            val bytes = renderContent(File("build/screenshots/player-switching-$name.png"), widthDp = width, heightDp = 1000) {
+                PlayerContent(state, playerActions(), InstrumentsUiState.Ready("1", TrackMode.STEMS, isSwitching = true, stems = rows))
+            }
+            assertTrue(bytes > 5_000, "suspiciously small render: $bytes bytes")
+        }
+    }
+
     private fun playerActions() = PlayerContentActions(
         transport = TransportActions({}, {}, {}, {}),
         loop = LoopActions({}, {}, {}, {}, {}, {}, {}, {}, TimelineActions({}, { _, _ -> })),

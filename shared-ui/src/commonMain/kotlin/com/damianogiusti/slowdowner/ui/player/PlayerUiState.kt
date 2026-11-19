@@ -18,10 +18,15 @@ data class PlayerUiState(
     val loopZoom: LoopZoomUiState? = null,
     /** A track is being decoded: nothing is open meanwhile, and a long recording takes seconds. */
     val isOpening: Boolean = false,
+    /**
+     * The open track is being reopened as its other source (original or stems). Everything else stays as it was:
+     * the controls cannot act on a closed engine, so they wait.
+     */
+    val isSwitchingMode: Boolean = false,
 ) {
     val isExporting get() = export is ExportUiState.Running
     /** Spotify tracks have no library entry and cannot be exported. */
-    val canExport get() = controls.isOpen && track != null && export == ExportUiState.Idle
+    val canExport get() = controls.isOpen && track != null && export == ExportUiState.Idle && !isSwitchingMode
     val activePresetId: Long? get() = presets.firstOrNull { it.settings.matches(controls.practiceSettings) }?.id
 }
 

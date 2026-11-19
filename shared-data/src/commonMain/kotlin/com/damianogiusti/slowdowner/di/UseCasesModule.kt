@@ -58,6 +58,11 @@ import com.damianogiusti.slowdowner.domain.stems.ObserveStemSeparationUseCase
 import com.damianogiusti.slowdowner.domain.stems.SetStemGainUseCase
 import com.damianogiusti.slowdowner.domain.stems.SetTrackModeUseCase
 import com.damianogiusti.slowdowner.domain.stems.SwitchTrackModeUseCase
+import com.damianogiusti.slowdowner.domain.stems.ModeSwitchRepository
+import com.damianogiusti.slowdowner.domain.stems.ObserveModeSwitchUseCase
+import com.damianogiusti.slowdowner.data.stems.InMemoryModeSwitchRepository
+import org.koin.core.module.dsl.singleOf
+import org.koin.core.module.dsl.bind
 import com.damianogiusti.slowdowner.domain.stems.StartStemSeparationUseCase
 import org.koin.core.module.dsl.factoryOf
 import org.koin.dsl.module
@@ -110,6 +115,9 @@ val useCasesModule = module {
     factoryOf(::ObserveTrackStemsUseCase)
     factoryOf(::ObserveSeparatedTracksUseCase)
     factoryOf(::SetTrackModeUseCase)
+    // Here and not on a platform: the player observes it on every platform, stems or not.
+    singleOf(::InMemoryModeSwitchRepository) { bind<ModeSwitchRepository>() }
+    factoryOf(::ObserveModeSwitchUseCase)
     factoryOf(::SwitchTrackModeUseCase)
     factoryOf(::SetStemGainUseCase)
     factoryOf(::DeleteTrackStemsUseCase)

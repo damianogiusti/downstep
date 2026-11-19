@@ -36,6 +36,8 @@ fun MiniPlayerBar(
     onOpen: () -> Unit,
     onPlayStop: () -> Unit,
     modifier: Modifier = Modifier,
+    /** False while the track reopens for a mode switch: the engine is closed for the decode. */
+    isEnabled: Boolean = true,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -68,7 +70,7 @@ fun MiniPlayerBar(
                         maxLines = 1,
                     )
                 }
-                FilledIconButton(onClick = onPlayStop, shape = CircleShape, modifier = Modifier.size(44.dp)) {
+                FilledIconButton(onClick = onPlayStop, enabled = isEnabled, shape = CircleShape, modifier = Modifier.size(44.dp)) {
                     Icon(
                         painterResource(if (controls.isPlaying) Res.drawable.ic_pause else Res.drawable.ic_play),
                         contentDescription = stringResource(if (controls.isPlaying) Res.string.stop else Res.string.play),

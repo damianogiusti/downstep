@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.ui.stems
 
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
+import com.damianogiusti.slowdowner.data.stems.InMemoryModeSwitchRepository
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
 import com.damianogiusti.slowdowner.domain.playback.OpenTrackUseCase
@@ -80,7 +81,7 @@ class InstrumentsViewModelTest {
         InstrumentsUseCases(
             observeNowPlaying = ObserveNowPlayingUseCase(nowPlaying),
             observeStems = ObserveTrackStemsUseCase(stems),
-            switchMode = SwitchTrackModeUseCase(stems, nowPlaying, sources, engine, openForPractice),
+            switchMode = SwitchTrackModeUseCase(stems, nowPlaying, sources, engine, openForPractice, InMemoryModeSwitchRepository()),
             setGain = SetStemGainUseCase(stems, mixer, sources, nowPlaying),
         ),
     )

@@ -1,6 +1,7 @@
 package com.damianogiusti.slowdowner.domain.stems
 
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
+import com.damianogiusti.slowdowner.data.stems.InMemoryModeSwitchRepository
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.OpenTrackUseCase
@@ -45,7 +46,8 @@ class SwitchTrackModeUseCaseTest {
         engine,
         practice,
     )
-    private val switch = SwitchTrackModeUseCase(stems, nowPlaying, sources, engine, openForPractice)
+    private val modeSwitch = InMemoryModeSwitchRepository()
+    private val switch = SwitchTrackModeUseCase(stems, nowPlaying, sources, engine, openForPractice, modeSwitch)
 
     private suspend fun playSong(position: Float, isPlaying: Boolean) {
         openForPractice(song)
@@ -188,10 +190,60 @@ class SwitchTrackModeUseCaseTest {
         assertNull(nowPlaying.observe().value)
     }
 
+    @Test
+    fun `while the source reopens the switch is flagged and now playing is still null`() = runTest {
+        playSong(position = 0.4f, isPlaying = true)
+        val seen = mutableListOf<Triple<Boolean, LibraryTrack?, Boolean>>()
+        val watching = ResettingSources(fakeSources, engine) {
+            seen += Triple(modeSwitch.observe().value, nowPlaying.observe().value, engine.isPlaying)
+        }
+        val watched = SwitchTrackModeUseCase(
+            stems, nowPlaying, watching, engine,
+            OpenTrackForPracticeUseCase(
+                OpenTrackUseCase(watching, nowPlaying, stems, mixer, FakeLogger()),
+                SavePracticeStateUseCase(engine, nowPlaying, practice),
+                engine,
+                practice,
+            ),
+            modeSwitch,
+        )
+
+        watched("1", TrackMode.STEMS)
+
+        // The flag is up before now playing goes null, so an auto-save finds no track to store the half-opened engine on.
+        assertEquals(listOf(Triple<Boolean, LibraryTrack?, Boolean>(true, null, false)), seen)
+        assertFalse(modeSwitch.observe().value)
+        assertEquals(song, nowPlaying.observe().value)
+    }
+
+    @Test
+    fun `when the reopen fails then the switch flag is cleared`() = runTest {
+        playSong(position = 0.4f, isPlaying = true)
+        fakeSources.result = OpenResult.Failed
+
+        switch("1", TrackMode.STEMS)
+
+        assertFalse(modeSwitch.observe().value)
+    }
+
+    @Test
+    fun `when nothing is reopened then the switch flag never rises`() = runTest {
+        playSong(position = 0.4f, isPlaying = true)
+        val seen = mutableListOf<Boolean>()
+        val watching = ResettingSources(fakeSources, engine)
+        val flagged = SwitchTrackModeUseCase(stems, nowPlaying, watching, engine, openForPractice, modeSwitch)
+
+        flagged("1", TrackMode.FULL_TRACK)
+        seen += modeSwitch.observe().value
+
+        assertEquals(listOf(false), seen)
+    }
+
     /** What a real engine does on an open: back to the start, stopped, default speed, pitch and loop. */
     private class ResettingSources(
         private val delegate: FakeAudioSourceRepository,
         private val engine: FakeEngine,
+        private val onOpen: () -> Unit = {},
     ) : AudioSourceRepository by delegate {
         override suspend fun open(source: AudioSource): OpenResult {
             engine.position = 0f
@@ -201,6 +253,7 @@ class SwitchTrackModeUseCaseTest {
             engine.loopEnabled = false
             engine.loopStart = 0f
             engine.loopEnd = 1f
+            onOpen()
             return delegate.open(source)
         }
     }

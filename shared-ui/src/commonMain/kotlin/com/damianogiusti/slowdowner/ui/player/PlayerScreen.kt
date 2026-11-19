@@ -212,7 +212,7 @@ fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions, instrumen
                             Icon(painterResource(Res.drawable.ic_playlist_add), stringResource(Res.string.add_to_playlist))
                         }
                     }
-                    IconButton(onClick = actions.onShowEffects, enabled = !state.isExporting) {
+                    IconButton(onClick = actions.onShowEffects, enabled = !state.isExporting && !state.isSwitchingMode) {
                         Icon(painterResource(Res.drawable.ic_tune), stringResource(Res.string.effects))
                     }
                     IconButton(onClick = actions.onExport, enabled = state.canExport) {
@@ -250,7 +250,7 @@ fun PlayerContent(state: PlayerUiState, actions: PlayerContentActions, instrumen
             return@Scaffold
         }
         // The render reads the live settings: freeze them until it is done.
-        val enabled = !state.isExporting
+        val enabled = !state.isExporting && !state.isSwitchingMode
         Column(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier

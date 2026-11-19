@@ -177,6 +177,7 @@ fun SlowDownerApp(viewModels: ActivityViewModels, activity: ActivityActions) {
                                 onOpen = { navController.navigate(PlayerRoute) { launchSingleTop = true } },
                                 onPlayStop = activity.onPlayStop,
                                 modifier = Modifier.padding(bottom = 12.dp),
+                                isEnabled = !player.isSwitchingMode,
                             )
                         }
                     }

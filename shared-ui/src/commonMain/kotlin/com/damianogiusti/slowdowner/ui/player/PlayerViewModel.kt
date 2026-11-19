@@ -30,6 +30,7 @@ import com.damianogiusti.slowdowner.domain.practice.SetLoopRegionUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepPitchUseCase
 import com.damianogiusti.slowdowner.domain.practice.StepSpeedUseCase
 import com.damianogiusti.slowdowner.domain.source.OpenResult
+import com.damianogiusti.slowdowner.domain.stems.ObserveModeSwitchUseCase
 import com.damianogiusti.slowdowner.ui.common.UiMessage
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -40,6 +41,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -57,6 +61,7 @@ class PlayerViewModel(
     private val engine: PlaybackEngine,
     private val openTrack: OpenTrackForPracticeUseCase,
     observeNowPlaying: ObserveNowPlayingUseCase,
+    observeModeSwitch: ObserveModeSwitchUseCase,
     private val practice: PracticeUseCases,
     private val export: ExportUseCases,
     private val readWaveform: ReadWaveformUseCase,
@@ -68,6 +73,7 @@ class PlayerViewModel(
     private val _messages = Channel<UiMessage>(Channel.BUFFERED)
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
+    private val modeSwitch = observeModeSwitch()
     private val openMutex = Mutex()
     // Opens queue on openMutex: the indicator stays on until the last one is done.
     private var pendingOpens = 0
@@ -79,7 +85,17 @@ class PlayerViewModel(
     private var zoom: CachedZoom? = null
 
     init {
-        val nowPlaying = observeNowPlaying()
+        // A mode switch reopens the same track: now playing is null for the decode, which is not a close.
+        // The flag is read with .value, not combined, so it is true before the null is seen, whichever
+        // collector runs first. The combine only makes the end of the switch emit again.
+        val nowPlaying = combine(observeNowPlaying(), modeSwitch) { track, _ -> track }
+            .filter { track -> track != null || !modeSwitch.value }
+        viewModelScope.launch {
+            modeSwitch.collect { isSwitching ->
+                _state.update { it.copy(isSwitchingMode = isSwitching) }
+                refreshPlayer()
+            }
+        }
         viewModelScope.launch {
             nowPlaying.collect { track ->
                 _state.update { it.copy(track = track) }
@@ -112,6 +128,8 @@ class PlayerViewModel(
             pendingOpens++
             _state.update { it.copy(isOpening = true) }
             try {
+                // The reopen of a mode switch owns the engine until it ends: opening now would race with it.
+                modeSwitch.first { !it }
                 // One open at a time: each one saves the outgoing track first, so order matters.
                 val message = when (openMutex.withLock { openTrack(track) }) {
                     OpenResult.Opened -> null
@@ -249,7 +267,7 @@ class PlayerViewModel(
 
     // The render uses the live settings: every control is frozen while it runs.
     private inline fun control(requiresOpen: Boolean = false, action: () -> Unit) {
-        if (_state.value.isExporting || (requiresOpen && !engine.isOpen)) return
+        if (_state.value.isExporting || _state.value.isSwitchingMode || (requiresOpen && !engine.isOpen)) return
         action()
         refreshPlayer()
     }
@@ -269,6 +287,8 @@ class PlayerViewModel(
     }
 
     private fun refreshPlayer() {
+        // The engine is closed for the decode of a mode switch: keep what the player shows until it ends.
+        if (modeSwitch.value) return
         val controls = readControls()
         val whole = overviewFor(controls, _state.value.track?.id)
         val loopZoom = loopZoomFor(controls, whole)
@@ -314,7 +334,7 @@ class PlayerViewModel(
                 _state.update { it.copy(controls = it.controls.copy(position = position)) }
                 delay(POSITION_UPDATE_MS)
             }
-            _state.update { it.copy(controls = readControls()) }
+            if (!modeSwitch.value) _state.update { it.copy(controls = readControls()) }
         }
     }
 
