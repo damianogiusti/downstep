@@ -6,6 +6,9 @@ import com.damianogiusti.slowdowner.domain.source.AudioSource
 import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
+import com.damianogiusti.slowdowner.fake.FakeLogger
+import com.damianogiusti.slowdowner.fake.FakeStemMixer
+import com.damianogiusti.slowdowner.fake.FakeStemsRepository
 import kotlinx.coroutines.test.runTest
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -18,9 +21,11 @@ class PlaybackUseCasesTest {
     private val nowPlaying = InMemoryNowPlayingRepository()
     private val track = LibraryTrack("1", "Song", "/song.m4a", null, 0)
 
+    private fun openTrack() = OpenTrackUseCase(sources, nowPlaying, FakeStemsRepository(), FakeStemMixer(), FakeLogger())
+
     @Test
     fun `open track loads its file and marks it as now playing`() = runTest {
-        OpenTrackUseCase(sources, nowPlaying)(track)
+        openTrack()(track)
 
         assertEquals(AudioSource.LocalFile("/song.m4a"), sources.current)
         assertEquals(track, nowPlaying.observe().value)
@@ -31,7 +36,7 @@ class PlaybackUseCasesTest {
         nowPlaying.set(track)
         sources.result = OpenResult.Failed
 
-        assertEquals(OpenResult.Failed, OpenTrackUseCase(sources, nowPlaying)(track))
+        assertEquals(OpenResult.Failed, openTrack()(track))
         assertNull(nowPlaying.observe().value)
     }
 
@@ -40,7 +45,7 @@ class PlaybackUseCasesTest {
         nowPlaying.set(track)
         sources.result = OpenResult.TooLong
 
-        assertEquals(OpenResult.TooLong, OpenTrackUseCase(sources, nowPlaying)(track))
+        assertEquals(OpenResult.TooLong, openTrack()(track))
         assertNull(nowPlaying.observe().value)
         assertNull(sources.current)
     }

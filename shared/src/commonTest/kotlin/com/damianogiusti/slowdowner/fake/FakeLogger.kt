@@ -2,12 +2,13 @@ package com.damianogiusti.slowdowner.fake
 
 import com.damianogiusti.slowdowner.logging.Logger
 
-/** Records info lines, the ones that reach the release logs as usage events. */
+/** Records info lines, the ones that reach the release logs as usage events, and warnings. */
 class FakeLogger : Logger {
 
     data class Line(val message: String, val properties: Map<String, String>)
 
     val infos = mutableListOf<Line>()
+    val warnings = mutableListOf<Line>()
 
     override fun d(message: String, properties: Map<String, String>) = Unit
 
@@ -15,7 +16,9 @@ class FakeLogger : Logger {
         infos += Line(message, properties)
     }
 
-    override fun w(message: String, throwable: Throwable?, properties: Map<String, String>) = Unit
+    override fun w(message: String, throwable: Throwable?, properties: Map<String, String>) {
+        warnings += Line(message, properties)
+    }
 
     override fun e(message: String, throwable: Throwable?, properties: Map<String, String>) = Unit
 }

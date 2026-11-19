@@ -6,6 +6,7 @@ import com.damianogiusti.slowdowner.domain.stems.SeparationJobState
 import com.damianogiusti.slowdowner.domain.stems.SeparationResult
 import com.damianogiusti.slowdowner.domain.stems.SeparationStart
 import com.damianogiusti.slowdowner.domain.stems.StemKind
+import com.damianogiusti.slowdowner.domain.stems.StemMixer
 import com.damianogiusti.slowdowner.domain.stems.StemModelRepository
 import com.damianogiusti.slowdowner.domain.stems.StemModelState
 import com.damianogiusti.slowdowner.domain.stems.StemSeparationRepository
@@ -17,6 +18,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.yield
+
+/** A mixer for tests that never open stems. */
+object NoStemMixer : StemMixer {
+    override fun setGain(stem: StemKind, gain: Float) = Unit
+}
 
 /** Keeps the ids it is given and records the deletes. */
 class FakeStemsRepository : StemsRepository {

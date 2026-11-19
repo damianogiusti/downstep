@@ -7,6 +7,7 @@ import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
 import com.damianogiusti.slowdowner.domain.playback.OpenTrackUseCase
+import com.damianogiusti.slowdowner.logging.ConsoleLogger
 import com.damianogiusti.slowdowner.domain.playback.ReadWaveformUseCase
 import com.damianogiusti.slowdowner.domain.playback.SliderCurves
 import com.damianogiusti.slowdowner.domain.player.ObservePlayerPreferencesUseCase
@@ -29,6 +30,8 @@ import com.damianogiusti.slowdowner.ui.fake.FakeExportRepository
 import com.damianogiusti.slowdowner.ui.fake.FakePlaybackEngine
 import com.damianogiusti.slowdowner.ui.fake.FakePlayerPreferencesRepository
 import com.damianogiusti.slowdowner.ui.fake.FakePracticeRepository
+import com.damianogiusti.slowdowner.ui.fake.FakeStemsRepository
+import com.damianogiusti.slowdowner.ui.fake.NoStemMixer
 import com.damianogiusti.slowdowner.ui.resources.Res
 import com.damianogiusti.slowdowner.ui.resources.error_cannot_open
 import com.damianogiusti.slowdowner.ui.resources.error_track_too_long
@@ -442,7 +445,7 @@ class PlayerViewModelTest {
         return PlayerViewModel(
             engine,
             OpenTrackForPracticeUseCase(
-                OpenTrackUseCase(sources, nowPlaying),
+                OpenTrackUseCase(sources, nowPlaying, FakeStemsRepository(), NoStemMixer, ConsoleLogger()),
                 SavePracticeStateUseCase(engine, nowPlaying, practiceRepository),
                 engine,
                 practiceRepository,

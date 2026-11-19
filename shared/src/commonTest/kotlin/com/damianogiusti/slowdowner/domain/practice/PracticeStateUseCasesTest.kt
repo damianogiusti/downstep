@@ -8,6 +8,9 @@ import com.damianogiusti.slowdowner.domain.playback.PlaybackEvent
 import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.fake.FakeAudioSourceRepository
 import com.damianogiusti.slowdowner.fake.FakeEngine
+import com.damianogiusti.slowdowner.fake.FakeLogger
+import com.damianogiusti.slowdowner.fake.FakeStemMixer
+import com.damianogiusti.slowdowner.fake.FakeStemsRepository
 import com.damianogiusti.slowdowner.fake.FakePracticeRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -27,7 +30,7 @@ class PracticeStateUseCasesTest {
     private val nowPlaying = InMemoryNowPlayingRepository()
     private val repository = FakePracticeRepository()
     private val save = SavePracticeStateUseCase(engine, nowPlaying, repository)
-    private val open = OpenTrackForPracticeUseCase(OpenTrackUseCase(sources, nowPlaying), save, engine, repository)
+    private val open = OpenTrackForPracticeUseCase(OpenTrackUseCase(sources, nowPlaying, FakeStemsRepository(), FakeStemMixer(), FakeLogger()), save, engine, repository)
 
     private val songA = LibraryTrack("a", "A", "/a.m4a", null, 0)
     private val songB = LibraryTrack("b", "B", "/b.m4a", null, 0)
