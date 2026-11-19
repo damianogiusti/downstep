@@ -3,6 +3,12 @@
 What changes for people who use Downstep. The release takes the section of its version from here,
 and the app shows it before and after an update: keep it short, plain English, no technical details.
 
+## 1.5.0
+
+- Separate instruments: split a song into vocals, drums, bass, guitar, piano and the rest, then choose what to hear and set the volume of each one. Speed, pitch and loop work as usual. It runs on your computer: the first time, Downstep downloads a 74 MB model.
+- On Intel Macs, separating instruments is deprecated and may be slow or fail.
+- Once this version has opened your library, older versions of Downstep can no longer open it. To go back, install this version or a newer one.
+
 ## 1.4.0
 
 - Long songs open much faster, and Downstep shows when a song is opening.
