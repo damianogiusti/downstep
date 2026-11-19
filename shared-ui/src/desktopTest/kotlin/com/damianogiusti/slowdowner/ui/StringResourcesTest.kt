@@ -5,6 +5,9 @@ import com.damianogiusti.slowdowner.ui.resources.backup_restored_tracks
 import com.damianogiusti.slowdowner.ui.resources.export_running
 import com.damianogiusti.slowdowner.ui.resources.import_link_description
 import com.damianogiusti.slowdowner.ui.resources.remove_confirm
+import com.damianogiusti.slowdowner.ui.resources.stems_delete_confirm
+import com.damianogiusti.slowdowner.ui.resources.stems_downloading
+import com.damianogiusti.slowdowner.ui.resources.stems_separating
 import com.damianogiusti.slowdowner.ui.resources.update_downloading
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.compose.resources.getPluralString
@@ -50,6 +53,19 @@ class StringResourcesTest {
         Locale.setDefault(Locale.ITALIAN)
         assertEquals("Esporto in MP3… 42%", getString(Res.string.export_running, 42))
         assertEquals("Scaricamento… 7%", getString(Res.string.update_downloading, 7))
+    }
+
+    @Test
+    fun `the stem separation texts show the percent and the title once`() = runTest {
+        Locale.setDefault(Locale.ENGLISH)
+        assertEquals("Separating instruments… 42%", getString(Res.string.stems_separating, 42))
+        assertEquals("Downloading the model… 7%", getString(Res.string.stems_downloading, 7))
+        Locale.setDefault(Locale.ITALIAN)
+        assertEquals("Separo gli strumenti… 42%", getString(Res.string.stems_separating, 42))
+        assertEquals(
+            "Eliminare gli strumenti separati di \"Autumn Leaves\"? Potrai separare di nuovo il brano.",
+            getString(Res.string.stems_delete_confirm, "Autumn Leaves"),
+        )
     }
 
     @Test

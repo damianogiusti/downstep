@@ -280,4 +280,29 @@
     <string name="settings_waveform_summary">Draws the track in the timeline. With Fine on in the A-B loop, the zoom on the loop draws it too.</string>
     <!-- Zoom on the A-B loop -->
     <string name="loop_zoom_description">Zoom on the loop, from %1$s to %2$s</string>
+    <!-- Stem separation -->
+    <string name="stems_separate">Separate instruments</string>
+    <string name="stems_separate_again">Separate again</string>
+    <string name="stems_delete">Delete instruments</string>
+    <string name="stems_marker_description">Instruments separated</string>
+    <string name="stems_delete_confirm">Delete the separated instruments of "%1$s"? You can separate the track again.</string>
+    <string name="stems_separating">Separating instruments… %1$d%</string>
+    <string name="stems_downloading">Downloading the model… %1$d%</string>
+    <string name="stems_ready">Instruments ready</string>
+    <string name="stems_busy">One at a time: wait for the current separation or download to finish.</string>
+    <string name="stems_error_unreadable">This track cannot be separated: the file cannot be read, has no audio or has more than two channels.</string>
+    <string name="stems_error_too_long">This track is too long to separate with the memory of this computer.</string>
+    <string name="stems_error_model">The separation failed because of the model. Try again; if it keeps failing, restart Downstep.</string>
+    <string name="stems_error_write">The instruments could not be saved. Check the free space on your disk.</string>
+    <string name="stems_error_removed">The track was removed before the separation ended.</string>
+    <string name="stems_error_unexpected">The separation failed for an unexpected reason.</string>
+    <string name="stems_model_title">Download the separation model?</string>
+    <string name="stems_model_text">To separate instruments Downstep needs a model of 74 MB. It is downloaded once from Hugging Face, where Intel publishes it, and then it runs on your computer: your music is not uploaded.</string>
+    <string name="stems_model_download">Download</string>
+    <string name="stems_deprecated_notice">On this Mac (Intel processor) separating instruments is deprecated and may work badly: it can be very slow or fail.</string>
+    <string name="stems_deprecated_title">Separate on this Mac?</string>
+    <string name="stems_deprecated_continue">Separate anyway</string>
+    <string name="stems_download_error_network">The model could not be downloaded. Check your connection and try again later.</string>
+    <string name="stems_download_error_corrupted">The downloaded file is not the expected one and was discarded. Try again.</string>
+    <string name="stems_download_error_generic">The model download failed. Try again.</string>
 </resources>
