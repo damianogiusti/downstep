@@ -297,7 +297,7 @@
     <string name="stems_error_removed">The track was removed before the separation ended.</string>
     <string name="stems_error_unexpected">The separation failed for an unexpected reason.</string>
     <string name="stems_model_title">Download the separation model?</string>
-    <string name="stems_model_text">To separate instruments Downstep needs a model of 74 MB. It is downloaded once from Hugging Face, where Intel publishes it, and then it runs on your computer: your music is not uploaded.</string>
+    <string name="stems_model_text">To separate instruments, Downstep needs a 74 MB model. It is downloaded once from Hugging Face, where Intel publishes it, and then it runs on your computer: your music is not uploaded.</string>
     <string name="stems_model_download">Download</string>
     <string name="stems_deprecated_notice">On this Mac (Intel processor) separating instruments is deprecated and may work badly: it can be very slow or fail.</string>
     <string name="stems_deprecated_title">Separate on this Mac?</string>
