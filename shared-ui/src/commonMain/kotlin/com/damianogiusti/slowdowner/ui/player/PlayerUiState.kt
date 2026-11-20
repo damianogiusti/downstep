@@ -22,6 +22,8 @@ data class PlayerUiState(
     val isExporting get() = export is ExportUiState.Running
     /** Spotify tracks have no library entry and cannot be exported. */
     val canExport get() = controls.isOpen && track != null && export == ExportUiState.Idle
+    /** The loop can be exported, or become a track of its own. */
+    val canExportLoop get() = canExport && controls.isLoopOn
     val activePresetId: Long? get() = presets.firstOrNull { it.settings.matches(controls.practiceSettings) }?.id
 }
 
@@ -64,7 +66,17 @@ class LoopZoomUiState(
 
 sealed interface ExportUiState {
     data object Idle : ExportUiState
-    data class Running(val fraction: Float) : ExportUiState
+    /** The user names the track made from the loop; [suggestedTitle] fills the field. */
+    data class NamingLoopTrack(val suggestedTitle: String) : ExportUiState
+    data class Running(val fraction: Float, val target: ExportTarget = ExportTarget.FILE) : ExportUiState
     /** The file is rendered: the user picks share or save. */
     data class Ready(val file: ExportedFile) : ExportUiState
+}
+
+/** Where a render goes. */
+enum class ExportTarget {
+    /** A file to share or save. */
+    FILE,
+    /** A new track in the library. */
+    LIBRARY,
 }

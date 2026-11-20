@@ -123,6 +123,20 @@ typedef struct SdExport SdExport;
  * written.
  */
 SD_API SdExport *sd_export_begin(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps);
+
+/** Sound of `sd_export_begin_part`: the engine's current one (speed, pitch, mix, EQ), as `sd_export_begin`. */
+#define SD_EXPORT_SOUND_CURRENT 0
+/** Sound of `sd_export_begin_part`: the file as it is (speed 1, pitch 0, centered mix, EQ off). */
+#define SD_EXPORT_SOUND_ORIGINAL 1
+
+/**
+ * As `sd_export_begin`, limited to `start`..`end` (0..1 of the file, start < end) and with the given
+ * sound (`SD_EXPORT_SOUND_*`). A part that starts after the beginning of the file starts with a
+ * 10 ms fade-in, without the stretcher's preroll; one that ends before the end of the file ends with
+ * a 10 ms fade-out. Progress goes 0..1 over the part. NULL also if the part is not valid.
+ */
+SD_API SdExport *sd_export_begin_part(SdEngine *engine, const char *utf8OutputPath, int bitrateKbps, double start,
+                                      double end, int sound);
 /** Encodes the next chunk. Returns the progress 0..1, or -1 once everything is encoded. */
 SD_API double sd_export_next(SdExport *exporter);
 /** Finishes the file and frees the exporter. 1 = complete file, 0 = failed or cut short. */

@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.data.library
 
+import com.damianogiusti.slowdowner.domain.export.ExportedFile
 import com.damianogiusti.slowdowner.domain.library.ImportProgress
 import com.damianogiusti.slowdowner.domain.library.ImportResult
 import com.damianogiusti.slowdowner.fake.RecordingLogger
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -184,6 +186,41 @@ class DefaultLibraryRepositoryTest {
     }
 
     @Test
+    fun `a rendered file is moved into the library as a new track`() = runTest {
+        val rendered = File(folder.newFolder("renders"), "loop.mp3").apply { writeBytes(byteArrayOf(1, 2)) }
+
+        val result = repository().addRenderedTrack(ExportedFile(rendered.path, rendered.name), "Song (loop 0:42–1:13)")
+
+        val track = (result as ImportResult.Success).track
+        assertEquals("Song (loop 0:42–1:13)", track.title)
+        assertEquals(File(folder.root, "local_fixed.mp3").path, track.filePath)
+        assertEquals(null, track.sourceUrl)
+        assertEquals(listOf("local_fixed"), store.tracks.value.map { it.id })
+        assertFalse(rendered.exists())
+        assertEquals(2L, File(track.filePath).length())
+        assertEquals(mapOf("source" to "render", "extension" to "mp3"), logger.at('I').single().properties)
+    }
+
+    @Test
+    fun `when the track cannot be stored then the moved file is deleted`() = runTest {
+        val rendered = File(folder.newFolder("renders"), "loop.mp3").apply { writeBytes(byteArrayOf(1)) }
+        store.addError = IllegalStateException("database")
+
+        val result = repository().addRenderedTrack(ExportedFile(rendered.path, rendered.name), "Song")
+
+        assertTrue(result is ImportResult.Failure)
+        assertFalse(File(folder.root, "local_fixed.mp3").exists())
+    }
+
+    @Test
+    fun `when the rendered file is missing then the result is Failure`() = runTest {
+        val result = repository().addRenderedTrack(ExportedFile(File(folder.root, "none.mp3").path, "none.mp3"), "Song")
+
+        assertTrue(result is ImportResult.Failure)
+        assertTrue(store.tracks.value.isEmpty())
+    }
+
+    @Test
     fun `observeTracks returns newest first`() = runTest {
         store.add(LibraryTrackDto("old", "Old", "/a", null, 1))
         store.add(LibraryTrackDto("new", "New", "/b", null, 2))
@@ -195,9 +232,11 @@ class DefaultLibraryRepositoryTest {
 
     private class FakeLibraryStore(private val dir: File) : LibraryStore {
         val tracks = MutableStateFlow<List<LibraryTrackDto>>(emptyList())
+        var addError: Exception? = null
         override fun observe(): Flow<List<LibraryTrackDto>> = tracks
         override suspend fun find(id: String) = tracks.value.firstOrNull { it.id == id }
         override suspend fun add(track: LibraryTrackDto) {
+            addError?.let { throw it }
             tracks.value = tracks.value.filterNot { it.id == track.id } + track
         }
         override suspend fun remove(id: String) {

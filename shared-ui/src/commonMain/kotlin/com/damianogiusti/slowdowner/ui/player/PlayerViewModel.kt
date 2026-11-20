@@ -7,9 +7,13 @@ import com.damianogiusti.slowdowner.ui.player.components.timeline.zoomWindow
 import com.damianogiusti.slowdowner.ui.resources.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.damianogiusti.slowdowner.domain.export.CreateTrackFromLoopUseCase
+import com.damianogiusti.slowdowner.domain.export.CreateTrackResult
+import com.damianogiusti.slowdowner.domain.export.ExportPart
 import com.damianogiusti.slowdowner.domain.export.ExportResult
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
+import com.damianogiusti.slowdowner.domain.export.SuggestLoopTrackTitleUseCase
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
 import com.damianogiusti.slowdowner.domain.playback.PlaybackEngine
@@ -34,10 +38,14 @@ import com.damianogiusti.slowdowner.ui.common.UiMessage
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -67,6 +75,14 @@ class PlayerViewModel(
 
     private val _messages = Channel<UiMessage>(Channel.BUFFERED)
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
+
+    private val _loopTracks = MutableSharedFlow<LibraryTrack>(
+        replay = 0,
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    /** Each track made from a loop, to offer opening it. */
+    val loopTracks: SharedFlow<LibraryTrack> = _loopTracks.asSharedFlow()
 
     private val openMutex = Mutex()
     // Opens queue on openMutex: the indicator stays on until the last one is done.
@@ -205,22 +221,62 @@ class PlayerViewModel(
         viewModelScope.launch { practice.deletePreset(preset) }
     }
 
-    fun onExportClicked() {
+    fun onExportClicked() = exportFile(ExportPart.WHOLE_TRACK)
+
+    fun onExportLoopClicked() = exportFile(ExportPart.LOOP)
+
+    fun onNewTrackFromLoopClicked() {
+        if (!_state.value.canExportLoop) return
+        val title = export.suggestLoopTrackTitle() ?: return
+        _state.update { it.copy(export = ExportUiState.NamingLoopTrack(title)) }
+    }
+
+    fun onLoopTrackTitleConfirmed(title: String) {
+        if (_state.value.export !is ExportUiState.NamingLoopTrack || title.isBlank()) return
+        render(ExportTarget.LIBRARY) {
+            when (val result = export.createTrackFromLoop(title, ::onExportProgress)) {
+                is CreateTrackResult.Created -> {
+                    _state.update { it.copy(export = ExportUiState.Idle) }
+                    _loopTracks.emit(result.track)
+                }
+                CreateTrackResult.NothingOpen -> exportFailed(UiMessage(Res.string.error_export_nothing_open))
+                CreateTrackResult.NoLoop -> exportFailed(UiMessage(Res.string.error_export_no_loop))
+                // The dialog accepts no blank title: nothing to tell.
+                CreateTrackResult.InvalidTitle -> _state.update { it.copy(export = ExportUiState.Idle) }
+                is CreateTrackResult.Failure -> exportFailed(
+                    UiMessage(Res.string.error_loop_track, listOf(result.cause.message.orEmpty())),
+                )
+            }
+        }
+    }
+
+    fun onLoopTrackNamingDismissed() {
+        if (_state.value.export is ExportUiState.NamingLoopTrack) _state.update { it.copy(export = ExportUiState.Idle) }
+    }
+
+    private fun exportFile(part: ExportPart) {
         if (!_state.value.canExport) return
-        val cancelled = exportJob
-        _state.update { it.copy(export = ExportUiState.Running(0f)) }
-        exportJob = viewModelScope.launch {
-            // A cancelled render stops only between native chunks: let it close its file first.
-            cancelled?.cancelAndJoin()
-            val result = export.exportTrack(::onExportProgress)
-            refreshPlayer()
-            when (result) {
+        render(ExportTarget.FILE) {
+            when (val result = export.exportTrack(part, ::onExportProgress)) {
                 is ExportResult.Success -> _state.update { it.copy(export = ExportUiState.Ready(result.file)) }
                 ExportResult.NothingOpen -> exportFailed(UiMessage(Res.string.error_export_nothing_open))
+                ExportResult.NoLoop -> exportFailed(UiMessage(Res.string.error_export_no_loop))
                 is ExportResult.Failure -> exportFailed(
                     UiMessage(Res.string.error_export, listOf(result.cause.message.orEmpty())),
                 )
             }
+        }
+    }
+
+    /** Runs [block] as the one render in progress; every control stays frozen meanwhile. */
+    private fun render(target: ExportTarget, block: suspend () -> Unit) {
+        val cancelled = exportJob
+        _state.update { it.copy(export = ExportUiState.Running(0f, target)) }
+        exportJob = viewModelScope.launch {
+            // A cancelled render stops only between native chunks: let it close its file first.
+            cancelled?.cancelAndJoin()
+            block()
+            refreshPlayer()
         }
     }
 
@@ -260,7 +316,7 @@ class PlayerViewModel(
     private fun onExportProgress(fraction: Float) {
         val running = _state.value.export as? ExportUiState.Running ?: return
         if ((fraction * 100).toInt() == (running.fraction * 100).toInt()) return
-        _state.update { it.copy(export = ExportUiState.Running(fraction)) }
+        _state.update { it.copy(export = running.copy(fraction = fraction)) }
     }
 
     private suspend fun exportFailed(message: UiMessage) {
@@ -368,4 +424,6 @@ class PracticeUseCases(
 class ExportUseCases(
     val exportTrack: ExportTrackUseCase,
     val saveExport: SaveExportUseCase,
+    val suggestLoopTrackTitle: SuggestLoopTrackTitleUseCase,
+    val createTrackFromLoop: CreateTrackFromLoopUseCase,
 )

@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.ui.library
 
+import com.damianogiusti.slowdowner.domain.export.ExportedFile
 import com.damianogiusti.slowdowner.domain.library.FindImportableUrlUseCase
 import com.damianogiusti.slowdowner.domain.library.ImportDocumentUseCase
 import com.damianogiusti.slowdowner.domain.library.ImportProgress
@@ -62,6 +63,7 @@ class ImportViewModelTest {
         override suspend fun remove(id: String) = Unit
         override fun findImportableUrl(text: String?) = text
         override suspend fun importDocument(contentUri: String) = ImportResult.Unavailable
+        override suspend fun addRenderedTrack(file: ExportedFile, title: String) = ImportResult.Unavailable
 
         override suspend fun importFromUrl(url: String, onProgress: (ImportProgress) -> Unit): ImportResult {
             onProgress(ImportProgress.Resolving)

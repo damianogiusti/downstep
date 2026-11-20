@@ -70,6 +70,17 @@
     <string name="error_export_save">Cannot save "%1$s".</string>
     <string name="error_export_nothing_open">Open a track from the library to export it.</string>
     <string name="error_export">Export failed: %1$s</string>
+    <string name="export_whole_track">Export the whole track</string>
+    <string name="export_loop">Export the loop only</string>
+    <string name="loop_track_new">New track from the loop</string>
+    <string name="loop_track_text">The loop becomes a new track in the library, with the original sound. It starts at the current speed and pitch.</string>
+    <string name="loop_track_create">Create</string>
+    <string name="loop_track_running">Creating the track… %1$d%</string>
+    <string name="loop_track_running_hint">Cutting the loop from the original audio</string>
+    <string name="loop_track_created">"%1$s" is in the library.</string>
+    <string name="loop_track_open">Open</string>
+    <string name="error_export_no_loop">Turn the loop on to use only that part.</string>
+    <string name="error_loop_track">Cannot create the track: %1$s</string>
 
     <string name="notification_channel_playback">Playback</string>
 

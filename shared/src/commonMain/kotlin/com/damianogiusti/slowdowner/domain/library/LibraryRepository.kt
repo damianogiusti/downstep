@@ -1,5 +1,6 @@
 package com.damianogiusti.slowdowner.domain.library
 
+import com.damianogiusti.slowdowner.domain.export.ExportedFile
 import kotlinx.coroutines.flow.Flow
 
 /** Every import ends as a file on disk: the engine can only play local files. */
@@ -15,4 +16,7 @@ interface LibraryRepository {
 
     /** [contentUri] is a document URI picked by the user; its content is copied. */
     suspend fun importDocument(contentUri: String): ImportResult
+
+    /** Moves [file], rendered by the app, into the library as a new track called [title]. */
+    suspend fun addRenderedTrack(file: ExportedFile, title: String): ImportResult
 }

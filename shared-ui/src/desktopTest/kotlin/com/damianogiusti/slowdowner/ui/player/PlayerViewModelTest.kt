@@ -1,8 +1,11 @@
 package com.damianogiusti.slowdowner.ui.player
 
 import com.damianogiusti.slowdowner.data.playback.InMemoryNowPlayingRepository
+import com.damianogiusti.slowdowner.domain.export.CreateTrackFromLoopUseCase
 import com.damianogiusti.slowdowner.domain.export.ExportTrackUseCase
+import com.damianogiusti.slowdowner.domain.export.RenderRange
 import com.damianogiusti.slowdowner.domain.export.SaveExportUseCase
+import com.damianogiusti.slowdowner.domain.export.SuggestLoopTrackTitleUseCase
 import com.damianogiusti.slowdowner.domain.library.LibraryTrack
 import com.damianogiusti.slowdowner.domain.playback.LoopRegion
 import com.damianogiusti.slowdowner.domain.playback.ObserveNowPlayingUseCase
@@ -26,6 +29,7 @@ import com.damianogiusti.slowdowner.domain.source.OpenResult
 import com.damianogiusti.slowdowner.ui.common.UiMessage
 import com.damianogiusti.slowdowner.ui.fake.FakeAudioSourceRepository
 import com.damianogiusti.slowdowner.ui.fake.FakeExportRepository
+import com.damianogiusti.slowdowner.ui.fake.FakeLibraryRepository
 import com.damianogiusti.slowdowner.ui.fake.FakePlaybackEngine
 import com.damianogiusti.slowdowner.ui.fake.FakePlayerPreferencesRepository
 import com.damianogiusti.slowdowner.ui.fake.FakePracticeRepository
@@ -60,6 +64,7 @@ class PlayerViewModelTest {
     private val engine = FakePlaybackEngine()
     private val nowPlaying = InMemoryNowPlayingRepository()
     private val preferences = FakePlayerPreferencesRepository()
+    private val exports = FakeExportRepository()
 
     @BeforeTest
     fun setUp() {
@@ -437,6 +442,101 @@ class PlayerViewModelTest {
         return messages
     }
 
+    @Test
+    fun `with the loop on a new track from the loop asks for a title`() = runTest {
+        val viewModel = openWithLoop()
+
+        viewModel.onNewTrackFromLoopClicked()
+
+        assertEquals(ExportUiState.NamingLoopTrack("Song (loop 0:10–0:20)"), viewModel.state.value.export)
+    }
+
+    @Test
+    fun `with the loop off no title is asked`() = runTest {
+        val viewModel = openWithLoop()
+        viewModel.onLoopToggled(false)
+
+        viewModel.onNewTrackFromLoopClicked()
+
+        assertEquals(ExportUiState.Idle, viewModel.state.value.export)
+        assertFalse(viewModel.state.value.canExportLoop)
+    }
+
+    @Test
+    fun `when the title is confirmed then the track is created and offered`() = runTest {
+        val viewModel = openWithLoop()
+        val created = mutableListOf<LibraryTrack>()
+        backgroundScope.launch { viewModel.loopTracks.collect { created += it } }
+        runCurrent()
+        viewModel.onNewTrackFromLoopClicked()
+
+        viewModel.onLoopTrackTitleConfirmed("Solo")
+        runCurrent()
+
+        assertEquals(RenderRange(0.1f, 0.2f), exports.originalRange)
+        assertEquals(listOf("Solo"), created.map { it.title })
+        assertEquals(ExportUiState.Idle, viewModel.state.value.export)
+    }
+
+    @Test
+    fun `while the track renders the controls are frozen`() = runTest {
+        exports.gate = CompletableDeferred()
+        val viewModel = openWithLoop()
+        viewModel.onNewTrackFromLoopClicked()
+
+        viewModel.onLoopTrackTitleConfirmed("Solo")
+        runCurrent()
+
+        assertEquals(ExportUiState.Running(0f, ExportTarget.LIBRARY), viewModel.state.value.export)
+        assertTrue(viewModel.state.value.isExporting)
+    }
+
+    @Test
+    fun `when naming is dismissed then nothing is rendered`() = runTest {
+        val viewModel = openWithLoop()
+        viewModel.onNewTrackFromLoopClicked()
+
+        viewModel.onLoopTrackNamingDismissed()
+        runCurrent()
+
+        assertEquals(ExportUiState.Idle, viewModel.state.value.export)
+        assertNull(exports.originalRange)
+    }
+
+    @Test
+    fun `exporting the loop renders only the loop`() = runTest {
+        val viewModel = openWithLoop()
+
+        viewModel.onExportLoopClicked()
+        runCurrent()
+
+        assertEquals(RenderRange(0.1f, 0.2f), exports.exportedRange)
+        assertTrue(viewModel.state.value.export is ExportUiState.Ready)
+    }
+
+    @Test
+    fun `exporting the whole track ignores the loop`() = runTest {
+        val viewModel = openWithLoop()
+
+        viewModel.onExportClicked()
+        runCurrent()
+
+        assertEquals(RenderRange.WHOLE_FILE, exports.exportedRange)
+    }
+
+    /** "Song" open, 100 s, with the loop on 10..20 s. */
+    private fun kotlinx.coroutines.test.TestScope.openWithLoop(): PlayerViewModel {
+        nowPlaying.set(track)
+        engine.isOpen = true
+        engine.durationSeconds = 100f
+        engine.setLoopOn(true)
+        engine.loopStart = 0.1f
+        engine.loopEnd = 0.2f
+        val viewModel = createViewModel()
+        runCurrent()
+        return viewModel
+    }
+
     private fun createViewModel(): PlayerViewModel {
         val practiceRepository = FakePracticeRepository()
         return PlayerViewModel(
@@ -461,8 +561,10 @@ class PlayerViewModelTest {
                 DeletePresetUseCase(practiceRepository),
             ),
             ExportUseCases(
-                ExportTrackUseCase(engine, nowPlaying, FakeExportRepository()),
-                SaveExportUseCase(FakeExportRepository()),
+                ExportTrackUseCase(engine, nowPlaying, exports),
+                SaveExportUseCase(exports),
+                SuggestLoopTrackTitleUseCase(engine, nowPlaying),
+                CreateTrackFromLoopUseCase(engine, nowPlaying, exports, FakeLibraryRepository(), practiceRepository),
             ),
             ReadWaveformUseCase(engine),
         )

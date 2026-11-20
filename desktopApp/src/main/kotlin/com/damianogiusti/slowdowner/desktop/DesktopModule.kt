@@ -143,7 +143,14 @@ fun desktopModule(
     single<PlayerPreferencesRepository> { DefaultPlayerPreferencesRepository(get(), Dispatchers.IO) }
     single<OfflineRenderer> { NativeOfflineRenderer(get()) }
     single<ExportRepository> {
-        DefaultExportRepository(get(), get(), File(directories.cache, "exports"), Dispatchers.IO, logger)
+        DefaultExportRepository(
+            renderer = get(),
+            documents = get(),
+            exportDir = File(directories.cache, "exports"),
+            trackDir = File(directories.cache, "renders"),
+            dispatcher = Dispatchers.IO,
+            logger = logger,
+        )
     }
     single { get<SlowDownerDatabase>().practiceDao() }
     single<PracticeRepository> { DefaultPracticeRepository(get(), Dispatchers.IO) }

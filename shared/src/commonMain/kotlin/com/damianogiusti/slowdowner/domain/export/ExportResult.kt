@@ -7,5 +7,7 @@ sealed interface ExportResult {
     data class Success(val file: ExportedFile) : ExportResult
     /** No library track is open: the engine has nothing to render. */
     data object NothingOpen : ExportResult
+    /** The loop was asked for while looping is off. */
+    data object NoLoop : ExportResult
     data class Failure(val cause: Throwable) : ExportResult
 }

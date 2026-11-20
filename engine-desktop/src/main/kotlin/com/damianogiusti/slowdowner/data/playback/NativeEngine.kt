@@ -145,6 +145,22 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         if (exporter == MemorySegment.NULL) null else NativeExport(api, exporter)
     }
 
+    /**
+     * As [beginExport], limited to [ExportPart.start]..[ExportPart.end] and with [ExportPart.sound].
+     * Null also if the part is not valid.
+     */
+    fun beginExportPart(path: String, part: ExportPart, bitrateKbps: Int = 192): NativeExport? =
+        Arena.ofConfined().use { arena ->
+            val utf8Path: MemorySegment = arena.allocateFrom(path)
+            val exporter = api.exportBeginPart.invokeExact(
+                handle, utf8Path, bitrateKbps, part.start, part.end, part.sound,
+            ) as MemorySegment
+            if (exporter == MemorySegment.NULL) null else NativeExport(api, exporter)
+        }
+
+    /** [start]..[end] are 0..1 of the file; [sound] is [EXPORT_SOUND_CURRENT] or [EXPORT_SOUND_ORIGINAL]. */
+    data class ExportPart(val start: Double, val end: Double, val sound: Int)
+
     /** One MP3 export in progress. Call [next] until it returns null, then [finish]. */
     class NativeExport internal constructor(private val api: Api, private val exporter: MemorySegment) {
         private var isFinished = false
@@ -185,6 +201,8 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         const val OPEN_OK = 0
         const val OPEN_FAILED = 1
         const val OPEN_TOO_LONG = 2
+        const val EXPORT_SOUND_CURRENT = 0
+        const val EXPORT_SOUND_ORIGINAL = 1
         private const val OPEN_ERROR_TEXT_BYTES = 256
 
         /** System property with the path of `libsdengine`. Set by Gradle for tests. */
@@ -259,6 +277,9 @@ class NativeEngine private constructor(private val api: Api, private val nativeH
         val sampleRate = function("sd_engine_sample_rate", JAVA_INT, ADDRESS, critical = true)
         val render = function("sd_engine_render", JAVA_INT, ADDRESS, ADDRESS, JAVA_INT)
         val exportBegin = function("sd_export_begin", ADDRESS, ADDRESS, ADDRESS, JAVA_INT)
+        val exportBeginPart = function(
+            "sd_export_begin_part", ADDRESS, ADDRESS, ADDRESS, JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE, JAVA_INT,
+        )
         val exportNext = function("sd_export_next", JAVA_DOUBLE, ADDRESS)
         val exportEnd = function("sd_export_end", JAVA_INT, ADDRESS)
 
