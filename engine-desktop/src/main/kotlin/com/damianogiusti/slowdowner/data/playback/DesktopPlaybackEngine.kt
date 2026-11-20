@@ -199,16 +199,18 @@ class DesktopPlaybackEngine(
         if (!engine.isOpen) return
         val start = region.start.coerceIn(0f, 1f)
         val loop = LoopRegion(start, region.end.coerceIn(start, 1f), region.isOn)
-        val isOutside = loop.isOn && (position < loop.start || position > loop.end)
-        applyLoop(loop, seekTo = if (isOutside) loop.start else null)
+        applyLoop(loop, seekTo = loop.start.takeIf { loop.excludes(position) })
         _events.tryEmit(PlaybackEvent.LoopChanged)
         onPracticeSettingsChanged()
     }
 
     override fun setLoopOn(enabled: Boolean) {
         if (enabled == isLoopOn) return
-        // The points are kept while the loop is off: turning it back on restores them.
-        applyLoop(LoopRegion(loopStart, loopEnd, enabled))
+        // The points are kept while the loop is off: turning it back on restores them. With the playhead
+        // outside them, go to A, as setLoop does: the engine plays on past B after a seek, so a loop
+        // turned on there would otherwise engage while playing but not after a stop and play.
+        val loop = LoopRegion(loopStart, loopEnd, enabled)
+        applyLoop(loop, seekTo = loop.start.takeIf { loop.excludes(position) })
         _events.tryEmit(PlaybackEvent.LoopChanged)
         onPracticeSettingsChanged()
     }
@@ -256,6 +258,8 @@ class DesktopPlaybackEngine(
         }
     }
 
+    private fun LoopRegion.excludes(playhead: Float) = isOn && (playhead < start || playhead > end)
+
     private fun publishPosition() {
         _position.value = engine.position.toFloat()
     }
@@ -264,10 +268,11 @@ class DesktopPlaybackEngine(
         if (!engine.isOpen) return
         val before = LoopState(loopStart, loopEnd, isLoopOn, position)
         val after = edit(before) ?: return
-        applyLoop(
-            LoopRegion(after.start, after.end, after.isOn),
-            seekTo = after.position.takeIf { it != before.position },
-        )
+        val loop = LoopRegion(after.start, after.end, after.isOn)
+        // The edit's own seek wins; else an active loop that left the playhead outside goes to A.
+        val seekTo = after.position.takeIf { it != before.position }
+            ?: loop.start.takeIf { loop.excludes(after.position) }
+        applyLoop(loop, seekTo = seekTo)
         _events.tryEmit(PlaybackEvent.LoopChanged)
         onPracticeSettingsChanged()
     }

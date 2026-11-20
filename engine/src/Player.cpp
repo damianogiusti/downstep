@@ -272,9 +272,9 @@ int Player::render(float *const *out, int frames) {
     positionFrames_.store(stretcher_.position());
 
     if (rendered < frames) {
-        // End of the file with the loop off: stop and tell the control side. While normalizing, the last
-        // 5 ms can still sit in the limiter's delay and are cut, if the end falls near the end of the
-        // block. Accepted: files end in silence or a fade almost always.
+        // End of the file (with the loop on, only after a seek at or past B): stop and tell the control
+        // side. While normalizing, the last 5 ms can still sit in the limiter's delay and are cut, if the
+        // end falls near the end of the block. Accepted: files end in silence or a fade almost always.
         isRunning_ = false;
         wantsPlaying_.store(false);
         positionFrames_.store(double(source_->frames));

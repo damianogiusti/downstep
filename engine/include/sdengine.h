@@ -23,7 +23,7 @@ extern "C" {
 
 typedef struct SdEngine SdEngine;
 
-/** Playback reached the end of the file with the loop off. Playback is already stopped. */
+/** Playback reached the end of the file. Playback is already stopped. */
 #define SD_EVENT_REACHED_END 1u
 
 #define SD_EQ_BANDS 7
@@ -72,7 +72,11 @@ SD_API void sd_engine_seek(SdEngine *engine, double position);
 /** 1.0 = original speed, 0.5 = half speed. */
 SD_API void sd_engine_set_speed(SdEngine *engine, double ratio);
 SD_API void sd_engine_set_pitch(SdEngine *engine, double semitones);
-/** Points are kept while the loop is off; playback is bounded by them only when it is on. */
+/**
+ * Points are kept while the loop is off. With the loop on, it wraps at the end point when playback
+ * reaches it from before it (from inside the loop, or from before the start point). A seek at or
+ * past the end point plays on to the end of the file.
+ */
 SD_API void sd_engine_set_loop(SdEngine *engine, double start, double end, int enabled);
 /** Same, and moves playback to `position` in the same audio block: no block plays with only half applied. */
 SD_API void sd_engine_set_loop_and_seek(SdEngine *engine, double start, double end, int enabled, double position);

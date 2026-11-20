@@ -62,6 +62,7 @@ private:
     std::unique_ptr<RequestState> request_;
     int64_t loopStart_ = 0, loopEnd_ = 0;
     bool loopOn_ = false;
+    bool pastLoop_ = false; // the last seek landed at or past B: B does not wrap (see seek, setLoop)
     float mixLeftToRight_ = 0.f, mixRightToLeft_ = 0.f, keepLeft_ = 1.f, keepRight_ = 1.f;
     std::vector<float> grainInput_;
     std::array<std::vector<float>, 2> fifo_;

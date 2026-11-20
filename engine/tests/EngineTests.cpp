@@ -250,6 +250,124 @@ void reachesEndWithLoopOff(const std::string &path) {
     sd_engine_destroy(e);
 }
 
+void seekPastLoopEndPlaysOn(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    sd_engine_set_loop(e, 0.2, 0.3, 1);
+    sd_engine_seek(e, 0.6);
+    sd_engine_set_playing(e, 1);
+    double previous = 0.6;
+    for (int block = 0; block < 30; ++block) { // 3 s: far more than the 1 s loop
+        render(e, 0.1);
+        const double position = sd_engine_position(e);
+        CHECK(position >= previous - 1e-9 && position >= 0.6 - 1e-9, "block %d: position %f after %f", block, position, previous);
+        CHECK(position < 0.2 || position > 0.3, "block %d: back in the loop at %f", block, position);
+        previous = position;
+    }
+    CHECK(previous > 0.85, "stalled at %f", previous);
+    render(e, 1.5);
+    CHECK(sd_engine_take_events(e) & SD_EVENT_REACHED_END, "no end event");
+    CHECK(!sd_engine_is_playing(e), "still playing at the end");
+    CHECK(sd_engine_position(e) == 1.0, "position %f", sd_engine_position(e));
+    sd_engine_destroy(e);
+}
+
+void seekBeforeLoopStartEntersTheLoop(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    sd_engine_set_loop(e, 0.2, 0.3, 1);
+    sd_engine_seek(e, 0.1);
+    sd_engine_set_playing(e, 1);
+    render(e, 0.1);
+    CHECK(sd_engine_position(e) > 0.1, "did not advance: %f", sd_engine_position(e));
+    render(e, 1.2); // 0.1 s source per 0.1 s: A is reached after 1 s
+    double lowest = 1, highest = 0;
+    for (int block = 0; block < 40; ++block) { // 4 s = 4 passes of the loop
+        render(e, 0.1);
+        lowest = std::min(lowest, sd_engine_position(e));
+        highest = std::max(highest, sd_engine_position(e));
+    }
+    CHECK(lowest >= 0.199 && highest <= 0.301, "positions %f..%f", lowest, highest);
+    CHECK(sd_engine_is_playing(e), "loop stopped");
+    sd_engine_destroy(e);
+}
+
+void playAfterStopPastLoopEndPlaysOn(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    sd_engine_set_loop(e, 0.2, 0.3, 1);
+    sd_engine_seek(e, 0.6);
+    sd_engine_set_playing(e, 1);
+    render(e, 0.5);
+    sd_engine_set_playing(e, 0);
+    render(e, 0.1);
+    const double stopped = sd_engine_position(e);
+    sd_engine_set_playing(e, 1); // restarts through TimeStretcher::seek at the stored position
+    render(e, 1.0);
+    CHECK(sd_engine_position(e) > stopped + 0.05 && sd_engine_position(e) > 0.6, "position %f after %f", sd_engine_position(e), stopped);
+    sd_engine_destroy(e);
+}
+
+void loopTurnedOnPastItsEndEngagesAtOnce(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    sd_engine_set_loop(e, 0.2, 0.3, 0);
+    sd_engine_seek(e, 0.6);
+    sd_engine_set_playing(e, 1);
+    render(e, 0.5);
+    CHECK(sd_engine_position(e) > 0.6, "loop off: position %f", sd_engine_position(e));
+    // Turning the loop on or setting new points keeps working as before: the audio jumps into it.
+    // (The desktop adapter seeks to A when the loop does not contain the playhead; see its tests.)
+    sd_engine_set_loop(e, 0.2, 0.3, 1);
+    render(e, 0.5);
+    for (int block = 0; block < 30; ++block) {
+        render(e, 0.1);
+        CHECK(sd_engine_position(e) >= 0.199 && sd_engine_position(e) <= 0.301, "block %d: position %f", block, sd_engine_position(e));
+    }
+    sd_engine_destroy(e);
+}
+
+void loopSetWhilePlayingInsideStillWraps(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    sd_engine_seek(e, 0.2);
+    sd_engine_set_playing(e, 1);
+    render(e, 0.3);
+    sd_engine_set_loop(e, 0.2, 0.3, 1);
+    double lowest = 1, highest = 0;
+    for (int block = 0; block < 40; ++block) {
+        render(e, 0.1);
+        if (block < 5) continue; // the playhead may still be on its way to B
+        lowest = std::min(lowest, sd_engine_position(e));
+        highest = std::max(highest, sd_engine_position(e));
+    }
+    CHECK(lowest >= 0.199 && highest <= 0.301, "positions %f..%f", lowest, highest);
+    sd_engine_destroy(e);
+}
+
+void seekToLoopEndPlaysOn(const std::string &path) {
+    for (const double target : {0.3, 0.3 + 0.005 / 10}) { // exactly B, then B + 5 ms (less than a grain hop)
+        SdEngine *e = openEngine(path);
+        sd_engine_set_loop(e, 0.2, 0.3, 1);
+        sd_engine_seek(e, target);
+        sd_engine_set_playing(e, 1);
+        render(e, 1.0);
+        CHECK(sd_engine_position(e) > target + 0.05, "seek %f: position %f", target, sd_engine_position(e));
+        for (int block = 0; block < 20; ++block) {
+            render(e, 0.1);
+            CHECK(sd_engine_position(e) > 0.3, "seek %f: back in the loop at %f", target, sd_engine_position(e));
+        }
+        sd_engine_destroy(e);
+    }
+}
+
+void seekToTheEndOfAnOpenEndedLoopFinishes(const std::string &path) {
+    SdEngine *e = openEngine(path);
+    sd_engine_set_loop(e, 0.2, 1.0, 1); // B at the end of the file
+    sd_engine_seek(e, 1.0);
+    sd_engine_set_playing(e, 1);
+    render(e, 0.5);
+    CHECK(sd_engine_take_events(e) & SD_EVENT_REACHED_END, "no end event");
+    CHECK(!sd_engine_is_playing(e), "still playing");
+    CHECK(sd_engine_position(e) == 1.0, "position %f", sd_engine_position(e));
+    sd_engine_destroy(e);
+}
+
 void mixFadesTheFarSide(const std::string &path) {
     // Left = tone, right = silence.
     const auto levels = [&](double mix) {
@@ -1091,6 +1209,13 @@ int main() {
         {"exports the whole file at the current speed", [&] { exportsTheWholeFileAtTheCurrentSpeed(path); }},
         {"loop stays inside its points", [&] { loopStaysInside(path); }},
         {"reaches the end with the loop off", [&] { reachesEndWithLoopOff(path); }},
+        {"a seek past the loop end plays on to the end", [&] { seekPastLoopEndPlaysOn(path); }},
+        {"a seek before the loop start enters the loop", [&] { seekBeforeLoopStartEntersTheLoop(path); }},
+        {"a seek at the loop end or just past it plays on", [&] { seekToLoopEndPlaysOn(path); }},
+        {"a seek to the end of an open-ended loop finishes", [&] { seekToTheEndOfAnOpenEndedLoopFinishes(path); }},
+        {"play after a stop past the loop end plays on", [&] { playAfterStopPastLoopEndPlaysOn(path); }},
+        {"a loop turned on past its end engages at once", [&] { loopTurnedOnPastItsEndEngagesAtOnce(path); }},
+        {"a loop set inside the playhead still wraps", [&] { loopSetWhilePlayingInsideStillWraps(path); }},
         {"too long for the budget is reported", [] { tooLongForTheBudgetIsReportedWithoutDecoding(); }},
         {"mix fades the far side", [&] { mixFadesTheFarSide(path); }},
         {"EQ boosts its band and flat is transparent", [] { eqBoostsItsBandAndFlatIsTransparent(); }},
