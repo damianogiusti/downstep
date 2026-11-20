@@ -42,6 +42,15 @@ void TimeStretcher::seek(double frame) {
     finished_ = false;
     position_ = frame;
     seekTarget_ = frame;
+    // The loop wraps at B only for playback that comes to B from before it. A target at or past B is
+    // the user going to another part of the song: play on from there, to the end of the file. Do not
+    // judge by the grain positions: preroll puts the first grain one hop before the target, so a
+    // target at B (or less than a hop past it) would look inside the loop and wrap at once. A target
+    // before A needs no flag: playback runs into the loop at A. A play after a stop also arrives
+    // here, with the stored position: stopped inside the loop it loops again, stopped past B it plays
+    // on. Player::render seeks after applyControls, so a loop delivered with the seek is judged by
+    // the target, not by the old playhead.
+    pastLoop_ = loopOn_ && frame >= double(loopEnd_);
 }
 
 void TimeStretcher::setSpeed(double ratio) { request_->request.speed = std::clamp(ratio, 0.05, 4.0); }
@@ -52,6 +61,10 @@ void TimeStretcher::setLoop(int64_t start, int64_t end, bool enabled) {
     loopStart_ = start;
     loopEnd_ = end;
     loopOn_ = enabled && end > start;
+    // New points or the loop turned on engage at once: with the playhead past B the audio wraps into
+    // the loop. The control side seeks to A when the playhead is outside the new loop, and that seek
+    // (delivered after this call, in the same block) sets the flag again from its target.
+    pastLoop_ = false;
 }
 
 void TimeStretcher::setMix(double mixRight) {
@@ -85,11 +98,14 @@ int TimeStretcher::render(float *const *out, int frames) {
 
 void TimeStretcher::produceGrain() {
     auto &r = request_->request;
-    if (loopOn_ && r.position >= double(loopEnd_)) {
+    const bool wraps = loopOn_ && !pastLoop_;
+    if (wraps && r.position >= double(loopEnd_)) {
         // Jump without reset: Bungee overlaps the grains on both sides, so the wrap stays smooth.
         r.position = double(loopStart_) + std::fmod(r.position - double(loopEnd_), double(loopEnd_ - loopStart_));
     }
-    if (!loopOn_ && r.position >= double(source_->frames)) {
+    // The end of the file ends playback unless the loop wraps (B is within the file, so a wrapping
+    // playhead never gets there). After a seek at or past B the end is real.
+    if (!wraps && r.position >= double(source_->frames)) {
         finished_ = true;
         return;
     }

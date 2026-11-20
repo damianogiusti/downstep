@@ -113,6 +113,54 @@ class DesktopPlaybackEngineTest {
     }
 
     @Test
+    fun `a loop turned on with the playhead past B moves to A`() = runTest {
+        val engine = openEngine()
+        engine.setLoop(LoopRegion(0.2f, 0.3f, isOn = false))
+        engine.seekTo(0.6f)
+
+        engine.setLoopOn(true)
+
+        assertEquals(0.2f, engine.position, 0.001f)
+    }
+
+    @Test
+    fun `a loop turned on past B while stopped loops when played`() = runTest {
+        val engine = openEngine()
+        engine.setLoop(LoopRegion(0.2f, 0.3f, isOn = false))
+        engine.seekTo(0.6f)
+        engine.setLoopOn(true)
+
+        engine.togglePlayStop()
+        repeat(40) {
+            playFor(0.1)
+            assertTrue(engine.position in 0.199f..0.301f, "at ${engine.position}")
+        }
+    }
+
+    @Test
+    fun `doubling a loop that leaves the playhead past B moves to A`() = runTest {
+        val engine = openEngine()
+        engine.setLoop(LoopRegion(0.2f, 0.3f, isOn = true))
+        engine.seekTo(0.6f)
+
+        engine.doubleLoop()
+
+        assertEquals(0.4f, engine.loopEnd, 0.001f)
+        assertEquals(0.2f, engine.position, 0.001f)
+    }
+
+    @Test
+    fun `a loop turned on with the playhead inside it does not move`() = runTest {
+        val engine = openEngine()
+        engine.setLoop(LoopRegion(0.2f, 0.4f, isOn = false))
+        engine.seekTo(0.3f)
+
+        engine.setLoopOn(true)
+
+        assertEquals(0.3f, engine.position, 0.001f)
+    }
+
+    @Test
     fun `turning the loop off keeps its points for later`() = runTest {
         val engine = openEngine()
         engine.setLoop(LoopRegion(0.2f, 0.4f, isOn = true))
