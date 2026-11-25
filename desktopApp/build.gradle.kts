@@ -83,7 +83,12 @@ val syncChangelog = tasks.register<Copy>("syncChangelog") {
     from(layout.projectDirectory.file("CHANGELOG.txt"))
     into(appResources.map { it.dir("common") })
 }
-tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(syncEngineLibrary, syncLicenses, syncChangelog) }
+// The animated splash and its HiDPI variants (icons/make-splash.py), in Compose's "common" resources.
+val syncSplash = tasks.register<Copy>("syncSplash") {
+    from(layout.projectDirectory.dir("splash"))
+    into(appResources.map { it.dir("common") })
+}
+tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(syncEngineLibrary, syncLicenses, syncChangelog, syncSplash) }
 
 // CI passes -PappVersion=1.0.<run number>: the band reports it from the window title or the log.
 val appVersion = providers.gradleProperty("appVersion").getOrElse("1.0.0")
@@ -99,6 +104,10 @@ compose.desktop {
         javaHome = javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(23)) }
             .get().metadata.installationPath.asFile.absolutePath
         jvmArgs += listOf("--enable-native-access=ALL-UNNAMED", "-Dslowdowner.version=$appVersion")
+        // A cold start takes seconds with nothing on screen, and people click again: the launcher shows
+        // this before the JVM starts, and it goes when the window appears. $APPDIR exists only in the
+        // packaged app; `run` finds no file and starts without a splash, as before.
+        jvmArgs += "-splash:\$APPDIR/resources/splash.gif"
         if (sentryDsn != null) {
             jvmArgs += listOf("-Dslowdowner.sentryDsn=$sentryDsn", "-Dslowdowner.sentryEnvironment=$sentryEnvironment")
         }

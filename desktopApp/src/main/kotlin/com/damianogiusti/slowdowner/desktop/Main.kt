@@ -81,7 +81,6 @@ import java.awt.Dimension
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.nio.file.Path
-import java.time.Duration
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -90,6 +89,9 @@ import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
 fun main() {
+    val mainStarted = Instant.now()
+    val splash = launcherSplash()
+    splash?.let { SplashOverlay.start(it, appVersion) }
     val directories = AppDirectories()
     // An update is putting the new version in place, and this copy would lock its files: it opens again
     // by itself. Before anything else, so that this process ends as soon as it can.
@@ -110,6 +112,7 @@ fun main() {
         println("Downstep is already running: asked it to come to the front")
         exitProcess(0)
     }
+    val locked = Instant.now()
     AppLog.start(directories.logs, appVersion)
     CrashReporting.start(appVersion, directories)
     val logger = CrashReporting.logger()
@@ -121,6 +124,7 @@ fun main() {
     thread(isDaemon = true, name = "discard-update") { DesktopUpdateInstaller.discardAbandoned(updates.installation, directories.updateWork) }
     // Read before this run counts itself (RecordAppLaunchUseCase, in startAppWork).
     val hasLaunchHistory = runCatching { PreferencesSupportPromptStore().read() != null }.getOrDefault(false)
+    val startupMarks = StartupMarks(process = processStart(), main = mainStarted, locked = locked, appStarted = Instant.now())
     // One line per run: how many people use which OS, and whether the engine started there.
     logger.i(
         "App started",
@@ -167,8 +171,8 @@ fun main() {
             LaunchedEffect(Unit) {
                 window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT)
                 window.useTransparentTitleBar()
-                // Once per run: tells how slow a cold start is where people see the warning about a second copy.
-                logger.i("Window shown", mapOf("startup" to startupBucket(secondsSinceProcessStart())))
+                // Once per run: how slow a cold start is, and which phase takes the time (StartupPhases).
+                logger.i("Window shown", startupProperties(startupMarks, Instant.now(), isSplashShown = splash != null))
             }
             DisposableEffect(Unit) {
                 instance.onAnotherLaunch = {
@@ -278,11 +282,6 @@ private object QuitWatchdog {
             Runtime.getRuntime().halt(0)
         }
     }
-}
-
-private fun secondsSinceProcessStart(): Long {
-    val start = ProcessHandle.current().info().startInstant().orElse(null) ?: return 0
-    return Duration.between(start, Instant.now()).seconds.coerceAtLeast(0)
 }
 
 /** Few values on purpose: they become a property in Sentry. */

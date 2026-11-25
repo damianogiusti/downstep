@@ -108,11 +108,24 @@ jobs:
           Copy-Item "$stage/Downstep/app/resources/licenses/*" "$stage/licenses"
           Get-ChildItem -Recurse "$stage/Downstep/app/resources" | Select-Object FullName, Length
 
+      # For the video of the start below. The runner image may not have it.
+      - name: Install ffmpeg
+        run: if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { choco install ffmpeg --no-progress -y }
+
       # Smoke test of what testers get: the packed exe starts, finds its DLLs and logs no
       # exception. The runner has no audio device: the app runs with the no-output banner.
+      # A video records what a user sees from the click: the splash, the window, a second launch.
       - name: Start the packed app
         run: |
           try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop } catch { Write-Host "Resolution unchanged: $_" }
+          New-Item -ItemType Directory -Force dist/video | Out-Null
+          # A fixed length, so it ends and closes the file by itself: about 2 s before the start,
+          # 30 s of app, the second launch.
+          $recorder = Start-Process ffmpeg -NoNewWindow -PassThru -ArgumentList @(
+            "-hide_banner", "-loglevel", "error", "-f", "gdigrab", "-framerate", "30", "-draw_mouse", "0", "-i", "desktop",
+            "-t", "45", "-vf", "scale=1280:-2", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "dist/video/launch.mp4"
+          )
+          Start-Sleep -Seconds 2
           $app = Start-Process -FilePath "dist/Downstep-windows-x64-$env:APP_VERSION/Downstep/Downstep.exe" -PassThru
           Start-Sleep -Seconds 30
           New-Item -ItemType Directory -Force dist/screenshots | Out-Null
@@ -133,7 +146,11 @@ jobs:
           $log = "$env:APPDATA/SlowDowner/logs/slowdowner.log"
           Copy-Item $log dist/screenshots/
           Get-Content $log
+          $recorded = $recorder.WaitForExit(30000)
+          if (-not $recorded) { Stop-Process -Id $recorder.Id -Force }
           if (-not $running) { throw "The app exited after start (code $($app.ExitCode))" }
+          # The launcher must show the animated splash (desktopApp/splash): the app reports it.
+          if (-not (Select-String -Path $log -SimpleMatch "splash=shown" -Quiet)) { throw "The launcher showed no splash" }
           if (Select-String -Path $log -Pattern "Exception" -Quiet) { throw "Exceptions in the log" }
           if (-not $secondQuit) { throw "A second launch kept running next to the first" }
           if ($second.ExitCode -ne 0) { throw "A second launch exited with code $($second.ExitCode)" }
@@ -227,6 +244,15 @@ jobs:
           $bin = (New-Object -ComObject Shell.Application).Namespace(10).Items() | ForEach-Object { $_.Name }
           Write-Output "Recycle Bin: $($bin -join ', ')"
           if ($bin -notcontains "Downstep (old)") { throw "The old app is not in the Recycle Bin" }
+
+      - name: Upload the start video
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-launch
+          path: dist/video/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Upload app screenshot
         if: always()

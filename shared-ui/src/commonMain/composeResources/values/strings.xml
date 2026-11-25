@@ -280,4 +280,15 @@
     <string name="settings_waveform_summary">Draws the track in the timeline. With Fine on in the A-B loop, the zoom on the loop draws it too.</string>
     <!-- Zoom on the A-B loop -->
     <string name="loop_zoom_description">Zoom on the loop, from %1$s to %2$s</string>
+    <!-- Desktop splash, one at a time while the app starts: they all end with … to say it is loading -->
+    <string name="splash_line_1">Every solo starts slow…</string>
+    <string name="splash_line_2">Looking for the pick under the sofa…</string>
+    <string name="splash_line_3">Warming up the amp tubes…</string>
+    <string name="splash_line_4">Tuning, then tuning again…</string>
+    <string name="splash_line_5">Asking the drummer to slow down…</string>
+    <string name="splash_line_6">The neighbours know this riff by now…</string>
+    <string name="splash_line_7">Full speed tomorrow, I promise…</string>
+    <string name="splash_line_8">Practising slowly, like the teacher said…</string>
+    <string name="splash_line_9">Letting the singer catch a breath…</string>
+    <string name="splash_line_10">Tuning the pick too…</string>
 </resources>
