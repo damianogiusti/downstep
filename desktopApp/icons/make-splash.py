@@ -5,7 +5,8 @@ Usage: python3 -I make-splash.py   (needs Pillow; run from anywhere)
 The Java launcher draws it before the JVM starts and animates it on its own thread, so it moves
 while the app loads. It goes away by itself when the first window appears. GIF is the only format
 the launcher animates: 256 colours and no partial transparency, so the background is opaque and
-the edges are smoothed against it.
+the edges are smoothed against it. The version and the rotating line are not in the picture: the
+app draws them over it once the JVM runs (SplashOverlay.kt).
 
 The launcher picks a bigger file on a HiDPI screen by its name: name@2x.gif on macOS,
 name.scale-<dpi>.gif on Windows (120 = 125%, 144 = 150%, 168 = 175%, 192 = 200%).
@@ -26,7 +27,10 @@ TRACK = (0x2C, 0x32, 0x3B)
 ARC = (0xF2, 0xA5, 0x41)
 TEXT = (0xEC, 0xE8, 0xE2)
 
-WIDTH, HEIGHT = 320, 200
+WIDTH, HEIGHT = 320, 250
+# The app draws the version and a rotating line over the splash, in the space left between the name
+# and the spinner (SplashOverlay.kt): keep the two layouts in step.
+SPINNER_Y = 222
 FRAMES = 24
 FRAME_MS = 40  # one turn in about a second
 SUPERSAMPLE = 4
@@ -62,7 +66,7 @@ def frame(base, scale, index):
     image = base.copy()
     draw = ImageDraw.Draw(image)
     radius = 10 * k
-    centre = (image.width / 2, 170 * k)
+    centre = (image.width / 2, SPINNER_Y * k)
     box = [centre[0] - radius, centre[1] - radius, centre[0] + radius, centre[1] + radius]
     stroke = max(1, round(2.5 * k))
     draw.ellipse(box, outline=TRACK, width=stroke)

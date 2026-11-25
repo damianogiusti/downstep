@@ -1,7 +1,5 @@
 package com.damianogiusti.slowdowner.desktop
 
-import java.awt.HeadlessException
-import java.awt.SplashScreen
 import java.time.Duration
 import java.time.Instant
 
@@ -54,13 +52,3 @@ private val PHASE_BUCKETS = listOf(
 )
 
 internal fun processStart(): Instant? = ProcessHandle.current().info().startInstant().orElse(null)
-
-/** Asked at the start of main(): the launcher's splash closes when the window appears. */
-internal fun isSplashShown(): Boolean = try {
-    SplashScreen.getSplashScreen() != null
-} catch (_: HeadlessException) {
-    false
-} catch (_: UnsupportedOperationException) {
-    // A launcher or a platform without splash support.
-    false
-}

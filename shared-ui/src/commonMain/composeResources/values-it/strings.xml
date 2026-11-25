@@ -278,4 +278,15 @@
     <string name="settings_waveform_summary">Disegna il brano nella timeline. Con Fine acceso nel loop A-B, lo disegna anche lo zoom sul loop.</string>
     <!-- Zoom sul loop A-B -->
     <string name="loop_zoom_description">Zoom sul loop, da %1$s a %2$s</string>
+    <!-- Splash desktop, una alla volta mentre l'app parte: finiscono tutte con … per dire che sta caricando -->
+    <string name="splash_line_1">Anche gli assoli partono piano…</string>
+    <string name="splash_line_2">Cerco il plettro sotto il divano…</string>
+    <string name="splash_line_3">Scaldo le valvole dell'ampli…</string>
+    <string name="splash_line_4">Accordo la chitarra, poi la riaccordo…</string>
+    <string name="splash_line_5">Convinco il batterista a rallentare…</string>
+    <string name="splash_line_6">I vicini ormai lo sanno a memoria…</string>
+    <string name="splash_line_7">Domani lo suono a tempo, giuro…</string>
+    <string name="splash_line_8">Studio piano, come diceva il maestro…</string>
+    <string name="splash_line_9">Faccio prendere fiato al cantante…</string>
+    <string name="splash_line_10">Accordo anche il plettro…</string>
 </resources>

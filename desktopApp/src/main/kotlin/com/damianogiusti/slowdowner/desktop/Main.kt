@@ -90,7 +90,8 @@ import kotlin.system.exitProcess
 
 fun main() {
     val mainStarted = Instant.now()
-    val isSplashShown = isSplashShown()
+    val splash = launcherSplash()
+    splash?.let { SplashOverlay.start(it, appVersion) }
     val directories = AppDirectories()
     // An update is putting the new version in place, and this copy would lock its files: it opens again
     // by itself. Before anything else, so that this process ends as soon as it can.
@@ -171,7 +172,7 @@ fun main() {
                 window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT)
                 window.useTransparentTitleBar()
                 // Once per run: how slow a cold start is, and which phase takes the time (StartupPhases).
-                logger.i("Window shown", startupProperties(startupMarks, Instant.now(), isSplashShown))
+                logger.i("Window shown", startupProperties(startupMarks, Instant.now(), isSplashShown = splash != null))
             }
             DisposableEffect(Unit) {
                 instance.onAnotherLaunch = {
