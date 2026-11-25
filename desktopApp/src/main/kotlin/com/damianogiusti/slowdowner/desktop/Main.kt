@@ -180,8 +180,14 @@ fun main() {
                     // A frozen window cannot come forward: then the new launch must not quit.
                     runCatching { shown.get(1, TimeUnit.SECONDS) }.isSuccess.also { cameForward ->
                         // Tells how often people start the app again while it runs.
-                        if (cameForward) logger.i("Second launch")
+                        if (cameForward) logger.i("Second launch", mapOf("while" to "open"))
                     }
+                }
+                // Launches that came while this copy was starting quit counting on this window: it comes forward.
+                instance.takeJoinedLaunches()?.let { joined ->
+                    SwingUtilities.invokeLater { bringToFront(window, windowState) }
+                    // Tells how often, and how many times, people click again while the app starts.
+                    logger.i("Second launch", joined)
                 }
                 // The window goes only when the app quits: from now on a new launch waits for this copy to exit.
                 onDispose { instance.quitting() }
